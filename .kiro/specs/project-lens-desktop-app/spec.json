@@ -2,9 +2,9 @@
   "feature_name": "project-lens-desktop-app",
   "project_description": "@docs/memo.md にあるデスクトップアプリを作りたいです",
   "created_at": "2025-08-09T00:00:00Z",
-  "updated_at": "2025-08-09T14:30:00Z",
+  "updated_at": "2025-08-09T15:50:00Z",
   "language": "japanese",
-  "phase": "design-generated",
+  "phase": "tasks-generated",
   "approvals": {
     "requirements": {
       "generated": true,
@@ -12,10 +12,10 @@
     },
     "design": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "tasks": {
-      "generated": false,
+      "generated": true,
       "approved": false
     }
   },

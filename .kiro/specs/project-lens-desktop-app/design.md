@@ -2,7 +2,7 @@
 
 ## 概要
 
-ProjectLensは、Backlog MCP Serverを活用して複数のBacklogスペースから関連度の高いチケットを自動抽出・表示・通知するデスクトップアプリケーションです。Electron + Nuxt 3 + Vuetifyの技術スタックを採用し、SQLiteによるローカルデータキャッシュとMastraフレームワーク経由でのLLM統合により、効率的なタスク管理と自動優先順位付けを実現します。
+ProjectLensは、Backlog Direct APIで複数のBacklogスペースから関連度の高いチケットを自動抽出・表示・通知するデスクトップアプリケーションです。Electron + Nuxt 3 + Vuetifyの技術スタックを採用し、SQLiteキャッシュベースの冗長性とMastraフレームワーク経由でのLLM統合により、効率的なタスク管理と自動優先順位付けを実現します。シンプルなアーキテクチャで高いパフォーマンスとメンテナンシビリティを実現します。
 
 ## 要件マッピング
 
@@ -10,7 +10,7 @@ ProjectLensは、Backlog MCP Serverを活用して複数のBacklogスペース�
 
 各設計コンポーネントが対応する要件:
 
-- **MCPマネージャー** → REQ-1: Backlog連携・データ管理システム
+- **BacklogAPIマネージャー** → REQ-1: Backlog連携・データ管理システム
 - **スコアリングエンジン** → REQ-2: チケット関連度スコアリングシステム
 - **通知システム** → REQ-3: 通知システム
 - **Mastra AI統合** → REQ-4: LLM機能・AI要約アドバイス
@@ -21,7 +21,7 @@ ProjectLensは、Backlog MCP Serverを活用して複数のBacklogスペース�
 
 ### ユーザーストーリーカバレッジ
 
-- **複数Backlogスペース管理**: MCPマネージャーによる並列接続とデータ統合
+- **複数Backlogスペース管理**: BacklogAPIマネージャーによるDirect API並列接続とデータ統合
 - **関連度高いチケット把握**: スコアリングエンジンによる2段階優先度システム
 - **適切なタイミング通知**: 通知システムによる優先度別通知戦略
 - **AI要約とアドバイス**: Mastra統合によるLLM活用
@@ -32,7 +32,7 @@ ProjectLensは、Backlog MCP Serverを活用して複数のBacklogスペース�
 
 ## アーキテクチャ
 
-### 基本アーキテクチャ（通常時）
+### シンプルアーキテクチャ
 
 ```mermaid
 graph TB
@@ -43,7 +43,7 @@ graph TB
     end
 
     subgraph "アプリケーション層"
-        D[MCP Manager]
+        D[Backlog API Manager]
         E[Scoring Engine]
         F[Notification Service]
         G[Background Worker]
@@ -59,11 +59,11 @@ graph TB
     subgraph "データ層"
         K[SQLite Database]
         L[Drizzle ORM]
-        M[Cache Layer]
+        M[SQLite Cache Layer]
     end
 
     subgraph "外部サービス"
-        N[Backlog MCP Servers]
+        N[Backlog REST API]
         O[Claude/GPT-4/Gemini APIs]
     end
 
@@ -90,15 +90,14 @@ graph TB
     E --> I
 ```
 
-### 障害対応・フォールバック アーキテクチャ
+### SQLiteキャッシュベース冗長性アーキテクチャ
 
 ```mermaid
 graph TB
-    subgraph "レジリエンス層"
-        HR[Health Monitor]
-        FR[Fallback Router]
-        RM[Recovery Manager]
-        UX[Fallback UX Manager]
+    subgraph "エラーハンドリング層"
+        EH[Error Handler]
+        RM[Retry Manager]
+        UX[Status UX Manager]
     end
 
     subgraph "フロントエンド層"
@@ -106,17 +105,13 @@ graph TB
         B[Nuxt 3 Renderer Process]
         C[Vuetify UI Components]
         SI[Status Indicator]
-        NB[Notification Banner]
+        NB[Offline Banner]
     end
 
     subgraph "アプリケーション層"
-        D[MCP Manager]
-        D2[MCP Fallback Manager]
-        DA[Direct API Client]
+        D[Backlog API Manager]
         E[Scoring Engine]
         I[Mastra Framework]
-        I2[Mastra Fallback Manager]
-        LA[Local AI Processor]
         F[Notification Service]
         G[Background Worker]
         H[Settings Manager]
@@ -125,49 +120,34 @@ graph TB
     subgraph "データ層"
         K[SQLite Database]
         L[Drizzle ORM]
-        M[Cache Layer]
-        CL[Change Log]
-        DR[Data Resilience]
+        M[SQLite Cache]
+        DR[Data Sync Manager]
     end
 
     subgraph "外部サービス"
-        N[Backlog MCP Servers]
-        BA[Backlog REST API]
+        N[Backlog REST API]
         O[Claude/GPT-4/Gemini APIs]
     end
 
-    %% 通常時の接続
-    D -.->|Normal| N
-    I -.->|Normal| O
+    %% メインフロー
+    D -->|Direct| N
+    I -->|Direct| O
 
-    %% フォールバック接続
-    D2 -->|Fallback| DA
-    DA -->|Direct| BA
-    I2 -->|Fallback| LA
+    %% エラーハンドリング
+    D -->|Error| EH
+    I -->|Error| EH
+    EH -->|Retry| RM
+    EH -->|Cache Mode| M
 
-    %% 健全性監視とルーティング
-    HR -->|Monitor| N
-    HR -->|Monitor| O
-    HR -->|Status| FR
-    FR -->|Route| D2
-    FR -->|Route| I2
+    %% データ同期
+    DR -->|Auto Sync| N
+    DR -->|Cache Update| M
 
-    %% 自動復旧
-    RM -->|Recovery| D
-    RM -->|Recovery| I
-    RM -->|Test| N
-    RM -->|Test| O
+    %% UXステータス
+    UX -->|Status| SI
+    UX -->|Offline Mode| NB
 
-    %% UX管理
-    UX -->|Notify| SI
-    UX -->|Notify| NB
-    UX -->|Status| C
-
-    %% データ永続化
-    DR -->|Track| CL
-    DR -->|Sync| L
-
-    %% 主要な接続
+    %% 基本接続
     A --> B
     B --> C
     B --> D
@@ -179,74 +159,69 @@ graph TB
     H --> K
     L --> K
     L --> M
+    D --> L
 
-    style HR fill:#ff9999
-    style FR fill:#ffcc99
-    style RM fill:#99ccff
-    style D2 fill:#ffff99
-    style I2 fill:#ffff99
-    style DA fill:#ccffcc
-    style LA fill:#ccffcc
+    style EH fill:#ff9999
+    style RM fill:#ffcc99
+    style M fill:#99ccff
+    style DR fill:#ccffcc
 ```
 
-### フォールバック戦略フロー
+### SQLiteキャッシュベース冗長性フロー
 
 ```mermaid
 flowchart TD
     Start([アプリケーション開始])
-    Monitor{サービス健全性監視}
 
-    MCPOk{MCP接続OK?}
+    DirectAPIOk{Direct API接続OK?}
     MastraOk{Mastra接続OK?}
 
     NormalOp[通常動作モード]
 
-    MCPFail[MCP障害検出]
-    DirectAPI[Direct API Mode]
-    CachedData[Cached Data Mode]
-    OfflineMode[Offline Mode]
+    APIError[APIエラー検出]
+    CacheMode[キャッシュデータモード]
+    LimitedMode[制限機能モード]
+    OfflineMode[オフラインモード]
 
-    MastraFail[Mastra障害検出]
+    MastraError[Mastraエラー検出]
     ProviderSwitch[他プロバイダー切替]
-    LocalAI[Local AI Mode]
+    NoAIMode[AI機能無効モード]
 
-    Recovery{復旧チェック}
+    AutoSync[自動データ同期]
     RestoreNormal[通常モード復帰]
 
-    Start --> Monitor
-    Monitor --> MCPOk
-    Monitor --> MastraOk
-
-    MCPOk -->|Yes| MastraOk
+    Start --> DirectAPIOk
+    DirectAPIOk -->|Yes| MastraOk
     MastraOk -->|Yes| NormalOp
 
-    MCPOk -->|No| MCPFail
-    MCPFail --> DirectAPI
-    DirectAPI -->|Failed| CachedData
-    CachedData -->|Failed| OfflineMode
+    DirectAPIOk -->|No| APIError
+    APIError --> CacheMode
+    CacheMode -->|Cache Empty| LimitedMode
+    LimitedMode -->|Network Down| OfflineMode
 
-    MastraOk -->|No| MastraFail
-    MastraFail --> ProviderSwitch
-    ProviderSwitch -->|Failed| LocalAI
+    MastraOk -->|No| MastraError
+    MastraError --> ProviderSwitch
+    ProviderSwitch -->|All Failed| NoAIMode
 
-    DirectAPI --> Recovery
-    CachedData --> Recovery
-    OfflineMode --> Recovery
-    ProviderSwitch --> Recovery
-    LocalAI --> Recovery
+    CacheMode --> AutoSync
+    LimitedMode --> AutoSync
+    OfflineMode --> AutoSync
+    ProviderSwitch --> AutoSync
+    NoAIMode --> AutoSync
 
-    Recovery -->|Success| RestoreNormal
-    Recovery -->|Failed| Monitor
+    AutoSync -->|Success| RestoreNormal
+    AutoSync -->|Failed| CacheMode
     RestoreNormal --> NormalOp
-    NormalOp --> Monitor
+    NormalOp --> DirectAPIOk
 
-    style MCPFail fill:#ff9999
-    style MastraFail fill:#ff9999
-    style DirectAPI fill:#ffcc99
+    style APIError fill:#ff9999
+    style MastraError fill:#ff9999
+    style CacheMode fill:#ffcc99
     style ProviderSwitch fill:#ffcc99
-    style CachedData fill:#ffff99
-    style LocalAI fill:#ffff99
+    style LimitedMode fill:#ffff99
+    style NoAIMode fill:#ffff99
     style OfflineMode fill:#ffcccc
+    style AutoSync fill:#ccffcc
 ```
 
 ### 技術スタック
@@ -263,8 +238,7 @@ flowchart TD
 #### バックエンド
 
 - **Node.js 22+**: JavaScriptランタイム
-- **@modelcontextprotocol/sdk**: MCP公式TypeScript SDK
-- **@mastra/mcp**: Mastra MCP統合クライアント
+- **axios**: HTTPクライアント（Backlog API接続）
 - **Drizzle ORM**: TypeScript-firstの軽量ORM
 - **better-sqlite3**: 高速同期SQLiteドライバー
 
@@ -292,7 +266,7 @@ flowchart TD
 
 #### Electron + Nuxt 3選択理由
 
-- **研究結果**: 2025年現在、electron-viteによる手動統合が最も安定している
+- **研究結果**: 2025年現在、electron-viteによる手動統合がもっとも安定している
 - **開発効率**: electron-viteの高速HMRとViteによる最適化されたビルド
 - **メンテナンス性**: Nuxtのモジュラーアーキテクチャとelectron-viteの柔軟な設定による拡張性
 - **安定性**: nuxt-electronの非互換性問題を回避し、長期メンテナンス可能な構成
@@ -311,9 +285,21 @@ flowchart TD
 - **キャッシュ戦略**: Drizzleの柔軟なキャッシュ機能
 - **Electron互換性**: better-sqlite3による安定動作
 
+#### Direct API Only選択理由
+
+- **シンプルなアーキテクチャ**: 中間層なしの直接接続でデバッグとトラブルシューティングが簡素
+- **高いパフォーマンス**: HTTP直接通信による低レイテンシと高速化
+- **メンテナンシビリティ**: 標準的なREST APIによる長期サポートと安定性
+- **軽量化**: 依存関係削減とバンドルサイズ減少
+
+#### SQLiteキャッシュ冗長性理由
+
+- **オフライン対応**: ネットワークエラー時のキャッシュデータでの継続動作
+- **段階的デグラデーション**: エラー時の機能制限での安定動作
+- **自動復旧**: 接続復帰時のデータ自動同期
+
 #### Mastra選択理由
 
-- **MCP標準対応**: 2025年の業界標準プロトコル対応
 - **マルチLLM対応**: プロバイダー切り替えが容易
 - **TypeScript native**: 型安全なAI統合
 
@@ -344,31 +330,35 @@ sequenceDiagram
     participant User
     participant ElectronMain as Electron Main
     participant NuxtApp as Nuxt App
-    participant MCPManager as MCP Manager
-    participant BacklogMCP as Backlog MCP
+    participant APIManager as Backlog API Manager
+    participant DirectAPI as Backlog Direct API
     participant SQLite as SQLite DB
 
     User->>ElectronMain: アプリ起動
     ElectronMain->>NuxtApp: レンダラープロセス起動
-    NuxtApp->>MCPManager: 初期化
-    MCPManager->>MCPManager: 段階的取得戦略開始
+    NuxtApp->>APIManager: 初期化
+    APIManager->>APIManager: 段階的取得戦略開始
+    APIManager->>DirectAPI: レート制限ヘッダー確認
+    DirectAPI-->>APIManager: X-RateLimit-* ヘッダー
 
-    Note over MCPManager: Stage 1: 高優先度データ
-    MCPManager->>BacklogMCP: 自分担当・期限迫るチケット取得
-    BacklogMCP-->>MCPManager: 高優先度チケット (5-10件)
-    MCPManager->>SQLite: データ保存
-    MCPManager-->>NuxtApp: 即座表示用データ
+    Note over APIManager: Stage 1: 高優先度データ
+    APIManager->>DirectAPI: 自分担当・期限迫るチケット取得
+    DirectAPI-->>APIManager: 高優先度チケット (5-10件) + Rate Limit Headers
+    APIManager->>SQLite: データ保存
+    APIManager-->>NuxtApp: 即座表示用データ
     NuxtApp-->>User: 初期画面表示
 
-    Note over MCPManager: Stage 2: 中優先度データ (バックグラウンド)
-    MCPManager->>BacklogMCP: 直近3か月全課題取得
-    BacklogMCP-->>MCPManager: 課題データ
-    MCPManager->>SQLite: バックグラウンド保存
+    Note over APIManager: Stage 2: 中優先度データ (バックグラウンド)
+    APIManager->>APIManager: レート制限残量チェック
+    APIManager->>DirectAPI: 直近3か月全課題取得（制限内）
+    DirectAPI-->>APIManager: 課題データ + Rate Limit Headers
+    APIManager->>SQLite: バックグラウンド保存
 
-    Note over MCPManager: Stage 3: 履歴データ (アイドル時)
-    MCPManager->>BacklogMCP: 1か月分履歴取得
-    BacklogMCP-->>MCPManager: 履歴データ
-    MCPManager->>SQLite: アイドル時保存
+    Note over APIManager: Stage 3: 履歴データ (アイドル時)
+    APIManager->>APIManager: スロットリング制御
+    APIManager->>DirectAPI: 1か月分履歴取得
+    DirectAPI-->>APIManager: 履歴データ + Rate Limit Headers
+    APIManager->>SQLite: アイドル時保存
 ```
 
 #### 2. スコアリングと通知
@@ -425,38 +415,39 @@ sequenceDiagram
 
 ### バックエンドサービス＆メソッドシグネチャ
 
-#### MCPManager Service（レジリエンス対応）
+#### BacklogAPIManager Service（シンプル化）
 
 ```typescript
-class MCPManager {
-  async initializeSpaces(configs: SpaceConfig[]): Promise<void>  // MCP接続初期化
+class BacklogAPIManager {
+  async initializeSpaces(configs: SpaceConfig[]): Promise<void>  // Direct API接続初期化
   async fetchHighPriorityIssues(spaceId: string): Promise<Issue[]>  // 高優先度チケット取得
   async fetchAllIssues(spaceId: string, since?: Date): Promise<Issue[]>  // 全チケット取得
   async fetchComments(issueId: string): Promise<Comment[]>  // コメント取得
-  async getUnifiedTools(): Promise<MCPTool[]>  // 統合ツール取得
+  async getRateLimitStatus(spaceId: string): Promise<RateLimitInfo>  // レート制限状況取得
 
-  // レジリエンス機能
-  async healthCheck(): Promise<ServiceHealth>  // 接続健全性チェック
-  async reconnectAll(): Promise<void>  // 全接続再試行
-  async reloadConfiguration(): Promise<void>  // 設定再読み込み
-  getCurrentStrategy(): FallbackStrategy  // 現在の動作モード
-  async switchToFallbackMode(mode: FallbackMode): Promise<void>  // フォールバックモード切替
-}
-
-class MCPFallbackManager {
-  async handleMCPFailure(error: MCPError): Promise<void>  // MCP障害ハンドリング
-  async initializeDirectBacklogAPI(): Promise<void>  // 直接API初期化
-  async enableCachedDataMode(): Promise<void>  // キャッシュモード有効化
-  async enterOfflineMode(): Promise<void>  // オフラインモード移行
-  async restoreNormalOperation(): Promise<void>  // 通常動作復帰
+  // エラーハンドリング機能
+  async handleAPIError(error: APIError): Promise<void>  // APIエラーハンドリング
+  async enableCacheMode(): Promise<void>  // キャッシュモード有効化
+  async syncWhenOnline(): Promise<void>  // オンライン時自動同期
+  getConnectionStatus(): ConnectionStatus  // 接続状態取得
 }
 
 class BacklogDirectClient {
   constructor(config: DirectAPIConfig)
   async validate(): Promise<void>  // API接続検証
-  async getIssues(projectId: string): Promise<Issue[]>  // チケット取得
-  async getComments(issueId: string): Promise<Comment[]>  // コメント取得
+  async getIssues(projectId: string): Promise<{issues: Issue[], rateLimits: RateLimitInfo}>  // チケット取得
+  async getComments(issueId: string): Promise<{comments: Comment[], rateLimits: RateLimitInfo}>  // コメント取得
   async updateIssue(issueId: string, data: Partial<Issue>): Promise<Issue>  // チケット更新
+  getRateLimitHeaders(response: AxiosResponse): RateLimitInfo  // レート制限ヘッダー解析
+  isOnline(): boolean  // オンライン状態チェック
+}
+
+class SQLiteCacheManager {
+  async getCachedIssues(spaceId: string): Promise<Issue[]>  // キャッシュチケット取得
+  async getCachedComments(issueId: string): Promise<Comment[]>  // キャッシュコメント取得
+  async updateCache(data: CacheData): Promise<void>  // キャッシュ更新
+  async syncPendingChanges(): Promise<void>  // 保留中変更の同期
+  getCacheStatus(): CacheStatus  // キャッシュ状態取得
 }
 ```
 
@@ -483,7 +474,7 @@ class NotificationService {
 }
 ```
 
-#### MastraAIService（レジリエンス対応）
+#### MastraAIService（シンプル化）
 
 ```typescript
 class MastraAIService {
@@ -492,24 +483,17 @@ class MastraAIService {
   async suggestNextActions(issue: Issue): Promise<Action[]>  // 次のアクション提案
   switchProvider(provider: LLMProvider): void  // プロバイダー切り替え
 
-  // レジリエンス機能
-  async testProvider(provider: LLMProvider, prompt: string): Promise<void>  // プロバイダーテスト
-  async validateProviders(): Promise<LLMProvider[]>  // 利用可能プロバイダー検証
-  async restart(): Promise<void>  // サービス再起動
-  isLocalModeEnabled(): boolean  // ローカルモード状態確認
+  // シンプルエラーハンドリング
+  async handleProviderError(error: ProviderError): Promise<void>  // プロバイダーエラーハンドリング
+  async fallbackToNextProvider(): Promise<boolean>  // 次のプロバイダーへフォールバック
+  isAnyProviderAvailable(): boolean  // 利用可能プロバイダーの確認
+  disableAIFeatures(): void  // AI機能の無効化
 }
 
-class MastraFallbackManager {
-  async handleMastraFailure(error: MastraError): Promise<void>  // Mastra障害ハンドリング
-  async switchToNextProvider(): Promise<void>  // 次のプロバイダー切り替え
-  async enableLocalAIFallback(): Promise<void>  // ローカルAI有効化
-}
-
-class LocalAIProcessor {
-  async processSummary(issues: Issue[]): Promise<Summary>  // ローカル要約生成
-  async processAdvice(issue: Issue): Promise<Advice>  // ローカルアドバイス生成
-  enableRuleBasedSummary(config: RuleConfig): void  // ルールベース要約
-  enableTemplateAdvice(config: TemplateConfig): void  // テンプレートアドバイス
+class SimpleAIFallback {
+  generateBasicSummary(issues: Issue[]): Summary  // シンプルな統計情報要約
+  generateBasicAdvice(issue: Issue): Advice  // テンプレートベースアドバイス
+  getStatusMessage(): string  // AI機能の状態メッセージ
 }
 ```
 
@@ -557,11 +541,11 @@ class LocalAIProcessor {
 
 システム障害に対する多層防御戦略：
 
-1. **健全性監視**: 継続的なサービス状態監視
-2. **自動フォールバック**: Direct API、キャッシュデータ、オフラインモード
+1. **健全性監視**: 継続的なサービス状態監視（Direct API優先）
+2. **自動フォールバック**: キャッシュデータ、オフラインモード
 3. **ローカルAI**: ルールベース要約、テンプレートアドバイス
 4. **ユーザー通知**: 分かりやすい状態表示とガイダンス
-5. **自動復旧**: 接続復旧時の自動正常化
+5. **自動復旧**: 接続復旧時の自動正常化（Direct API復帰優先）
 
 実装詳細は [`examples/fallback-implementation.md`](./examples/fallback-implementation.md) を参照。
 
@@ -587,7 +571,7 @@ class LocalAIProcessor {
 | API応答時間 (p95) | < 200ms | ローカルAPI呼び出し |
 | DB クエリ (p99) | < 50ms | SQLiteクエリ実行時間 |
 | メモリ使用量 | < 500MB | 通常使用時のRAM消費 |
-| 同時スペース数 | > 10 | 並列MCP接続数 |
+| 同時スペース数 | > 10 | 並列Direct API接続数 |
 
 ### キャッシング戦略
 
@@ -606,7 +590,7 @@ class LocalAIProcessor {
 ### テストカバレッジ要件
 
 - **ユニットテスト**: ≥80% コードカバレッジ
-- **統合テスト**: 全APIエンドポイントとMCP統合
+- **統合テスト**: 全APIエンドポイントとデータフロー
 - **E2Eテスト**: クリティカルユーザージャーニー
 - **パフォーマンステスト**: 期待ピークの2倍負荷
 
@@ -630,7 +614,7 @@ class LocalAIProcessor {
 
 - **API通信エラー**: 指数バックオフ（最大3回）
 - **データベースロック**: 即座リトライ（最大5回）
-- **MCP接続エラー**: 30秒間隔で再接続試行
+- **ネットワークエラー**: エクスポネンシャルバックオフ（最大3回）
 
 ## 実装例・設定例
 

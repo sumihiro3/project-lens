@@ -2,7 +2,7 @@
 
 ## アーキテクチャ概要
 
-ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、SQLiteによるローカルデータキャッシュとMastraフレームワーク経由でのLLM統合により、効率的なタスク管理と自動優先順位付けを実現するデスクトップアプリケーションです。
+ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、Backlog Direct APIのみを使用したシンプルなアーキテクチャで、SQLiteキャッシュベースの冗長性とMastraフレームワーク経由でのLLM統合により、効率的なタスク管理と自動優先順位付けを実現するデスクトップアプリケーションです。
 
 ## フロントエンド技術
 
@@ -33,11 +33,10 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 - **SQLite3 + better-sqlite3**: 高速同期SQLiteドライバー
 - **Drizzle ORM**: TypeScript-firstの軽量ORM
 
-### MCP・AI統合
+### AI・コミュニケーション
 
-- **@modelcontextprotocol/sdk**: MCP公式TypeScript SDK
-- **@mastra/mcp**: Mastra MCP統合クライアント
 - **@mastra/core**: AI Agentフレームワーク
+- **axios**: HTTPクライアント（Backlog Direct API接続）
 
 ### ユーティリティライブラリ
 
@@ -114,7 +113,6 @@ npm run build:linux
 
 - `BACKLOG_DOMAIN`: Backlogスペースドメイン
 - `BACKLOG_API_KEY`: Backlog APIキー
-- `ENABLE_TOOLSETS`: 有効化するMCPツールセット
 
 ### LLM設定
 
@@ -142,6 +140,19 @@ npm run build:linux
 
 ## アーキテクチャ決定根拠
 
+### Direct API Only アーキテクチャ選択理由
+
+- **シンプルさとメンテナンシビリティ**: 中間層なしの直接接続でデバッグとトラブルシューティングが簡素
+- **高いパフォーマンス**: HTTP直接通信による低レイテンシと軽量化
+- **依存関係削減**: 中間層の除去でバンドルサイズ削減
+- **長期安定性**: 標準的なREST APIによる長期サポートと互換性
+
+### SQLiteキャッシュベース冗長性理由
+
+- **オフライン対応**: ネットワークエラー時のキャッシュデータでの継続動作
+- **段階的デグラデーション**: エラー時の機能制限での安定動作
+- **自動復旧**: 接続復帰時のデータ自動同期
+
 ### Electron + Nuxt 3選択理由
 
 - **研究結果**: 2025年現在、electron-viteによる手動統合が最も安定
@@ -165,7 +176,6 @@ npm run build:linux
 
 ### Mastra選択理由
 
-- **MCP標準対応**: 2025年の業界標準プロトコル対応
 - **マルチLLM対応**: プロバイダー切り替えが容易
 - **TypeScript native**: 型安全なAI統合
 
@@ -195,26 +205,39 @@ npm run build:linux
 ### リソース使用量
 
 - **メモリ使用量**: < 500MB (通常使用時のRAM消費)
-- **同時スペース数**: > 10 (並列MCP接続数)
+- **同時スペース数**: > 10 (並列Direct API接続数)
 
 ## 外部サービス統合
 
-### Backlog MCP Server連携
+### Backlog Direct API接続
 
 ```bash
-# 前提条件: グローバルインストール
-npm install -g @nulab/backlog-mcp-server
+# HTTPクライアントインストール
+npm install axios
 ```
 
-### 対応MCP接続方式
+#### レート制限情報取得
 
-- グローバルインストール版
-- ローカルビルド版
-- Docker版
+```typescript
+// Backlog APIレスポンスヘッダーから取得可能
+const rateLimits = {
+  limit: response.headers['x-ratelimit-limit'],        // 最大リクエスト数
+  remaining: response.headers['x-ratelimit-remaining'], // 残りリクエスト数
+  reset: response.headers['x-ratelimit-reset']         // リセット時刻
+}
+```
 
 ### API制限・対応
 
-- **レート制限**: 150 req/分 × スペース数
+#### Direct API接続時
+
+- **レート制限**: 150 req/分 × スペース数（ヘッダーで完全監視）
 - **課題一覧制約**: 100件/リクエスト上限
-- **並列処理**: スペース毎独立取得
-- **階層化キャッシュ**: Hot/Warm/Cold戦略
+- **レスポンスヘッダー**: X-RateLimit-*でリアルタイム監視
+- **並列処理**: スペース毎独立取得（レート制限考慮）
+
+#### エラー時のSQLiteキャッシュ対応
+
+- **キャッシュデータ**: オフライン時の継続動作
+- **自動復旧**: 接続復帰時のデータ同期
+- **段階的デグラデーション**: エラー時の制限機能
