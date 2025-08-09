@@ -11,6 +11,10 @@ Generate detailed implementation tasks for feature: **$ARGUMENTS**
 
 **CRITICAL**: Tasks can only be generated after both requirements and design are reviewed and approved.
 
+## Sub agents
+
+- **MUST BE USE** `electron-developer` agent
+
 ### Interactive Review Process
 
 - Requirements document: @.kiro/specs/$ARGUMENTS/requirements.md

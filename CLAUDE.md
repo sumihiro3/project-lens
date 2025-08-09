@@ -4,6 +4,10 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 
 ## Project Context
 
+### Important
+
+- When the task is complete, run `afplay /System/Library/Sounds/Hero.aiff` to play the notification sound.
+
 ### Paths
 
 - Steering: `.kiro/steering/`
@@ -21,6 +25,7 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 - Use `/kiro:spec-status [feature-name]` to check progress
 
 **Current Specifications:**
+
 - `project-lens-desktop-app`: ProjectLens - Backlogチケット管理ツールのデスクトップアプリケーション
 
 ## Development Guidelines
