@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(afplay:*)"
+      "Bash(afplay:*)",
+      "Bash(gh issue view:*)",
+      "Bash(npm install)",
+      "Bash(npm view:*)"
     ],
     "deny": []
   }
