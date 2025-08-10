@@ -66,6 +66,7 @@ onMounted(() => {
 })
 
 // TypeScript型チェック用：テンプレートで使用される変数を明示的に参照
+// eslint-disable-next-line no-constant-condition
 if (false) {
   console.log(locale.value)
 }

@@ -35,6 +35,7 @@ const toggleTheme = (): void => {
 
 // TypeScript型チェック用：テンプレートで使用される変数を明示的に参照
 // これによりTypeScriptが変数の使用を認識できるようになります
+// eslint-disable-next-line no-constant-condition
 if (false) {
   console.log(isDark.value, toggleTheme)
 }
