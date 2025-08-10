@@ -66,7 +66,7 @@ export interface AITrigger {
   config: {
     schedule?: string // cron expression
     events?: string[] // イベント名
-    conditions?: Record<string, any>
+    conditions?: Record<string, unknown>
   }
 }
 
@@ -74,7 +74,7 @@ export interface AIWorkflowStep {
   id: string
   name: string
   type: 'analysis' | 'generation' | 'classification' | 'transformation' | 'action'
-  config: Record<string, any>
+  config: AIWorkflowStepConfig
   nextSteps?: string[] // 次のステップID
   onError?: 'stop' | 'continue' | 'retry'
 }
@@ -141,7 +141,7 @@ export interface AIAnalysisResult {
   tokensUsed: number
   executionTime: number // milliseconds
   createdAt: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export type AnalysisType
@@ -295,7 +295,7 @@ export interface AIAssistant {
   context: {
     projects: number[]
     recentInteractions: AIInteraction[]
-    preferences: Record<string, any>
+    preferences: AIAssistantPreferences
   }
   isActive: boolean
 }
@@ -335,14 +335,14 @@ export interface AIRecommendation {
   effort: 'low' | 'medium' | 'high'
   confidence: number
   data: {
-    currentState: Record<string, any>
-    suggestedChanges: Record<string, any>
-    expectedOutcome: Record<string, any>
+    currentState: Record<string, unknown>
+    suggestedChanges: Record<string, unknown>
+    expectedOutcome: Record<string, unknown>
   }
   actions: {
     label: string
     action: string
-    parameters: Record<string, any>
+    parameters: Record<string, unknown>
   }[]
   status: 'pending' | 'accepted' | 'rejected' | 'applied'
   createdAt: string
@@ -392,13 +392,13 @@ export interface AITrainingData {
     issue?: BacklogIssue
     project?: BacklogProject
     comments?: BacklogComment[]
-    context?: Record<string, any>
+    context?: AITrainingContext
   }
-  expectedOutput: any
-  actualOutput?: any
+  expectedOutput: AITrainingExpectedOutput
+  actualOutput?: AITrainingActualOutput
   feedback?: {
     correct: boolean
-    userCorrection?: any
+    userCorrection?: unknown
     confidence: number
   }
   createdAt: string
@@ -432,3 +432,93 @@ export interface AIModel {
   isAvailable: boolean
   lastChecked: string
 }
+
+// AI関連の追加型定義
+
+/**
+ * AIワークフローステップの設定オプション
+ */
+export interface AIWorkflowStepConfig {
+  /** プロンプトテンプレート */
+  prompt?: string
+  /** 対象フィールド */
+  targetFields?: string[]
+  /** しきい値設定 */
+  thresholds?: {
+    confidence?: number
+    similarity?: number
+    score?: number
+  }
+  /** 出力形式 */
+  outputFormat?: 'text' | 'json' | 'structured'
+  /** その他の設定 */
+  [key: string]: unknown
+}
+
+/**
+ * AIアシスタントの設定オプション
+ */
+export interface AIAssistantPreferences {
+  /** 言語設定 */
+  language?: 'ja' | 'en'
+  /** 応答スタイル */
+  responseStyle?: 'concise' | 'detailed' | 'technical'
+  /** 専門分野 */
+  specialization?: string[]
+  /** 通知設定 */
+  notifications?: {
+    analysisComplete?: boolean
+    recommendationsAvailable?: boolean
+    errorOccurred?: boolean
+  }
+  /** その他の設定 */
+  [key: string]: unknown
+}
+
+/**
+ * AIトレーニングデータのコンテキスト
+ */
+export interface AITrainingContext {
+  /** プロジェクト情報 */
+  project?: {
+    id: number
+    name: string
+    type: string
+  }
+  /** ユーザー情報 */
+  user?: {
+    id: number
+    experience: 'beginner' | 'intermediate' | 'expert'
+    role: string
+  }
+  /** 環境情報 */
+  environment?: {
+    timestamp: string
+    version: string
+    locale: string
+  }
+  /** その他のコンテキスト */
+  [key: string]: unknown
+}
+
+/**
+ * AIトレーニングの期待される出力
+ */
+export type AITrainingExpectedOutput
+  = | string
+    | number
+    | boolean
+    | {
+      priority?: 'urgent' | 'high' | 'medium' | 'low'
+      category?: string[]
+      timeEstimate?: number
+      similarity?: number
+      classification?: string
+      confidence?: number
+    }
+    | unknown[]
+
+/**
+ * AIトレーニングの実際の出力
+ */
+export type AITrainingActualOutput = AITrainingExpectedOutput

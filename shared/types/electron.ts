@@ -10,7 +10,7 @@ export interface ElectronAPI {
 
 declare global {
   interface Window {
-    electron: any
+    electron: ElectronAPI
     api: ElectronAPI
   }
 }

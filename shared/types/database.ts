@@ -15,7 +15,7 @@ export interface User {
   avatar?: string
   isActive: boolean
   lastSeen?: Date
-  preferences?: Record<string, any>
+  preferences?: UserPreferences
   createdAt: Date
   updatedAt: Date
 }
@@ -31,7 +31,7 @@ export interface Project {
   isFavorite: boolean
   color?: string
   sortOrder: number
-  settings?: Record<string, any>
+  settings?: ProjectSettings
   lastSyncAt?: Date
   createdAt: Date
   updatedAt: Date
@@ -57,7 +57,7 @@ export interface Issue {
   tags: string[]
   isBookmarked: boolean
   isArchived: boolean
-  customFields?: Record<string, any>
+  customFields?: Record<string, unknown>
   backlogData: BacklogIssue // 元のBacklogデータをJSONで保存
   lastSyncAt?: Date
   createdAt: Date
@@ -113,7 +113,7 @@ export interface ActivityLog {
   action: string
   resourceType: 'issue' | 'project' | 'comment' | 'user' | 'system'
   resourceId?: number
-  details?: Record<string, any>
+  details?: ActivityLogDetails
   ipAddress?: string
   userAgent?: string
   createdAt: Date
@@ -126,7 +126,7 @@ export interface Notification {
   type: string
   title: string
   message: string
-  data?: Record<string, any>
+  data?: NotificationData
   isRead: boolean
   readAt?: Date
   createdAt: Date
@@ -157,7 +157,7 @@ export interface SyncLog {
   itemsCreated: number
   itemsDeleted: number
   errorMessage?: string
-  errorDetails?: Record<string, any>
+  errorDetails?: Record<string, unknown>
 }
 
 // キャッシュテーブル
@@ -174,7 +174,7 @@ export interface Cache {
 export interface Session {
   id: string
   userId: number
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   expiresAt: Date
   createdAt: Date
   updatedAt: Date
@@ -203,7 +203,7 @@ export interface SearchHistory {
   id: number
   userId: number
   query: string
-  filters?: Record<string, any>
+  filters?: SearchFilters
   resultCount: number
   executedAt: Date
 }
@@ -215,7 +215,7 @@ export interface SavedSearch {
   name: string
   description?: string
   query: string
-  filters?: Record<string, any>
+  filters?: SearchFilters
   isGlobal: boolean
   sortOrder: number
   createdAt: Date
@@ -228,7 +228,7 @@ export interface Dashboard {
   userId: number
   name: string
   description?: string
-  layout: Record<string, any> // ウィジェットのレイアウト情報
+  layout: DashboardLayout // ウィジェットのレイアウト情報
   isDefault: boolean
   isPublic: boolean
   sortOrder: number
@@ -295,4 +295,139 @@ export interface UserWithRelations extends User {
   createdIssues?: Issue[]
   bookmarks?: Bookmark[]
   notifications?: Notification[]
+}
+
+// データベース関連の追加型定義
+
+/**
+ * ユーザー設定
+ */
+export interface UserPreferences {
+  /** テーマ設定 */
+  theme?: 'light' | 'dark' | 'system'
+  /** 言語設定 */
+  language?: 'ja' | 'en'
+  /** 通知設定 */
+  notifications?: {
+    email?: boolean
+    desktop?: boolean
+    sound?: boolean
+  }
+  /** ダッシュボード設定 */
+  dashboard?: {
+    defaultView?: string
+    refreshInterval?: number
+  }
+  /** その他の設定 */
+  [key: string]: unknown
+}
+
+/**
+ * プロジェクト設定
+ */
+export interface ProjectSettings {
+  /** 自動同期設定 */
+  autoSync?: {
+    enabled: boolean
+    interval: number // minutes
+  }
+  /** ラベル設定 */
+  labels?: {
+    colors: Record<string, string>
+    autoAssign: boolean
+  }
+  /** 通知設定 */
+  notifications?: {
+    newIssues: boolean
+    statusChanges: boolean
+    comments: boolean
+  }
+  /** その他の設定 */
+  [key: string]: unknown
+}
+
+/**
+ * アクティビティログの詳細情報
+ */
+export interface ActivityLogDetails {
+  /** 変更前の値 */
+  before?: Record<string, unknown>
+  /** 変更後の値 */
+  after?: Record<string, unknown>
+  /** 変更理由 */
+  reason?: string
+  /** 関連するID */
+  relatedIds?: number[]
+  /** その他の詳細 */
+  [key: string]: unknown
+}
+
+/**
+ * 通知データ
+ */
+export interface NotificationData {
+  /** 関連するリソース */
+  resource?: {
+    type: string
+    id: number
+    name?: string
+  }
+  /** アクション情報 */
+  action?: {
+    type: string
+    url?: string
+    label?: string
+  }
+  /** その他のデータ */
+  [key: string]: unknown
+}
+
+/**
+ * 検索フィルター
+ */
+export interface SearchFilters {
+  /** プロジェクトフィルター */
+  projects?: number[]
+  /** ステータスフィルター */
+  statuses?: string[]
+  /** 優先度フィルター */
+  priorities?: string[]
+  /** 担当者フィルター */
+  assignees?: number[]
+  /** 作成者フィルター */
+  creators?: number[]
+  /** 期間フィルター */
+  dateRange?: {
+    start?: string
+    end?: string
+    field?: 'createdAt' | 'updatedAt' | 'dueDate'
+  }
+  /** ラベルフィルター */
+  labels?: number[]
+  /** その他のフィルター */
+  [key: string]: unknown
+}
+
+/**
+ * ダッシュボードレイアウト
+ */
+export interface DashboardLayout {
+  /** ウィジェットの配置 */
+  widgets: {
+    id: string
+    type: string
+    x: number
+    y: number
+    width: number
+    height: number
+    config?: Record<string, unknown>
+  }[]
+  /** グリッド設定 */
+  grid?: {
+    columns: number
+    rowHeight: number
+    margin: [number, number]
+  }
+  /** その他の設定 */
+  [key: string]: unknown
 }

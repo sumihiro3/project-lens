@@ -142,7 +142,7 @@ export interface BacklogCustomField {
   applicableIssueTypes?: number[]
   allowAddItem?: boolean
   items?: BacklogCustomFieldItem[]
-  value?: any
+  value?: string | number | boolean | string[] | BacklogCustomFieldItem[]
 }
 
 export interface BacklogCustomFieldItem {

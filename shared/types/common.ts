@@ -2,8 +2,11 @@
  * 基本的な共通型定義
  */
 
-// APIレスポンスの基本型
-export interface ApiResponse<T = any> {
+/**
+ * APIレスポンスの基本型
+ * @template T - レスポンスデータの型
+ */
+export interface ApiResponse<T = unknown> {
   success: boolean
   data?: T
   error?: string
@@ -11,7 +14,9 @@ export interface ApiResponse<T = any> {
   timestamp: string
 }
 
-// ページネーション関連
+/**
+ * ページネーションパラメータ
+ */
 export interface PaginationParams {
   page: number
   limit: number
@@ -19,6 +24,10 @@ export interface PaginationParams {
   order?: 'asc' | 'desc'
 }
 
+/**
+ * ページネーション対応のレスポンス型
+ * @template T - アイテムの型
+ */
 export interface PaginatedResponse<T> {
   items: T[]
   totalCount: number
@@ -71,7 +80,7 @@ export interface NotificationAction {
 }
 
 // フィルター関連
-export interface FilterOption<T = any> {
+export interface FilterOption<T = unknown> {
   label: string
   value: T
   disabled?: boolean
@@ -90,28 +99,40 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 // 言語関連
 export type Locale = 'ja' | 'en'
 
-// エラー型
+/**
+ * アプリケーションエラー型
+ * エラーコード、メッセージ、詳細情報を含む標準化されたエラー形式
+ */
 export interface AppError {
   code: string
   message: string
-  details?: Record<string, any>
+  details?: Record<string, unknown>
   timestamp: string
 }
 
-// ローディング状態
+/**
+ * ローディング状態
+ * UIコンポーネントでローディング表示を制御するための型
+ */
 export interface LoadingState {
   isLoading: boolean
   message?: string
 }
 
-// 検索関連
+/**
+ * 検索パラメータ
+ * 検索クエリ、フィルター、ページネーションを含む汎用的な検索設定
+ */
 export interface SearchParams {
   query: string
-  filters?: Record<string, any>
+  filters?: Record<string, unknown>
   pagination?: PaginationParams
 }
 
-// キーバインド関連
+/**
+ * キーバインド設定
+ * ショートカットキーとアクションの関連付けを定義
+ */
 export interface KeyBinding {
   key: string
   modifiers?: ('ctrl' | 'cmd' | 'alt' | 'shift')[]
@@ -119,9 +140,28 @@ export interface KeyBinding {
   description: string
 }
 
-// ユーティリティ型
+/**
+ * ユーティリティ型
+ */
+
+/**
+ * 指定したフィールドをオプショナルにする
+ * @template T - ベース型
+ * @template K - オプショナルにするフィールド
+ */
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
+
+/**
+ * 指定したフィールドを必須にする
+ * @template T - ベース型
+ * @template K - 必須にするフィールド
+ */
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>
+
+/**
+ * 深い部分的型（ネストしたオブジェクトもオプショナルにする）
+ * @template T - ベース型
+ */
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
 }
