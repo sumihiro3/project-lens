@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
 
+/**
+ * アプリケーション全体の状態管理用インターフェース
+ * Piniaストアの状態定義
+ */
 interface AppState {
+  /** アプリケーションのローディング状態 */
   loading: boolean
+  /** アプリケーションのタイトル */
   title: string
 }
 

@@ -37,66 +37,125 @@ export interface PaginatedResponse<T> {
   hasPreviousPage: boolean
 }
 
-// 基本的なエンティティ型
+/**
+ * 基本エンティティ型
+ * すべてのデータベースエンティティが継承する基本構造
+ */
 export interface BaseEntity {
+  /** エンティティの一意識別子 */
   id: number
+  /** 作成日時（ISO文字列） */
   createdAt: string
+  /** 更新日時（ISO文字列） */
   updatedAt: string
 }
 
-// ファイル関連
+/**
+ * ファイル情報
+ * アップロードファイルや添付ファイルの基本情報
+ */
 export interface FileInfo {
+  /** ファイル名 */
   name: string
+  /** ファイルサイズ（バイト） */
   size: number
+  /** MIMEタイプ */
   type: string
+  /** ファイルのURL（オプション） */
   url?: string
+  /** ファイルパス（オプション） */
   path?: string
 }
 
-// 色関連
+/**
+ * UI色バリアント
+ * Vuetifyのカラーシステムに対応した色の種類
+ */
 export type ColorVariant = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
-// サイズ関連
+/**
+ * UIサイズバリアント
+ * コンポーネントサイズの統一的な指定
+ */
 export type SizeVariant = 'x-small' | 'small' | 'default' | 'large' | 'x-large'
 
-// 通知レベル
+/**
+ * 通知レベル
+ * 通知メッセージの重要度を表すレベル
+ */
 export type NotificationLevel = 'info' | 'success' | 'warning' | 'error'
 
-// 通知型
+/**
+ * 通知メッセージ型
+ * アプリケーション内で表示される通知の構造
+ */
 export interface Notification {
+  /** 通知の一意識別子 */
   id: string
+  /** 通知レベル（重要度） */
   level: NotificationLevel
+  /** 通知のタイトル */
   title: string
+  /** 通知のメッセージ内容 */
   message: string
+  /** 通知作成日時（ISO文字列） */
   timestamp: string
+  /** 既読状態 */
   read: boolean
+  /** 通知に対するアクションボタン（オプション） */
   actions?: NotificationAction[]
 }
 
+/**
+ * 通知アクション設定
+ * 通知に表示されるアクションボタンの設定
+ */
 export interface NotificationAction {
+  /** ボタンラベル */
   label: string
+  /** クリック時の実行関数 */
   action: () => void | Promise<void>
+  /** ボタンの色バリアント（オプション） */
   variant?: ColorVariant
 }
 
-// フィルター関連
+/**
+ * フィルター選択肢
+ * ドロップダウンやセレクトボックスで使用するオプション
+ * @template T - オプションの値の型
+ */
 export interface FilterOption<T = unknown> {
+  /** 表示ラベル */
   label: string
+  /** オプションの値 */
   value: T
+  /** 無効状態（オプション） */
   disabled?: boolean
 }
 
-// ソート関連
+/**
+ * ソート設定
+ * データのソート条件を指定するための設定
+ */
 export interface SortOption {
+  /** ソート対象のフィールド名 */
   field: string
+  /** 表示用ラベル */
   label: string
+  /** ソート方向 */
   direction: 'asc' | 'desc'
 }
 
-// テーマ関連
+/**
+ * テーマモード
+ * アプリケーションの表示テーマ
+ */
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-// 言語関連
+/**
+ * ロケール設定
+ * サポートする言語コード
+ */
 export type Locale = 'ja' | 'en'
 
 /**
