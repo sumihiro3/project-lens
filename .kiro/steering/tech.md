@@ -2,55 +2,56 @@
 
 ## アーキテクチャ概要
 
-ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、Backlog Direct APIのみを使用したシンプルなアーキテクチャで、SQLiteキャッシュベースの冗長性とMastraフレームワーク経由でのLLM統合により、効率的なタスク管理と自動優先順位付けを実現するデスクトップアプリケーションです。
+ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、Backlog Direct APIを使用したシンプルなアーキテクチャで、効率的なタスク管理を実現するデスクトップアプリケーションです。現在は基本的なプロジェクト構造とUI基盤が構築済みで、今後SQLiteキャッシュとLLM統合機能を段階的に実装予定です。
 
 ## フロントエンド技術
 
 ### コアフレームワーク
 
 - **Electron 33.0.0**: クロスプラットフォームデスクトップアプリケーション
-- **Nuxt 3.16.0**: Vue 3ベースのフレームワーク、SSR無効設定
+- **Nuxt 3.18.1**: Vue 3ベースのフレームワーク、SSR無効設定
 - **Vue 3.5.0**: Composition APIによるリアクティブUI
 - **TypeScript 5.7.2**: 型安全性の確保
 
-### UIライブラリ
+### UIライブラリ・テンプレート
 
-- **Vuetify 3.8.0**: Material Designコンポーネントライブラリ
-- **@vuetify/nuxt 0.13.0**: Nuxt 3統合プラグイン
+- **Vuetify 3.9.4**: Material Designコンポーネントライブラリ
+- **vite-plugin-vuetify 2.0.4**: Nuxt 3統合プラグイン
+- **Pug 3.0.3**: HTMLテンプレートエンジン（Vue SFCで使用可能）
+- **Sass 1.80.0**: CSSプリプロセッサー（SCSS/Sass記法対応）
 
 ### 状態管理・ユーティリティ
 
-- **Pinia 2.3.0**: Vue 3対応の軽量状態管理
-- **@pinia/nuxt 0.6.0**: Nuxt 3統合
-- **@vueuse/core 11.4.0**: Vue Composition API ユーティリティ
-- **@vueuse/nuxt 11.4.0**: Nuxt 3統合
+- **Pinia 3.0.3**: Vue 3対応の軽量状態管理
+- **@pinia/nuxt 0.11.2**: Nuxt 3統合
+- **@vueuse/core 13.6.0**: Vue Composition API ユーティリティ
+- **@vueuse/nuxt 13.6.0**: Nuxt 3統合
 
 ## バックエンド・データ技術
 
 ### ランタイム・データベース
 
 - **Node.js 22+**: JavaScriptランタイム
-- **SQLite3 + better-sqlite3**: 高速同期SQLiteドライバー
-- **Drizzle ORM**: TypeScript-firstの軽量ORM
+- **[予定] SQLite3 + better-sqlite3**: 高速同期SQLiteドライバー（今後実装予定）
+- **[予定] Drizzle ORM**: TypeScript-firstの軽量ORM（今後実装予定）
 
 ### AI・コミュニケーション
 
-- **@mastra/core**: AI Agentフレームワーク
-- **axios**: HTTPクライアント（Backlog Direct API接続）
+- **[予定] @mastra/core**: AI Agentフレームワーク（今後実装予定）
+- **[予定] axios**: HTTPクライアント（Backlog Direct API接続、今後実装予定）
 
 ### ユーティリティライブラリ
 
-- **Pino**: 構造化ログライブラリ（レベル別出力対応）
-- **node-notifier**: クロスプラットフォーム通知
-- **node-cron**: バッチ処理スケジューリング
+- **[予定] Pino**: 構造化ログライブラリ（今後実装予定）
+- **[予定] node-notifier**: クロスプラットフォーム通知（今後実装予定）
+- **[予定] node-cron**: バッチ処理スケジューリング（今後実装予定）
 
 ## 多言語化
 
 ### i18n技術スタック
 
-- **@nuxtjs/i18n 8.8.0**: Nuxt 3公式国際化モジュール
-- **vue-i18n 10.0.4**: Vue 3対応の国際化ライブラリ
-- **@intlify/unplugin-vue-i18n**: Nuxt 3統合プラグイン
+- **@nuxtjs/i18n 10.0.4**: Nuxt 3公式国際化モジュール
+- **vue-i18n 9.14.5**: Vue 3対応の国際化ライブラリ
 
 ### 対応言語
 
@@ -67,7 +68,7 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 ### 開発支援ツール
 
 - **@nuxt/devtools**: 最新版開発ツール
-- **@nuxt/eslint 0.8.0**: 統合ESLint設定
+- **@nuxt/eslint 1.8.0**: 統合ESLint設定
 - **TypeScript**: 厳密な型チェック
 
 ## 共通開発コマンド
@@ -75,11 +76,17 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 ### 開発・ビルドコマンド
 
 ```bash
-# 開発サーバー起動
+# 開発サーバー起動（Nuxt単体）
 npm run dev
 
-# プロダクションビルド
+# Electron開発サーバー起動
+npm run dev:electron
+
+# プロダクションビルド（Nuxt）
 npm run build
+
+# Electronビルド
+npm run build:electron
 
 # プレビューモード
 npm run preview
@@ -92,6 +99,15 @@ npm run lint
 
 # ESLint自動修正
 npm run lint:fix
+
+# テスト実行
+npm run test
+
+# テスト実行（一回のみ）
+npm run test:run
+
+# カバレッジ付きテスト
+npm run test:coverage
 ```
 
 ### プラットフォーム別ビルド
@@ -155,7 +171,7 @@ npm run build:linux
 
 ### Electron + Nuxt 3選択理由
 
-- **研究結果**: 2025年現在、electron-viteによる手動統合が最も安定
+- **研究結果**: 2025年現在、electron-viteによる手動統合がもっとも安定
 - **開発効率**: electron-viteの高速HMRとViteによる最適化ビルド
 - **メンテナンス性**: Nuxtのモジュラーアーキテクチャと拡張性
 - **安定性**: nuxt-electronの非互換性問題回避

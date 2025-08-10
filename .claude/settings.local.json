@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(afplay:*)"
+      "Bash(afplay:*)",
+      "Bash(gh issue view:*)",
+      "Bash(npm install)",
+      "Bash(npm view:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(npm run test:run:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(git rev-list:*)",
+      "Bash(gh auth:*)"
     ],
     "deny": []
   }
