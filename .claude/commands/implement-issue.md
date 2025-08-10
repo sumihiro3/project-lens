@@ -4,6 +4,8 @@ Arguments: <issue-number> (required)
 
 **Important: All guidance, suggestions, explanations, and user interactions should be in Japanese.**
 
+**Agent: Use the `electron-developer` agent for all implementation work, as this project uses Electron + Nuxt3 + Vuetify3 stack.**
+
 Phase 1: Issue Analysis and Setup
 
 1. **Issue comprehension**
@@ -42,6 +44,7 @@ Phase 2: Interactive Implementation
 ```
 
 5. **File-by-file guided implementation**
+**Use the `electron-developer` agent for all code implementation tasks.**
 For each implementation step (communicate in Japanese):
 
 - **Present Context**: Show current state and proposed changes in Japanese
