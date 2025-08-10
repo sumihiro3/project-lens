@@ -10,9 +10,9 @@ beforeAll(() => {
     api: {
       platform: 'test',
       versions: {
-        electron: '33.0.0'
-      }
-    }
+        electron: '33.0.0',
+      },
+    },
   } as any
 
   // Mock process.env

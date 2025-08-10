@@ -20,8 +20,8 @@ export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
             error: '#FF5252',
             info: '#2196F3',
             success: '#4CAF50',
-            warning: '#FFC107'
-          }
+            warning: '#FFC107',
+          },
         },
         dark: {
           colors: {
@@ -31,22 +31,22 @@ export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
             error: '#FF5252',
             info: '#2196F3',
             success: '#4CAF50',
-            warning: '#FB8C00'
-          }
-        }
-      }
+            warning: '#FB8C00',
+          },
+        },
+      },
     },
     icons: {
       defaultSet: 'mdi',
       aliases,
       sets: {
-        mdi
-      }
+        mdi,
+      },
     },
     locale: {
       locale: 'ja',
-      messages: { ja, en }
-    }
+      messages: { ja, en },
+    },
   })
 
   nuxtApp.vueApp.use(vuetify)

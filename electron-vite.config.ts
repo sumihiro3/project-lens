@@ -9,12 +9,12 @@ export default defineConfig({
       lib: {
         entry: 'electron/main/index.ts',
         formats: ['cjs'],
-        fileName: () => 'index.js'
+        fileName: () => 'index.js',
       },
       rollupOptions: {
-        external: ['electron']
-      }
-    }
+        external: ['electron'],
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
@@ -23,21 +23,21 @@ export default defineConfig({
       lib: {
         entry: 'electron/preload/index.ts',
         formats: ['cjs'],
-        fileName: () => 'index.js'
+        fileName: () => 'index.js',
       },
       rollupOptions: {
-        external: ['electron']
-      }
-    }
+        external: ['electron'],
+      },
+    },
   },
   renderer: {
     resolve: {
       alias: {
-        '@': resolve(__dirname, './src')
-      }
+        '@': resolve(__dirname, './src'),
+      },
     },
     server: {
-      port: 3000
-    }
-  }
+      port: 3000,
+    },
+  },
 })

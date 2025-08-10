@@ -8,12 +8,12 @@ interface AppState {
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
     loading: false,
-    title: 'ProjectLens'
+    title: 'ProjectLens',
   }),
 
   getters: {
-    isLoading: (state) => state.loading,
-    appTitle: (state) => state.title
+    isLoading: state => state.loading,
+    appTitle: state => state.title,
   },
 
   actions: {
@@ -23,6 +23,6 @@ export const useAppStore = defineStore('app', {
 
     setTitle(title: string) {
       this.title = title
-    }
-  }
+    },
+  },
 })

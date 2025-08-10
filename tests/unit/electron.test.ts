@@ -6,18 +6,18 @@ vi.mock('electron', () => ({
   app: {
     whenReady: vi.fn(() => Promise.resolve()),
     on: vi.fn(),
-    quit: vi.fn()
+    quit: vi.fn(),
   },
   BrowserWindow: vi.fn(() => ({
     loadFile: vi.fn(),
     on: vi.fn(),
     webContents: {
-      openDevTools: vi.fn()
-    }
+      openDevTools: vi.fn(),
+    },
   })),
   ipcMain: {
-    handle: vi.fn()
-  }
+    handle: vi.fn(),
+  },
 }))
 
 describe('Electron App', () => {
@@ -28,12 +28,12 @@ describe('Electron App', () => {
   it('should create BrowserWindow', () => {
     const window = new BrowserWindow({
       width: 1200,
-      height: 800
+      height: 800,
     })
     expect(window).toBeDefined()
     expect(BrowserWindow).toHaveBeenCalledWith({
       width: 1200,
-      height: 800
+      height: 800,
     })
   })
 
