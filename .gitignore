@@ -9,6 +9,9 @@ dist
 # Electron build outputs
 dist-electron
 
+# TypeScript build info files
+.tsbuildinfo*
+
 # Node dependencies
 node_modules
 
@@ -27,3 +30,13 @@ logs
 !.env.example
 
 tmp/
+
+# Performance monitoring files
+.performance/
+*.perf
+*.profile
+
+# Build analysis files
+bundle-report.html
+stats.json
+.webpack-bundle-analyzer/
