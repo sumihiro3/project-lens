@@ -2,7 +2,7 @@
 
 ## ルートディレクトリ構成
 
-```
+```sh
 ProjectLens/
 ├── .claude/                    # Claude Code設定・コマンド・エージェント
 │   ├── agents/                 # カスタムエージェント定義
@@ -42,6 +42,7 @@ ProjectLens/
 ├── electron-vite.config.ts   # Electron Vite設定
 ├── vitest.config.ts          # Vitest設定
 ├── eslint.config.js          # ESLint設定
+├── .prettierrc.js            # Prettier設定
 └── CLAUDE.md                 # Claude Code プロジェクト指示書
 ```
 
@@ -49,9 +50,9 @@ ProjectLens/
 
 ### `/electron/main/` - Electron メインプロセス
 
-```
+```sh
 electron/main/
-└── index.ts                   # メインプロセスエントリーポイント（実装済み）
+└── index.ts                   # メインプロセスエントリーポイント
 
 [今後追加予定の構造]
 ├── services/                  # バックエンドサービス
@@ -76,27 +77,27 @@ electron/main/
 
 ### `/electron/preload/` - プリロードスクリプト
 
-```
+```sh
 electron/preload/
-└── index.ts                   # プリロードスクリプト（実装済み）
+└── index.ts                   # プリロードスクリプト
 ```
 
 ### `/src/` - Nuxt 3 アプリケーション
 
-```
+```sh
 src/
-├── app.vue                    # ルートコンポーネント（実装済み）
-├── index.html                 # HTMLテンプレート（実装済み）
+├── app.vue                    # ルートコンポーネント
+├── index.html                 # HTMLテンプレート
 ├── layouts/                   # レイアウト
-│   └── default.vue            # デフォルトレイアウト（実装済み）
+│   └── default.vue            # デフォルトレイアウト
 ├── pages/                     # ページコンポーネント
-│   └── index.vue              # メインダッシュボード（実装済み）
+│   └── index.vue              # メインダッシュボード
 ├── components/                # 再利用可能コンポーネント（ディレクトリのみ存在）
 ├── composables/               # Composition API関数（ディレクトリのみ存在）
 ├── stores/                    # Pinia ストア
-│   └── app.ts                 # アプリケーション基本ストア（実装済み）
+│   └── app.ts                 # アプリケーション基本ストア
 ├── plugins/                   # Nuxt プラグイン
-│   └── vuetify.client.ts      # Vuetify設定（実装済み）
+│   └── vuetify.client.ts      # Vuetify設定
 ├── assets/                    # 静的アセット（ディレクトリのみ存在）
 └── public/                    # パブリックファイル（ディレクトリのみ存在）
 
@@ -139,16 +140,18 @@ src/
 
 ### `/shared/` - 共通コード
 
-```
+```sh
 shared/
 └── types/                     # TypeScript型定義
-    └── electron.ts            # Electron関連型定義（実装済み）
+    ├── ai.ts                  # AI関連型定義
+    ├── backlog.ts             # Backlog API型定義
+    ├── common.ts              # 共通型定義
+    ├── database.ts            # データベース型定義
+    ├── electron.ts            # Electron関連型定義
+    ├── index.ts               # 型定義のエクスポート
+    └── settings.ts            # 設定型定義
 
 [今後追加予定の構造]
-├── types/                     # TypeScript型定義
-│   ├── backlog.ts             # Backlog API型定義
-│   ├── settings.ts            # 設定型定義
-│   └── ai.ts                  # AI関連型定義
 ├── constants/                 # 定数定義
 │   ├── api.ts                 # API関連定数
 │   ├── scoring.ts             # スコアリング定数
@@ -161,9 +164,9 @@ shared/
 
 ### `/i18n/` - 国際化設定
 
-```
+```sh
 i18n/
-└── i18n.config.ts             # i18n設定（実装済み）
+└── i18n.config.ts             # i18n設定
 
 [今後追加予定の構造]
 ├── locales/                   # 多言語化ファイル
@@ -173,12 +176,12 @@ i18n/
 
 ### `/tests/` - テスト関連
 
-```
+```sh
 tests/
-├── setup.ts                   # テストセットアップ（実装済み）
+├── setup.ts                   # テストセットアップ
 └── unit/                      # ユニットテスト
-    ├── basic.test.ts          # 基本テスト（実装済み）
-    └── electron.test.ts       # Electronテスト（実装済み）
+    ├── basic.test.ts          # 基本テスト
+    └── electron.test.ts       # Electronテスト
 ```
 
 ## ファイル命名規則
@@ -281,7 +284,7 @@ import './component.css'
 
 ### 設定ファイル場所
 
-```
+```sh
 ~/.config/project-lens/
 ├── database.sqlite3          # SQLiteデータベース
 ├── config.json              # アプリケーション設定
