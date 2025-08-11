@@ -21,7 +21,7 @@
     "build:win": "npm run build:electron && npm run compile:electron && electron-builder --win",
     "build:mac": "npm run build:electron && npm run compile:electron && electron-builder --mac",
     "build:linux": "npm run build:electron && npm run compile:electron && electron-builder --linux",
-    "build:win:dev": "npm run build:electron && electron-builder --win --config.compression=store --config.nsis.oneClick=true",
+    "build:win:dev": "npm run build:electron && ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES=true electron-builder --win --config.compression=store --config.nsis.oneClick=true --config.nodeGypRebuild=false --config.directories.buildResources=null",
     "build:mac:dev": "npm run build:electron && electron-builder --mac --config.compression=store",
     "build:linux:dev": "npm run build:electron && electron-builder --linux --config.compression=store",
     "dist": "npm run build:electron && electron-builder",
@@ -106,7 +106,8 @@
       "!node_modules/**/spec/**/*",
       "!node_modules/**/docs/**/*",
       "!node_modules/**/example/**/*",
-      "!node_modules/**/examples/**/*"
+      "!node_modules/**/examples/**/*",
+      "!node_modules/@parcel/watcher/**/*"
     ],
     "extraResources": [
       {
@@ -118,6 +119,10 @@
     "compression": "maximum",
     "forceCodeSigning": false,
     "electronVersion": "33.0.0",
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "nativeRebuilder": "legacy",
+    "generateUpdatesFilesForAllChannels": false,
     "mac": {
       "target": [
         {
@@ -177,7 +182,6 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "build/icon.ico",
       "artifactName": "${productName}-${version}-win-${arch}.${ext}",
       "publisherName": "ProjectLens",
       "requestedExecutionLevel": "asInvoker",
@@ -187,11 +191,6 @@
       "oneClick": false,
       "perMachine": true,
       "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerSidebar": "build/installerSidebar.bmp",
-      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "ProjectLens",
