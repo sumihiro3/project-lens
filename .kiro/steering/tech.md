@@ -11,7 +11,10 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 - **Electron 33.0.0**: クロスプラットフォームデスクトップアプリケーション
 - **Nuxt 3.18.1**: Vue 3ベースのフレームワーク、SSR無効設定
 - **Vue 3.5.0**: Composition APIによるリアクティブUI
-- **TypeScript 5.7.2**: 型安全性の確保
+- **TypeScript 5.7.2**: strict mode + 追加厳密設定で型安全性を確保
+    - `noUncheckedIndexedAccess`: インデックスアクセスの厳密チェック
+    - `exactOptionalPropertyTypes`: オプショナルプロパティの厳密化
+    - `noImplicitOverride`: オーバーライドの明示的宣言
 
 ### UIライブラリ・テンプレート
 
@@ -69,7 +72,9 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 
 - **@nuxt/devtools**: 最新版開発ツール
 - **@nuxt/eslint 1.8.0**: 統合ESLint設定
-- **TypeScript**: 厳密な型チェック
+- **eslint-plugin-prettier 5.5.4**: ESLint・Prettier統合
+- **prettier 3.6.2**: コードフォーマッター
+- **TypeScript**: strict mode有効で厳密な型チェック
 
 ## 共通開発コマンド
 

@@ -45,15 +45,29 @@
         | {{ $t('actions.getStarted') }}
 </template>
 
-<script setup>
-const { locale } = useI18n()
-const platformInfo = ref('Unknown')
-const electronVersion = ref('N/A')
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 
+// 言語切り替えコンポーネントで使用
+// テンプレート内のv-model="locale"で参照
+const { locale } = useI18n()
+const platformInfo = ref<string>('Unknown')
+const electronVersion = ref<string>('N/A')
+
+/**
+ * コンポーネントマウント時にプラットフォーム情報を取得
+ */
 onMounted(() => {
   if (typeof window !== 'undefined' && window.api) {
     platformInfo.value = window.api.platform || 'Unknown'
     electronVersion.value = window.api.versions?.electron || 'N/A'
   }
 })
+
+// TypeScript型チェック用：テンプレートで使用される変数を明示的に参照
+// eslint-disable-next-line no-constant-condition
+if (false) {
+  console.log(locale.value)
+}
 </script>
