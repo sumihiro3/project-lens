@@ -124,7 +124,7 @@ export interface NotificationAction {
  * ドロップダウンやセレクトボックスで使用するオプション
  * @template T - オプションの値の型
  */
-export interface FilterOption<T = unknown> {
+export interface FilterOption<T = string | number | boolean> {
   /** 表示ラベル */
   label: string
   /** オプションの値 */
@@ -165,7 +165,7 @@ export type Locale = 'ja' | 'en'
 export interface AppError {
   code: string
   message: string
-  details?: Record<string, unknown>
+  details?: Record<string, string | number | boolean>
   timestamp: string
 }
 
@@ -184,7 +184,7 @@ export interface LoadingState {
  */
 export interface SearchParams {
   query: string
-  filters?: Record<string, unknown>
+  filters?: Record<string, string | number | boolean | string[]>
   pagination?: PaginationParams
 }
 

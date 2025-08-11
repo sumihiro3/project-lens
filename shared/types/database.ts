@@ -57,7 +57,7 @@ export interface Issue {
   tags: string[]
   isBookmarked: boolean
   isArchived: boolean
-  customFields?: Record<string, unknown>
+  customFields?: Record<string, string | number | boolean>
   backlogData: BacklogIssue // 元のBacklogデータをJSONで保存
   lastSyncAt?: Date
   createdAt: Date
@@ -157,7 +157,7 @@ export interface SyncLog {
   itemsCreated: number
   itemsDeleted: number
   errorMessage?: string
-  errorDetails?: Record<string, unknown>
+  errorDetails?: Record<string, string | number | boolean>
 }
 
 // キャッシュテーブル
@@ -174,7 +174,7 @@ export interface Cache {
 export interface Session {
   id: string
   userId: number
-  data?: Record<string, unknown>
+  data?: Record<string, string | number | boolean>
   expiresAt: Date
   createdAt: Date
   updatedAt: Date
@@ -319,7 +319,7 @@ export interface UserPreferences {
     refreshInterval?: number
   }
   /** その他の設定 */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | object | undefined
 }
 
 /**
@@ -343,7 +343,7 @@ export interface ProjectSettings {
     comments: boolean
   }
   /** その他の設定 */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | object | undefined
 }
 
 /**
@@ -351,15 +351,15 @@ export interface ProjectSettings {
  */
 export interface ActivityLogDetails {
   /** 変更前の値 */
-  before?: Record<string, unknown>
+  before?: Record<string, string | number | boolean>
   /** 変更後の値 */
-  after?: Record<string, unknown>
+  after?: Record<string, string | number | boolean>
   /** 変更理由 */
   reason?: string
   /** 関連するID */
   relatedIds?: number[]
   /** その他の詳細 */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | number[] | object | undefined
 }
 
 /**
@@ -379,7 +379,7 @@ export interface NotificationData {
     label?: string
   }
   /** その他のデータ */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | object | undefined
 }
 
 /**
@@ -405,7 +405,7 @@ export interface SearchFilters {
   /** ラベルフィルター */
   labels?: number[]
   /** その他のフィルター */
-  [key: string]: unknown
+  [key: string]: string[] | number[] | object | undefined
 }
 
 /**
@@ -420,7 +420,7 @@ export interface DashboardLayout {
     y: number
     width: number
     height: number
-    config?: Record<string, unknown>
+    config?: Record<string, string | number | boolean>
   }[]
   /** グリッド設定 */
   grid?: {
@@ -429,5 +429,5 @@ export interface DashboardLayout {
     margin: [number, number]
   }
   /** その他の設定 */
-  [key: string]: unknown
+  [key: string]: object | number | undefined
 }
