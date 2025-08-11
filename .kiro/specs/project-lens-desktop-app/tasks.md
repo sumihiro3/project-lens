@@ -15,14 +15,14 @@ ProjectLensデスクトップアプリケーションの段階的実装計画で
     - _要件: 1.1, 6.1_
     - _依存関係: なし_
 
-- [ ] 1.2 TypeScript設定と型基盤の構築
+- [x] 1.2 TypeScript設定と型基盤の構築
     - TypeScript strict mode設定を追加する
     - 共通型定義（Backlog、AI、Settings関連）を作成する
     - ESLint + Prettier設定を追加する
     - _要件: 1.1, 6.1_
     - _依存関係: 1.1_
 
-- [ ] 1.3 Pugテンプレートエンジン統合
+- [x] 1.3 Pugテンプレートエンジン統合
     - @nuxtjs/pugモジュールをNuxt 3に統合する
     - Pugコンパイルとホットリロード設定を追加する
     - VuetifyコンポーネントとPugの組み合わせパターンを確立する
