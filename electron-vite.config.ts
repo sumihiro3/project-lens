@@ -14,6 +14,8 @@ export default defineConfig({
       rollupOptions: {
         external: ['electron'],
       },
+      minify: process.env.NODE_ENV === 'production',
+      sourcemap: process.env.NODE_ENV !== 'production',
     },
   },
   preload: {
@@ -28,6 +30,8 @@ export default defineConfig({
       rollupOptions: {
         external: ['electron'],
       },
+      minify: process.env.NODE_ENV === 'production',
+      sourcemap: process.env.NODE_ENV !== 'production',
     },
   },
   renderer: {
@@ -38,6 +42,15 @@ export default defineConfig({
     },
     server: {
       port: 3000,
+      hmr: {
+        port: 24678,
+        overlay: true,
+      },
+    },
+    build: {
+      outDir: 'dist-electron/renderer',
+      minify: process.env.NODE_ENV === 'production',
+      sourcemap: process.env.NODE_ENV !== 'production',
     },
   },
 })
