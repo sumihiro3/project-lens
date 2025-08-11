@@ -181,44 +181,52 @@ app.whenReady().then(async () => {
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   app.on('browser-window-created', (_, window) => {
-    // デバッグのため、プロダクションでもDevToolsを開く
-    setTimeout(() => {
-      try {
-        // 複数の方法でDevToolsを開く試行
-        window.webContents.openDevTools({ mode: 'detach' })
-        console.log('🔧 DevToolsを開きました（デバッグ用）')
-      } catch (error) {
-        console.error('❌ DevToolsを開けませんでした:', error)
-        
-        // 代替方法でDevToolsを開く
-        try {
-          window.webContents.toggleDevTools()
-          console.log('🔧 代替方法でDevToolsを開きました')
-        } catch (altError) {
-          console.error('❌ 代替方法でもDevToolsを開けませんでした:', altError)
-        }
-      }
-    }, 2000)
+    if (is.dev) {
+      // 開発時のみDevToolsを自動起動
+      window.webContents.once('did-finish-load', () => {
+        setTimeout(() => {
+          try {
+            window.webContents.openDevTools({ mode: 'detach' })
+            console.log('🔧 開発時DevToolsを開きました')
+          } catch (error) {
+            console.error('❌ DevToolsを開けませんでした:', error)
+            // 代替方法でDevToolsを開く
+            try {
+              window.webContents.toggleDevTools()
+              console.log('🔧 代替方法でDevToolsを開きました')
+            } catch (altError) {
+              console.error('❌ 代替方法でもDevToolsを開けませんでした:', altError)
+            }
+          }
+        }, 500) // 短縮してより早く開く
+      })
+    }
 
     // コンソールメッセージをElectronのメインプロセスに転送
     window.webContents.on('console-message', (_, level, message, line, sourceId) => {
       console.log(`🖥️  [Renderer Console] ${level}: ${message} (${sourceId}:${line})`)
     })
 
-    // DevToolsが本当に開いているかチェック
-    setTimeout(() => {
-      const isDevToolsOpened = window.webContents.isDevToolsOpened()
-      console.log('🔍 DevTools状態:', isDevToolsOpened ? '開いています' : '開いていません')
-      
-      if (!isDevToolsOpened) {
-        console.log('🔧 DevToolsを再度開こうとします...')
-        window.webContents.openDevTools()
-      }
-    }, 3000)
+    // 開発時のキーボードショートカット設定
+    if (is.dev) {
+      window.webContents.on('before-input-event', (_, input) => {
+        // F12でDevToolsの切り替え
+        if (input.key === 'F12' && input.type === 'keyDown') {
+          window.webContents.toggleDevTools()
+        }
+        // Ctrl+Shift+I (Windows/Linux) または Cmd+Opt+I (Mac) でDevToolsの切り替え
+        if (input.key === 'I' && input.type === 'keyDown' && 
+            ((input.control && input.shift) || (input.meta && input.alt))) {
+          window.webContents.toggleDevTools()
+        }
+      })
+    }
 
-    // リソース読み込み状況をデバッグ
-    window.webContents.on('did-finish-load', () => {
-      console.log('🎯 ページの読み込みが完了しました')
+    // 開発時のみデバッグ情報を表示
+    if (is.dev) {
+      // リソース読み込み状況をデバッグ
+      window.webContents.on('did-finish-load', () => {
+        console.log('🎯 ページの読み込みが完了しました')
       
       // JavaScriptエラーをキャッチ
       window.webContents.executeJavaScript(`
@@ -265,28 +273,29 @@ app.whenReady().then(async () => {
           console.log('🔍 5s check - Final DOM:', document.querySelector('#__nuxt').innerHTML.substring(0, 100));
         }, 5000);
       `).catch(err => console.error('JavaScriptの実行に失敗:', err))
-    })
-    
-    // リソース読み込みエラーをキャッチ
-    window.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      console.error('📛 リソース読み込み失敗:', {
-        errorCode,
-        errorDescription,
-        validatedURL,
-        isMainFrame
       })
-    })
+      
+      // リソース読み込みエラーをキャッチ
+      window.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        console.error('📛 リソース読み込み失敗:', {
+          errorCode,
+          errorDescription,
+          validatedURL,
+          isMainFrame
+        })
+      })
 
-    // ネットワークリクエストのエラーのみをログに記録（成功は記録しない）
-    window.webContents.session.webRequest.onErrorOccurred((details) => {
-      console.error('🚨 ネットワークエラー:', details.url, details.error)
-    })
+      // ネットワークリクエストのエラーのみをログに記録（成功は記録しない）
+      window.webContents.session.webRequest.onErrorOccurred((details) => {
+        console.error('🚨 ネットワークエラー:', details.url, details.error)
+      })
 
-    window.webContents.session.webRequest.onCompleted((details) => {
-      if (details.statusCode >= 400) {
-        console.error('🔥 HTTPエラー:', details.url, details.statusCode)
-      }
-    })
+      window.webContents.session.webRequest.onCompleted((details) => {
+        if (details.statusCode >= 400) {
+          console.error('🔥 HTTPエラー:', details.url, details.statusCode)
+        }
+      })
+    }
   })
 
   createWindow()
