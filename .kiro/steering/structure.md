@@ -4,46 +4,71 @@
 
 ```sh
 ProjectLens/
-├── .claude/                    # Claude Code設定・コマンド・エージェント
-│   ├── agents/                 # カスタムエージェント定義
-│   └── commands/               # カスタムスラッシュコマンド
-├── .kiro/                      # Kiroスペック駆動開発
-│   ├── steering/               # プロジェクト全体のガイダンス
-│   └── specs/                  # 機能別仕様書
-├── electron/                   # Electron プロセス（メイン・プリロード）
-│   ├── main/                   # Electron メインプロセス
-│   │   └── index.ts           # メインプロセスエントリーポイント
-│   └── preload/               # プリロードスクリプト
-│       └── index.ts           # プリロードスクリプト
-├── src/                       # Nuxt 3 アプリケーション
-│   ├── app.vue                # ルートコンポーネント
-│   ├── index.html             # HTML テンプレート
-│   ├── layouts/               # レイアウト
-│   ├── pages/                 # ページコンポーネント
-│   ├── components/            # 再利用可能コンポーネント
-│   ├── composables/           # Composition API 関数
-│   ├── stores/                # Pinia ストア
-│   ├── plugins/               # Nuxt プラグイン
-│   ├── assets/                # 静的アセット
-│   └── public/                # パブリックファイル
-├── shared/                    # 共通型定義・ユーティリティ
-│   └── types/                 # TypeScript型定義
-├── i18n/                      # 国際化設定
-├── tests/                     # テスト関連
-│   ├── setup.ts              # テストセットアップ
-│   └── unit/                 # ユニットテスト
-├── docs/                      # ドキュメント
-├── dist/                      # ビルド生成物（Nuxt）
-├── dist-electron/             # Electron ビルド生成物
-├── release/                   # パッケージング出力（未作成）
-├── package.json               # プロジェクト設定
-├── tsconfig.json             # TypeScript設定
-├── nuxt.config.ts            # Nuxt 3設定
-├── electron-vite.config.ts   # Electron Vite設定
-├── vitest.config.ts          # Vitest設定
-├── eslint.config.js          # ESLint設定
-├── .prettierrc.js            # Prettier設定
-└── CLAUDE.md                 # Claude Code プロジェクト指示書
+├── .claude/                    # Claude Code設定・コマンド・エージェント（実装済み）
+│   ├── agents/                 # カスタムエージェント定義（実装済み）
+│   └── commands/               # カスタムスラッシュコマンド（実装済み）
+├── .kiro/                      # Kiroスペック駆動開発（実装済み）
+│   ├── steering/               # プロジェクト全体のガイダンス（実装済み）
+│   └── specs/                  # 機能別仕様書（実装済み）
+├── electron/                   # Electron プロセス（実装済み）
+│   ├── main/                   # Electron メインプロセス（実装済み）
+│   │   └── index.ts           # メインプロセスエントリーポイント（実装済み）
+│   └── preload/               # プリロードスクリプト（実装済み）
+│       └── index.ts           # プリロードスクリプト（実装済み）
+├── src/                       # Nuxt 3 アプリケーション（実装済み）
+│   ├── app.vue                # ルートコンポーネント（実装済み）
+│   ├── index.html             # HTML テンプレート（実装済み）
+│   ├── layouts/               # レイアウト（実装済み）
+│   │   └── default.vue        # デフォルトレイアウト（実装済み）
+│   ├── pages/                 # ページコンポーネント（実装済み）
+│   │   └── index.vue          # メインダッシュボード（実装済み）
+│   ├── components/            # 再利用可能コンポーネント（ディレクトリのみ）
+│   ├── composables/           # Composition API 関数（ディレクトリのみ）
+│   ├── stores/                # Pinia ストア（実装済み）
+│   │   └── app.ts             # アプリケーション基本ストア（実装済み）
+│   ├── plugins/               # Nuxt プラグイン（実装済み）
+│   │   └── vuetify.client.ts  # Vuetify設定（実装済み）
+│   ├── utils/                 # ユーティリティ（実装済み）
+│   │   └── performance.ts     # パフォーマンスユーティリティ（実装済み）
+│   ├── assets/                # 静的アセット（ディレクトリのみ）
+│   └── public/                # パブリックファイル（ディレクトリのみ）
+├── shared/                    # 共通型定義・ユーティリティ（実装済み）
+│   └── types/                 # TypeScript型定義（実装済み）
+│       ├── ai.ts              # AI関連型定義（実装済み）
+│       ├── backlog.ts         # Backlog API型定義（実装済み）
+│       ├── common.ts          # 共通型定義（実装済み）
+│       ├── database.ts        # データベース型定義（実装済み）
+│       ├── electron.ts        # Electron関連型定義（実装済み）
+│       ├── index.ts           # 型定義のエクスポート（実装済み）
+│       └── settings.ts        # 設定型定義（実装済み）
+├── i18n/                      # 国際化設定（実装済み）
+│   └── i18n.config.ts         # i18n設定（実装済み）
+├── tests/                     # テスト関連（実装済み）
+│   ├── setup.ts              # テストセットアップ（実装済み）
+│   └── unit/                 # ユニットテスト（実装済み）
+│       ├── basic.test.ts      # 基本テスト（実装済み）
+│       └── electron.test.ts   # Electronテスト（実装済み）
+├── scripts/                   # ビルド・パフォーマンススクリプト（実装済み）
+│   ├── performance-monitor.cjs # パフォーマンス監視（実装済み）
+│   ├── bundle-analyzer.cjs    # バンドル解析（実装済み）
+│   └── fix-electron-paths.cjs # Electronパス修正（実装済み）
+├── docs/                      # ドキュメント（実装済み）
+│   ├── memo.md                # メモ（実装済み）
+│   ├── performance-guide.md   # パフォーマンスガイド（実装済み）
+│   └── code-reviews/          # コードレビュー（実装済み）
+├── build/                     # Electronビルド設定（実装済み）
+├── dist/                      # Nuxtビルド生成物（生成済み）
+├── dist-electron/             # Electron ビルド生成物（生成済み）
+├── release/                   # パッケージング出力（生成済み）
+├── package.json               # プロジェクト設定（実装済み）
+├── tsconfig.json             # TypeScript設定（実装済み）
+├── nuxt.config.ts            # Nuxt 3設定（実装済み）
+├── electron-vite.config.ts   # Electron Vite設定（実装済み）
+├── vitest.config.ts          # Vitest設定（実装済み）
+├── eslint.config.js          # ESLint設定（実装済み）
+├── .prettierrc.js            # Prettier設定（実装済み）
+├── LICENSE                   # MITライセンス（実装済み）
+└── CLAUDE.md                 # Claude Code プロジェクト指示書（実装済み）
 ```
 
 ## 主要ディレクトリ詳細
@@ -85,21 +110,23 @@ electron/preload/
 ### `/src/` - Nuxt 3 アプリケーション
 
 ```sh
-src/
-├── app.vue                    # ルートコンポーネント
-├── index.html                 # HTMLテンプレート
-├── layouts/                   # レイアウト
-│   └── default.vue            # デフォルトレイアウト
-├── pages/                     # ページコンポーネント
-│   └── index.vue              # メインダッシュボード
-├── components/                # 再利用可能コンポーネント（ディレクトリのみ存在）
-├── composables/               # Composition API関数（ディレクトリのみ存在）
-├── stores/                    # Pinia ストア
-│   └── app.ts                 # アプリケーション基本ストア
-├── plugins/                   # Nuxt プラグイン
-│   └── vuetify.client.ts      # Vuetify設定
-├── assets/                    # 静的アセット（ディレクトリのみ存在）
-└── public/                    # パブリックファイル（ディレクトリのみ存在）
+src/                           # 現在の実装状態（基本構造完成）
+├── app.vue                    # ルートコンポーネント（実装済み）
+├── index.html                 # HTMLテンプレート（実装済み）
+├── layouts/                   # レイアウト（実装済み）
+│   └── default.vue            # デフォルトレイアウト（実装済み）
+├── pages/                     # ページコンポーネント（実装済み）
+│   └── index.vue              # メインダッシュボード（実装済み）
+├── components/                # 再利用可能コンポーネント（ディレクトリのみ）
+├── composables/               # Composition API関数（ディレクトリのみ）
+├── stores/                    # Pinia ストア（実装済み）
+│   └── app.ts                 # アプリケーション基本ストア（実装済み）
+├── plugins/                   # Nuxt プラグイン（実装済み）
+│   └── vuetify.client.ts      # Vuetify設定（実装済み）
+├── utils/                     # ユーティリティ（実装済み）
+│   └── performance.ts         # パフォーマンスユーティリティ（実装済み）
+├── assets/                    # 静的アセット（ディレクトリのみ）
+└── public/                    # パブリックファイル（ディレクトリのみ）
 
 [今後追加予定の構造]
 ├── components/                # 再利用可能コンポーネント
@@ -141,22 +168,22 @@ src/
 ### `/shared/` - 共通コード
 
 ```sh
-shared/
-└── types/                     # TypeScript型定義
-    ├── ai.ts                  # AI関連型定義
-    ├── backlog.ts             # Backlog API型定義
-    ├── common.ts              # 共通型定義
-    ├── database.ts            # データベース型定義
-    ├── electron.ts            # Electron関連型定義
-    ├── index.ts               # 型定義のエクスポート
-    └── settings.ts            # 設定型定義
+shared/                        # 現在の実装状態（型定義完成）
+└── types/                     # TypeScript型定義（実装済み）
+    ├── ai.ts                  # AI関連型定義（実装済み）
+    ├── backlog.ts             # Backlog API型定義（実装済み）
+    ├── common.ts              # 共通型定義（実装済み）
+    ├── database.ts            # データベース型定義（実装済み）
+    ├── electron.ts            # Electron関連型定義（実装済み）
+    ├── index.ts               # 型定義のエクスポート（実装済み）
+    └── settings.ts            # 設定型定義（実装済み）
 
 [今後追加予定の構造]
-├── constants/                 # 定数定義
+├── constants/                 # 定数定義（計画中）
 │   ├── api.ts                 # API関連定数
 │   ├── scoring.ts             # スコアリング定数
 │   └── notification.ts        # 通知関連定数
-└── utils/                     # 共通ユーティリティ
+└── utils/                     # 共通ユーティリティ（計画中）
     ├── date.ts                # 日付操作
     ├── validation.ts          # バリデーション
     └── formatting.ts          # フォーマット処理

@@ -59,5 +59,8 @@ export default withNuxt({
     'coverage/**',
     '*.min.js',
     'public/**',
+    'scripts/**', // scriptsディレクトリ全体を除外
+    '.performance/**', // パフォーマンス測定結果を除外
+    '*.tsbuildinfo', // TypeScriptビルド情報ファイルを除外
   ],
 })

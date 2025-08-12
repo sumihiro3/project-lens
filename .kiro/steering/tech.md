@@ -65,16 +65,23 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 
 ### ビルドツール
 
-- **electron-vite 4.0.0**: Electron専用Viteビルドツール、高速HMR対応
-- **electron-builder 25.1.8**: アプリケーションパッケージング
+- **electron-vite 4.0.0**: Electron専用Viteビルドツール（実装済み）
+  - メイン・プリロード・レンダラープロセスの統合ビルド
+  - 高速HMR対応（ポート: 24678）
+  - TypeScript完全対応
+- **electron-builder 25.1.8**: アプリケーションパッケージング（設定済み）
+  - クロスプラットフォーム対応（Windows/macOS/Linux）
+  - NSIS、DMG、AppImage、DEB、RPM対応
 
 ### 開発支援ツール
 
-- **@nuxt/devtools**: 最新版開発ツール
-- **@nuxt/eslint 1.8.0**: 統合ESLint設定
-- **eslint-plugin-prettier 5.5.4**: ESLint・Prettier統合
-- **prettier 3.6.2**: コードフォーマッター
-- **TypeScript**: strict mode有効で厳密な型チェック
+- **@nuxt/devtools**: 最新版開発ツール（実装済み）
+- **@nuxt/eslint 1.8.0**: 統合ESLint設定（実装済み）
+- **eslint-plugin-prettier 5.5.4**: ESLint・Prettier統合（実装済み）
+- **prettier 3.6.2**: コードフォーマッター（実装済み）
+- **TypeScript**: strict mode有効で厳密な型チェック（実装済み）
+- **Vitest 3.2.0**: 高速テストランナー（実装済み）
+- **happy-dom 16.3.0**: 軽量DOMテスト環境（実装済み）
 
 ## 共通開発コマンド
 
@@ -126,6 +133,11 @@ npm run build:mac
 
 # Linux版ビルド
 npm run build:linux
+
+# パフォーマンス監視・解析（実装済み）
+npm run perf:monitor    # パフォーマンス監視
+npm run perf:analyze    # バンドルサイズ解析
+npm run perf:report     # 総合レポート生成
 ```
 
 ## 環境変数
@@ -176,10 +188,10 @@ npm run build:linux
 
 ### Electron + Nuxt 3選択理由
 
-- **研究結果**: 2025年現在、electron-viteによる手動統合がもっとも安定
-- **開発効率**: electron-viteの高速HMRとViteによる最適化ビルド
-- **メンテナンス性**: Nuxtのモジュラーアーキテクチャと拡張性
-- **安定性**: nuxt-electronの非互換性問題回避
+- **実証済み安定性**: electron-vite統合による安定したビルドプロセス（実装済み）
+- **開発効率**: 高速HMR（ポート24678）とViteによる最適化ビルド（実装済み）
+- **メンテナンス性**: Nuxtのモジュラーアーキテクチャと拡張性（実装済み）
+- **パフォーマンス監視**: 専用スクリプトによる継続的パフォーマンス測定（実装済み）
 
 ### Vuetify選択理由
 

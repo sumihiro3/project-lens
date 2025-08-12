@@ -2,25 +2,43 @@
   "name": "project-lens-desktop",
   "version": "1.0.0",
   "description": "ProjectLens - Backlogチケット管理デスクトップアプリケーション",
+  "author": "ProjectLens Team",
   "main": "dist-electron/main/index.cjs",
   "type": "module",
   "scripts": {
     "dev": "nuxt dev --host",
-    "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run compile:electron && npx electron .\"",
-    "compile:electron": "npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop && npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop && mv dist-electron/main/index.js dist-electron/main/index.cjs && mv dist-electron/preload/index.js dist-electron/preload/index.cjs",
+    "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 -t 20000 && npm run compile:electron && electron .\" --kill-others-on-fail --names \"nuxt,electron\" --prefix-colors \"blue,yellow\"",
+    "dev:fast": "concurrently \"npm run dev\" \"wait-on tcp:3000 -t 15000 && npm run compile:electron:quick && electron .\" --kill-others-on-fail --names \"nuxt,electron\" --prefix-colors \"blue,yellow\"",
+    "dev:watch": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 -t 20000 -i 1000 && npm run compile:electron:watch\" --kill-others-on-fail --names \"nuxt,electron\" --prefix-colors \"blue,yellow\"",
+    "compile:electron": "npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && mv dist-electron/main/index.js dist-electron/main/index.cjs && mv dist-electron/preload/index.js dist-electron/preload/index.cjs",
+    "compile:electron:quick": "npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --tsBuildInfoFile .tsbuildinfo-main && npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --tsBuildInfoFile .tsbuildinfo-preload && mv dist-electron/main/index.js dist-electron/main/index.cjs 2>/dev/null || true && mv dist-electron/preload/index.js dist-electron/preload/index.cjs 2>/dev/null || true",
+    "compile:electron:watch": "concurrently \"npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --watch\" \"npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --watch\" --names \"main,preload\" --prefix-colors \"green,cyan\" && electron .",
     "build": "nuxt build",
-    "build:electron": "nuxt build && electron-vite build",
+    "build:electron": "nuxt build && node scripts/fix-electron-paths.cjs",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "build:win": "npm run build:electron && electron-builder --win",
-    "build:mac": "npm run build:electron && electron-builder --mac",
-    "build:linux": "npm run build:electron && electron-builder --linux",
+    "build:all": "npm run build:electron && electron-builder --mac --win --linux",
+    "build:win": "npm run build:electron && npm run compile:electron && electron-builder --win",
+    "build:mac": "npm run build:electron && npm run compile:electron && electron-builder --mac",
+    "build:linux": "npm run build:electron && npm run compile:electron && electron-builder --linux",
+    "build:win:dev": "npm run build:electron && ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES=true electron-builder --win --config.compression=store --config.nsis.oneClick=true --config.nodeGypRebuild=false --config.directories.buildResources=null",
+    "build:mac:dev": "npm run build:electron && electron-builder --mac --config.compression=store",
+    "build:linux:dev": "npm run build:electron && electron-builder --linux --config.compression=store",
+    "dist": "npm run build:electron && electron-builder",
+    "dist:dir": "npm run build:electron && electron-builder --dir",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "type-check": "nuxt typecheck",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "perf:monitor": "node scripts/performance-monitor.cjs",
+    "perf:startup": "node scripts/performance-monitor.cjs startup",
+    "perf:memory": "node scripts/performance-monitor.cjs memory",
+    "perf:bundle": "node scripts/performance-monitor.cjs bundle",
+    "perf:analyze": "node scripts/bundle-analyzer.cjs",
+    "perf:report": "npm run perf:monitor && npm run perf:analyze",
+    "perf:ci": "npm run build:electron && npm run perf:report"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -30,9 +48,6 @@
     "@nuxtjs/i18n": "^10.0.4",
     "@pinia/nuxt": "^0.11.2",
     "@vueuse/core": "^13.6.0",
-    "@vueuse/nuxt": "^13.6.0",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8",
     "nuxt": "^3.18.1",
     "pinia": "^3.0.3",
     "pug": "^3.0.3",
@@ -49,10 +64,15 @@
     "@typescript-eslint/parser": "^8.39.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.0",
+    "cssnano": "^7.0.6",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
     "electron-vite": "^4.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "gzip-size": "^7.0.0",
     "happy-dom": "^16.3.0",
     "playwright-core": "^1.49.0",
     "prettier": "^3.6.2",
@@ -64,12 +84,171 @@
   "build": {
     "appId": "com.projectlens.desktop",
     "productName": "ProjectLens",
+    "copyright": "Copyright © 2025 ProjectLens",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "asar": true,
     "directories": {
+      "buildResources": "build",
       "output": "release"
     },
     "files": [
-      "dist/**/*",
-      "node_modules/**/*"
-    ]
+      ".output/public/**/*",
+      "dist-electron/**/*",
+      "node_modules/**/*",
+      "!node_modules/@types/**/*",
+      "!node_modules/**/*.d.ts",
+      "!node_modules/**/README.md",
+      "!node_modules/**/LICENSE",
+      "!node_modules/**/*.map",
+      "!node_modules/**/test/**/*",
+      "!node_modules/**/tests/**/*",
+      "!node_modules/**/__tests__/**/*",
+      "!node_modules/**/spec/**/*",
+      "!node_modules/**/docs/**/*",
+      "!node_modules/**/example/**/*",
+      "!node_modules/**/examples/**/*",
+      "!node_modules/@parcel/watcher/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources",
+        "filter": ["**/*"]
+      }
+    ],
+    "compression": "maximum",
+    "forceCodeSigning": false,
+    "electronVersion": "33.0.0",
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "nativeRebuilder": "legacy",
+    "generateUpdatesFilesForAllChannels": false,
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "minimumSystemVersion": "10.15.0",
+      "type": "distribution",
+      "extendInfo": {
+        "NSCameraUsageDescription": "このアプリは画面キャプチャ機能のためにカメラへのアクセスを必要とします。",
+        "NSMicrophoneUsageDescription": "このアプリは録音機能のためにマイクへのアクセスを必要とします。",
+        "NSDocumentsFolderUsageDescription": "このアプリはファイルの保存とエクスポートのためにDocumentsフォルダへのアクセスを必要とします。"
+      }
+    },
+    "dmg": {
+      "title": "ProjectLens ${version}",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 140,
+          "y": 200,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "sign": false,
+      "format": "ULFO"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}",
+      "publisherName": "ProjectLens",
+      "requestedExecutionLevel": "asInvoker",
+      "sign": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "ProjectLens",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "${productName}-${version}-setup.${ext}",
+      "license": "LICENSE"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64"]
+        },
+        {
+          "target": "tar.gz",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icons/",
+      "category": "Office",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "synopsis": "Backlogチケット管理デスクトップアプリケーション",
+      "description": "ProjectLensは、Backlogのチケット管理を効率化するデスクトップアプリケーションです。直感的なインターフェースで、プロジェクトの進捗管理やタスクの追跡を簡単に行うことができます。",
+      "desktop": {
+        "Name": "ProjectLens",
+        "Comment": "Backlogチケット管理デスクトップアプリケーション",
+        "Keywords": "project;management;backlog;ticket;productivity;",
+        "Category": "Office;ProjectManagement;",
+        "StartupNotify": "true",
+        "MimeType": "x-scheme-handler/projectlens"
+      }
+    },
+    "deb": {
+      "packageCategory": "office",
+      "priority": "optional",
+      "afterInstall": "build/linux-after-install.sh",
+      "afterRemove": "build/linux-after-remove.sh"
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}-${arch}.AppImage"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "your-github-username",
+      "repo": "ProjectLens",
+      "releaseType": "release"
+    }
   }
 }

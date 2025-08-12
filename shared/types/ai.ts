@@ -66,7 +66,7 @@ export interface AITrigger {
   config: {
     schedule?: string // cron expression
     events?: string[] // イベント名
-    conditions?: Record<string, unknown>
+    conditions?: Record<string, string | number | boolean>
   }
 }
 
@@ -141,7 +141,7 @@ export interface AIAnalysisResult {
   tokensUsed: number
   executionTime: number // milliseconds
   createdAt: string
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, string | number | boolean>
 }
 
 export type AnalysisType
@@ -335,14 +335,14 @@ export interface AIRecommendation {
   effort: 'low' | 'medium' | 'high'
   confidence: number
   data: {
-    currentState: Record<string, unknown>
-    suggestedChanges: Record<string, unknown>
-    expectedOutcome: Record<string, unknown>
+    currentState: Record<string, string | number | boolean>
+    suggestedChanges: Record<string, string | number | boolean>
+    expectedOutcome: Record<string, string | number | boolean>
   }
   actions: {
     label: string
     action: string
-    parameters: Record<string, unknown>
+    parameters: Record<string, string | number | boolean | string[]>
   }[]
   status: 'pending' | 'accepted' | 'rejected' | 'applied'
   createdAt: string
@@ -398,7 +398,7 @@ export interface AITrainingData {
   actualOutput?: AITrainingActualOutput
   feedback?: {
     correct: boolean
-    userCorrection?: unknown
+    userCorrection?: string | number | boolean
     confidence: number
   }
   createdAt: string
@@ -452,7 +452,7 @@ export interface AIWorkflowStepConfig {
   /** 出力形式 */
   outputFormat?: 'text' | 'json' | 'structured'
   /** その他の設定 */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | string[] | object | undefined
 }
 
 /**
@@ -472,7 +472,7 @@ export interface AIAssistantPreferences {
     errorOccurred?: boolean
   }
   /** その他の設定 */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | string[] | object | undefined
 }
 
 /**
@@ -498,7 +498,7 @@ export interface AITrainingContext {
     locale: string
   }
   /** その他のコンテキスト */
-  [key: string]: unknown
+  [key: string]: string | number | boolean | object | undefined
 }
 
 /**
@@ -516,7 +516,7 @@ export type AITrainingExpectedOutput
       classification?: string
       confidence?: number
     }
-    | unknown[]
+    | Array<string | number | boolean | Record<string, string | number | boolean>>
 
 /**
  * AIトレーニングの実際の出力

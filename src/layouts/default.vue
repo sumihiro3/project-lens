@@ -33,10 +33,16 @@ const toggleTheme = (): void => {
   theme.global.name.value = theme.global.current.value.dark ? 'light' : 'dark'
 }
 
-// TypeScript型チェック用：テンプレートで使用される変数を明示的に参照
-// これによりTypeScriptが変数の使用を認識できるようになります
-// eslint-disable-next-line no-constant-condition
-if (false) {
-  console.log(isDark.value, toggleTheme)
+// テンプレートでの使用を確認：isDarkとtoggleThemeはテンプレートで正しく使用されています
+// - isDark: テンプレート内の{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}で使用
+// - toggleTheme: テンプレート内の@click="toggleTheme"で使用
+
+// TypeScript用のダミー参照（テンプレートでの使用を認識させる）
+/* eslint-disable @typescript-eslint/no-unused-vars */
+if (process.env.NODE_ENV === 'development') {
+  // テンプレートで使用されている変数を参照
+  void isDark.value
+  void toggleTheme
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */
 </script>
