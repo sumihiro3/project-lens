@@ -11,7 +11,7 @@
   "eslint.experimental.useFlatConfig": true,
   // TypeScriptでもeslintが動くように
   "eslint.validate": ["javascript", "typescript", "vue"],
-  "eslint.workingDirectories": [{ "pattern": "apps/*/" }, { "pattern": "packages/*/" }],
+  "eslint.workingDirectories": ["."],
 
   // GitHub Copilot 関連の設定
   "github.copilot.enable": {
@@ -70,5 +70,89 @@
     "editor.formatOnPaste": true,
     "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
     "editor.tabSize": 4
+  },
+
+  // JSON設定
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+
+  // JavaScript設定
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
+  },
+
+  // CSS/SCSS設定
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[scss]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // HTML設定
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // YAML設定
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+
+  // TypeScript関連の追加設定
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.suggest.autoImports": true,
+  "typescript.suggest.enabled": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.inlayHints.parameterNames.enabled": "all",
+  "typescript.inlayHints.variableTypes.enabled": true,
+  "typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+  "typescript.inlayHints.propertyDeclarationTypes.enabled": true,
+
+  // Vue関連の追加設定
+  "volar.autoCompleteRefs": true,
+  "volar.codeLens.pugTools": true,
+  "volar.codeLens.scriptSetupTools": true,
+  "volar.completion.preferredTagNameCase": "pascal",
+  "volar.takeOverMode.enabled": true,
+
+  // Electron関連設定
+  "files.associations": {
+    "*.vue": "vue",
+    "electron.d.ts": "typescript"
+  },
+
+  // パフォーマンス設定
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/dist-electron": true,
+    "**/.nuxt": true,
+    "**/.output": true,
+    "**/coverage": true,
+    "**/.cache": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/dist-electron/**": true,
+    "**/.nuxt/**": true,
+    "**/.output/**": true,
+    "**/coverage/**": true
+  },
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "emmet.includeLanguages": {
+    "vue-html": "html",
+    "vue": "html"
   }
 }

@@ -2,38 +2,86 @@
 
 ## ルートディレクトリ構成
 
-```
+```sh
 ProjectLens/
-├── .claude/                    # Claude Code設定・コマンド・エージェント
-│   ├── agents/                 # カスタムエージェント定義
-│   └── commands/               # カスタムスラッシュコマンド
-├── .kiro/                      # Kiroスペック駆動開発
-│   ├── steering/               # プロジェクト全体のガイダンス
-│   └── specs/                  # 機能別仕様書
-├── src/                        # ソースコード
-│   ├── main/                   # Electron メインプロセス
-│   ├── renderer/               # Nuxt 3 アプリケーション
-│   └── shared/                 # 共通ユーティリティ・型定義
-├── dist/                       # ビルド生成物（Nuxt）
-├── dist-electron/              # Electron ビルド生成物
-├── release/                    # パッケージング出力
-├── docs/                       # ドキュメント
-├── package.json                # プロジェクト設定
-├── tsconfig.json              # TypeScript設定
-├── nuxt.config.ts             # Nuxt 3設定
-├── electron-vite.config.ts    # Electron Vite設定
-└── CLAUDE.md                  # Claude Code プロジェクト指示書
+├── .claude/                    # Claude Code設定・コマンド・エージェント（実装済み）
+│   ├── agents/                 # カスタムエージェント定義（実装済み）
+│   └── commands/               # カスタムスラッシュコマンド（実装済み）
+├── .kiro/                      # Kiroスペック駆動開発（実装済み）
+│   ├── steering/               # プロジェクト全体のガイダンス（実装済み）
+│   └── specs/                  # 機能別仕様書（実装済み）
+├── electron/                   # Electron プロセス（実装済み）
+│   ├── main/                   # Electron メインプロセス（実装済み）
+│   │   └── index.ts           # メインプロセスエントリーポイント（実装済み）
+│   └── preload/               # プリロードスクリプト（実装済み）
+│       └── index.ts           # プリロードスクリプト（実装済み）
+├── src/                       # Nuxt 3 アプリケーション（実装済み）
+│   ├── app.vue                # ルートコンポーネント（実装済み）
+│   ├── index.html             # HTML テンプレート（実装済み）
+│   ├── layouts/               # レイアウト（実装済み）
+│   │   └── default.vue        # デフォルトレイアウト（実装済み）
+│   ├── pages/                 # ページコンポーネント（実装済み）
+│   │   └── index.vue          # メインダッシュボード（実装済み）
+│   ├── components/            # 再利用可能コンポーネント（ディレクトリのみ）
+│   ├── composables/           # Composition API 関数（ディレクトリのみ）
+│   ├── stores/                # Pinia ストア（実装済み）
+│   │   └── app.ts             # アプリケーション基本ストア（実装済み）
+│   ├── plugins/               # Nuxt プラグイン（実装済み）
+│   │   └── vuetify.client.ts  # Vuetify設定（実装済み）
+│   ├── utils/                 # ユーティリティ（実装済み）
+│   │   └── performance.ts     # パフォーマンスユーティリティ（実装済み）
+│   ├── assets/                # 静的アセット（ディレクトリのみ）
+│   └── public/                # パブリックファイル（ディレクトリのみ）
+├── shared/                    # 共通型定義・ユーティリティ（実装済み）
+│   └── types/                 # TypeScript型定義（実装済み）
+│       ├── ai.ts              # AI関連型定義（実装済み）
+│       ├── backlog.ts         # Backlog API型定義（実装済み）
+│       ├── common.ts          # 共通型定義（実装済み）
+│       ├── database.ts        # データベース型定義（実装済み）
+│       ├── electron.ts        # Electron関連型定義（実装済み）
+│       ├── index.ts           # 型定義のエクスポート（実装済み）
+│       └── settings.ts        # 設定型定義（実装済み）
+├── i18n/                      # 国際化設定（実装済み）
+│   └── i18n.config.ts         # i18n設定（実装済み）
+├── tests/                     # テスト関連（実装済み）
+│   ├── setup.ts              # テストセットアップ（実装済み）
+│   └── unit/                 # ユニットテスト（実装済み）
+│       ├── basic.test.ts      # 基本テスト（実装済み）
+│       └── electron.test.ts   # Electronテスト（実装済み）
+├── scripts/                   # ビルド・パフォーマンススクリプト（実装済み）
+│   ├── performance-monitor.cjs # パフォーマンス監視（実装済み）
+│   ├── bundle-analyzer.cjs    # バンドル解析（実装済み）
+│   └── fix-electron-paths.cjs # Electronパス修正（実装済み）
+├── docs/                      # ドキュメント（実装済み）
+│   ├── memo.md                # メモ（実装済み）
+│   ├── performance-guide.md   # パフォーマンスガイド（実装済み）
+│   └── code-reviews/          # コードレビュー（実装済み）
+├── build/                     # Electronビルド設定（実装済み）
+├── dist/                      # Nuxtビルド生成物（生成済み）
+├── dist-electron/             # Electron ビルド生成物（生成済み）
+├── release/                   # パッケージング出力（生成済み）
+├── package.json               # プロジェクト設定（実装済み）
+├── tsconfig.json             # TypeScript設定（実装済み）
+├── nuxt.config.ts            # Nuxt 3設定（実装済み）
+├── electron-vite.config.ts   # Electron Vite設定（実装済み）
+├── vitest.config.ts          # Vitest設定（実装済み）
+├── eslint.config.js          # ESLint設定（実装済み）
+├── .prettierrc.js            # Prettier設定（実装済み）
+├── LICENSE                   # MITライセンス（実装済み）
+└── CLAUDE.md                 # Claude Code プロジェクト指示書（実装済み）
 ```
 
 ## 主要ディレクトリ詳細
 
-### `/src/main/` - Electron メインプロセス
+### `/electron/main/` - Electron メインプロセス
 
-```
-src/main/
-├── index.ts                   # メインプロセスエントリーポイント
+```sh
+electron/main/
+└── index.ts                   # メインプロセスエントリーポイント
+
+[今後追加予定の構造]
 ├── services/                  # バックエンドサービス
-│   ├── mcp-manager.ts         # MCP接続・管理
+│   ├── api-manager.ts         # Backlog Direct API管理
 │   ├── scoring-engine.ts      # チケット関連度スコアリング
 │   ├── notification-service.ts # 通知システム
 │   ├── background-worker.ts   # バックグラウンド処理
@@ -52,21 +100,35 @@ src/main/
     └── error-handler.ts       # エラーハンドリング
 ```
 
-### `/src/renderer/` - Nuxt 3 アプリケーション
+### `/electron/preload/` - プリロードスクリプト
 
+```sh
+electron/preload/
+└── index.ts                   # プリロードスクリプト
 ```
-src/renderer/
-├── nuxt.config.ts             # Nuxt設定（レンダラープロセス用）
-├── app.vue                    # ルートコンポーネント
-├── layouts/                   # レイアウト
-│   ├── default.vue            # デフォルトレイアウト
-│   └── minimal.vue            # ミニマルレイアウト
-├── pages/                     # ページコンポーネント
-│   ├── index.vue              # メインダッシュボード
-│   ├── settings.vue           # 設定画面
-│   ├── ticket/                # チケット関連ページ
-│   │   └── [id].vue           # チケット詳細
-│   └── logs.vue               # ログ表示画面
+
+### `/src/` - Nuxt 3 アプリケーション
+
+```sh
+src/                           # 現在の実装状態（基本構造完成）
+├── app.vue                    # ルートコンポーネント（実装済み）
+├── index.html                 # HTMLテンプレート（実装済み）
+├── layouts/                   # レイアウト（実装済み）
+│   └── default.vue            # デフォルトレイアウト（実装済み）
+├── pages/                     # ページコンポーネント（実装済み）
+│   └── index.vue              # メインダッシュボード（実装済み）
+├── components/                # 再利用可能コンポーネント（ディレクトリのみ）
+├── composables/               # Composition API関数（ディレクトリのみ）
+├── stores/                    # Pinia ストア（実装済み）
+│   └── app.ts                 # アプリケーション基本ストア（実装済み）
+├── plugins/                   # Nuxt プラグイン（実装済み）
+│   └── vuetify.client.ts      # Vuetify設定（実装済み）
+├── utils/                     # ユーティリティ（実装済み）
+│   └── performance.ts         # パフォーマンスユーティリティ（実装済み）
+├── assets/                    # 静的アセット（ディレクトリのみ）
+└── public/                    # パブリックファイル（ディレクトリのみ）
+
+[今後追加予定の構造]
 ├── components/                # 再利用可能コンポーネント
 │   ├── issue/                 # チケット関連コンポーネント
 │   │   ├── IssueCard.vue      # チケットカード表示
@@ -93,35 +155,60 @@ src/renderer/
 │   ├── settings.ts            # 設定ストア
 │   ├── notification.ts        # 通知ストア
 │   └── ai.ts                  # AIサービスストア
-├── locales/                   # 多言語化ファイル
-│   ├── ja.json                # 日本語
-│   └── en.json                # 英語
-├── assets/                    # 静的アセット
-│   ├── css/                   # カスタムCSS
-│   └── icons/                 # アイコンファイル
-└── plugins/                   # Nuxt プラグイン
-    ├── vuetify.client.ts      # Vuetify設定
+├── pages/                     # 追加ページ
+│   ├── settings.vue           # 設定画面
+│   ├── ticket/                # チケット関連ページ
+│   │   └── [id].vue           # チケット詳細
+│   └── logs.vue               # ログ表示画面
+└── plugins/                   # 追加プラグイン
     ├── i18n.client.ts         # 国際化設定
     └── electron.client.ts     # Electron統合
 ```
 
-### `/src/shared/` - 共通コード
+### `/shared/` - 共通コード
 
-```
-src/shared/
-├── types/                     # TypeScript型定義
-│   ├── backlog.ts             # Backlog API型定義
-│   ├── mcp.ts                 # MCP関連型定義
-│   ├── settings.ts            # 設定型定義
-│   └── ai.ts                  # AI関連型定義
-├── constants/                 # 定数定義
+```sh
+shared/                        # 現在の実装状態（型定義完成）
+└── types/                     # TypeScript型定義（実装済み）
+    ├── ai.ts                  # AI関連型定義（実装済み）
+    ├── backlog.ts             # Backlog API型定義（実装済み）
+    ├── common.ts              # 共通型定義（実装済み）
+    ├── database.ts            # データベース型定義（実装済み）
+    ├── electron.ts            # Electron関連型定義（実装済み）
+    ├── index.ts               # 型定義のエクスポート（実装済み）
+    └── settings.ts            # 設定型定義（実装済み）
+
+[今後追加予定の構造]
+├── constants/                 # 定数定義（計画中）
 │   ├── api.ts                 # API関連定数
 │   ├── scoring.ts             # スコアリング定数
 │   └── notification.ts        # 通知関連定数
-└── utils/                     # 共通ユーティリティ
+└── utils/                     # 共通ユーティリティ（計画中）
     ├── date.ts                # 日付操作
     ├── validation.ts          # バリデーション
     └── formatting.ts          # フォーマット処理
+```
+
+### `/i18n/` - 国際化設定
+
+```sh
+i18n/
+└── i18n.config.ts             # i18n設定
+
+[今後追加予定の構造]
+├── locales/                   # 多言語化ファイル
+│   ├── ja.json                # 日本語
+│   └── en.json                # 英語
+```
+
+### `/tests/` - テスト関連
+
+```sh
+tests/
+├── setup.ts                   # テストセットアップ
+└── unit/                      # ユニットテスト
+    ├── basic.test.ts          # 基本テスト
+    └── electron.test.ts       # Electronテスト
 ```
 
 ## ファイル命名規則
@@ -130,7 +217,7 @@ src/shared/
 
 - **PascalCase**: `IssueCard.vue`, `SettingsDialog.vue`
 - **プレフィックス統一**: 機能毎のプレフィックス使用
-- **明確な役割表現**: 責任範囲が分かる名前
+- **明確な役割表現**: 責任範囲がわかる名前
 
 ### TypeScript ファイル
 
@@ -224,7 +311,7 @@ import './component.css'
 
 ### 設定ファイル場所
 
-```
+```sh
 ~/.config/project-lens/
 ├── database.sqlite3          # SQLiteデータベース
 ├── config.json              # アプリケーション設定
