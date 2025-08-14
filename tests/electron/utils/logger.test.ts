@@ -1,6 +1,6 @@
 /**
  * Logger System Unit Tests
- * 
+ *
  * ProjectLens Pinoログシステムのユニットテスト
  */
 
@@ -9,19 +9,19 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { Logger } from '../../../electron/main/utils/logger'
-import { DatabaseErrorHandler, DatabaseErrorType } from '../../../electron/main/database/utils/error-handler'
-import type { LoggingConfig } from '../../../shared/types/logging'
+import { DatabaseErrorHandler } from '../../../electron/main/database/utils/error-handler'
+// import type { LoggingConfig } from '../../../shared/types/logging'
 
 // Mock Electron
 vi.mock('electron', () => ({
   app: {
-    getPath: vi.fn(() => '/tmp/test-logs')
-  }
+    getPath: vi.fn(() => '/tmp/test-logs'),
+  },
 }))
 
 // Mock pino-pretty for tests
 vi.mock('pino-pretty', () => ({
-  default: vi.fn(() => process.stdout)
+  default: vi.fn(() => process.stdout),
 }))
 
 describe('Logger System', () => {
@@ -32,36 +32,37 @@ describe('Logger System', () => {
   beforeEach(() => {
     // テスト用一時ディレクトリ作成
     testLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-test-'))
-    
+
     // 環境変数をテスト用に設定
     originalEnv = process.env.NODE_ENV
     process.env.NODE_ENV = 'test'
-    
+
     // Loggerインスタンスをリセット
-    // @ts-ignore - private static property access for testing
+    // @ts-expect-error - private static property access for testing
     Logger.instance = undefined
-    
+
     logger = Logger.getInstance()
   })
 
   afterEach(() => {
     // テスト後クリーンアップ
     logger.destroy()
-    
+
     // テスト用ディレクトリ削除
     if (fs.existsSync(testLogDir)) {
       fs.rmSync(testLogDir, { recursive: true, force: true })
     }
-    
+
     // 環境変数復元
     if (originalEnv !== undefined) {
       process.env.NODE_ENV = originalEnv
-    } else {
+    }
+    else {
       delete process.env.NODE_ENV
     }
-    
+
     // Loggerインスタンスをリセット
-    // @ts-ignore
+    // @ts-expect-error - private static property access for testing
     Logger.instance = undefined
   })
 
@@ -74,7 +75,7 @@ describe('Logger System', () => {
 
     it('100ms以内に初期化されるべき', () => {
       const start = Date.now()
-      // @ts-ignore
+      // @ts-expect-error - private static property access for testing
       Logger.instance = undefined
       Logger.getInstance()
       const duration = Date.now() - start
@@ -88,7 +89,7 @@ describe('Logger System', () => {
   })
 
   describe('ログ出力', () => {
-    let consoleSpy: any
+    let consoleSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
       consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -130,7 +131,7 @@ describe('Logger System', () => {
       expect(() => {
         logger.info('ログイン: password=secret123', {
           username: 'testuser',
-          password: 'secret123'
+          password: 'secret123',
         })
       }).not.toThrow()
     })
@@ -174,7 +175,7 @@ describe('Logger System', () => {
       const testError = new Error('SQLITE_CANTOPEN: unable to open database')
       const dbError = handler.analyzeError(testError, {
         operation: 'connect',
-        filePath: '/test/db.sqlite'
+        filePath: '/test/db.sqlite',
       })
 
       expect(() => {
@@ -184,17 +185,17 @@ describe('Logger System', () => {
 
     it('異なる重要度のエラーを適切なレベルでログできるべき', () => {
       const handler = DatabaseErrorHandler.getInstance()
-      
+
       // Critical error
       const criticalError = handler.analyzeError(new Error('database corruption'), {
-        operation: 'read'
+        operation: 'read',
       })
       expect(() => logger.logDatabaseError(criticalError)).not.toThrow()
-      
+
       // Warning level error
       const warningError = handler.analyzeError(new Error('constraint violation'), {
         operation: 'insert',
-        table: 'users'
+        table: 'users',
       })
       expect(() => logger.logDatabaseError(warningError)).not.toThrow()
     })
@@ -225,19 +226,19 @@ describe('Logger System', () => {
           sensitiveDataMask: {
             enabled: false,
             patterns: [],
-            replacement: '[HIDDEN]'
+            replacement: '[HIDDEN]',
           },
           performance: {
             enabled: false,
-            slowOperationThreshold: 2000
-          }
-        }
+            slowOperationThreshold: 2000,
+          },
+        },
       }
-      
+
       expect(() => {
         logger.updateConfig(newConfig)
       }).not.toThrow()
-      
+
       const updatedConfig = logger.getConfig()
       expect(updatedConfig.global.appName).toBe('TestApp')
       expect(updatedConfig.global.appVersion).toBe('2.0.0')
@@ -275,7 +276,7 @@ describe('Logger System', () => {
     it.each([
       ['darwin', 'macOS'],
       ['win32', 'Windows'],
-      ['linux', 'Linux']
+      ['linux', 'Linux'],
     ])('%s プラットフォームで動作するべき (%s)', (platform, description) => {
       // process.env.NODE_ENV を一時的に変更してテスト環境をリセット
       const originalEnv = process.env.NODE_ENV
@@ -284,25 +285,27 @@ describe('Logger System', () => {
       try {
         // 現在のプラットフォームでLoggerが正しく動作することを確認
         // プラットフォーム固有のロジックはgetLogDirectoryで使用される
-        // @ts-ignore
+        // @ts-expect-error - private static property access for testing
         Logger.instance = undefined
         const platformLogger = Logger.getInstance()
-        
+
         expect(() => {
           platformLogger.info(`${description}でのテスト (実際のプラットフォーム: ${os.platform()})`)
         }).not.toThrow()
-        
+
         // Logger が正しく初期化されていることを確認
         const config = platformLogger.getConfig()
         expect(config).toBeDefined()
         expect(config.currentEnvironment).toBe('test')
-        
+
         platformLogger.destroy()
-      } finally {
+      }
+      finally {
         // 環境変数を復元
         if (originalEnv) {
           process.env.NODE_ENV = originalEnv
-        } else {
+        }
+        else {
           delete process.env.NODE_ENV
         }
       }

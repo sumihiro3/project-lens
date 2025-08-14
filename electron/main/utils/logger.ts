@@ -1,6 +1,6 @@
 /**
  * Pino Logger System for ProjectLens Electron App
- * 
+ *
  * Pinoライブラリを使用した高性能ログシステム
  * - 環境別設定分岐（NODE_ENV基準）
  * - ファイル出力とローテーション機能
@@ -36,7 +36,6 @@ interface LogContext {
   }
   metadata?: Record<string, string | number | boolean | null | undefined>
 }
-
 
 interface LogFileConfig {
   filePath: string
@@ -246,7 +245,8 @@ class LogRotationTransform extends Transform {
       }
 
       this.currentStream = fs.createWriteStream(this.baseFilePath, { flags: 'a' })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('ログストリーム初期化エラー:', error)
     }
   }
@@ -261,11 +261,12 @@ class LogRotationTransform extends Transform {
       for (let i = this.maxFiles - 1; i > 0; i--) {
         const oldFile = `${this.baseFilePath}.${i}`
         const newFile = `${this.baseFilePath}.${i + 1}`
-        
+
         if (fs.existsSync(oldFile)) {
           if (i === this.maxFiles - 1) {
             fs.unlinkSync(oldFile) // 最古のファイルを削除
-          } else {
+          }
+          else {
             fs.renameSync(oldFile, newFile)
           }
         }
@@ -279,12 +280,13 @@ class LogRotationTransform extends Transform {
       // 新しいストリームを作成
       this.currentFileSize = 0
       this.currentStream = fs.createWriteStream(this.baseFilePath, { flags: 'a' })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('ログローテーションエラー:', error)
     }
   }
 
-  override _transform(chunk: any, _encoding: BufferEncoding, callback: Function): void {
+  override _transform(chunk: unknown, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     if (!this.currentStream) {
       callback()
       return
@@ -328,11 +330,11 @@ export class Logger {
   private constructor() {
     this.startTime = Date.now()
     this.sessionId = this.generateSessionId()
-    
+
     // デフォルト設定を基に環境別設定を適用
     this.config = { ...defaultLoggingConfig }
     this.config.currentEnvironment = this.detectEnvironment()
-    
+
     this.initializeLogger()
   }
 
@@ -341,16 +343,16 @@ export class Logger {
    */
   public static getInstance(): Logger {
     const initStart = Date.now()
-    
+
     if (!Logger.instance) {
       Logger.instance = new Logger()
     }
-    
+
     const initTime = Date.now() - initStart
     if (initTime > 100) {
-      console.warn(`Logger initialization took ${initTime}ms (>100ms)`)  
+      console.warn(`Logger initialization took ${initTime}ms (>100ms)`)
     }
-    
+
     return Logger.instance
   }
 
@@ -384,7 +386,7 @@ export class Logger {
   private initializeLogger(): void {
     const currentEnvConfig = this.config.environments[this.config.currentEnvironment]
     const logDir = getLogDirectory()
-    
+
     // ログディレクトリ作成
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true })
@@ -400,27 +402,28 @@ export class Logger {
           pid: process.pid,
           hostname: os.hostname(),
           process: this.processType,
-          sessionId: this.sessionId
-        })
+          sessionId: this.sessionId,
+        }),
       },
       base: {
         name: this.config.global.appName,
-        version: this.config.global.appVersion
+        version: this.config.global.appVersion,
       },
       serializers: {
         error: pino.stdSerializers.err,
         req: pino.stdSerializers.req,
-        res: pino.stdSerializers.res
-      }
+        res: pino.stdSerializers.res,
+      },
     }
 
     // ストリーム設定
-    const streams: any[] = []
+    const streams: Array<{ level: string, stream: NodeJS.WritableStream }> = []
 
     // コンソール出力設定
     if (currentEnvConfig.console.enabled) {
       if (this.config.currentEnvironment === 'development') {
         // 開発環境では pino-pretty を使用
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
         const pretty = require('pino-pretty')
         streams.push({
           level: currentEnvConfig.minLevel,
@@ -428,14 +431,15 @@ export class Logger {
             colorize: currentEnvConfig.console.colorize,
             translateTime: 'SYS:standard',
             ignore: 'pid,hostname',
-            messageFormat: '{levelLabel} - {msg}'
-          })
+            messageFormat: '{levelLabel} - {msg}',
+          }),
         })
-      } else {
+      }
+      else {
         // 本番環境では標準出力
         streams.push({
           level: currentEnvConfig.minLevel,
-          stream: process.stdout
+          stream: process.stdout,
         })
       }
     }
@@ -443,23 +447,24 @@ export class Logger {
     // ファイル出力設定
     if (currentEnvConfig.file) {
       const logFilePath = path.join(logDir, 'app.log')
-      
+
       this.rotationTransform = new LogRotationTransform(
         logFilePath,
         currentEnvConfig.file.rotation.maxSize,
-        currentEnvConfig.file.rotation.maxFiles
+        currentEnvConfig.file.rotation.maxFiles,
       )
-      
+
       streams.push({
         level: currentEnvConfig.minLevel,
-        stream: this.rotationTransform
+        stream: this.rotationTransform,
       })
     }
 
     // 複数ストリーム使用時の設定
     if (streams.length > 1) {
       this.pinoLogger = pino(pinoOptions, pino.multistream(streams))
-    } else {
+    }
+    else {
       this.pinoLogger = pino(pinoOptions, streams[0]?.stream || process.stdout)
     }
 
@@ -467,7 +472,7 @@ export class Logger {
     this.info('Logger initialized', {
       environment: this.config.currentEnvironment,
       logLevel: currentEnvConfig.minLevel,
-      logDirectory: logDir
+      logDirectory: logDir,
     })
   }
 
@@ -480,14 +485,14 @@ export class Logger {
       pid: process.pid,
       timestamp: new Date().toISOString(),
       sessionId: this.sessionId,
-      ...extra
+      ...extra,
     }
   }
 
   /**
    * 機密情報マスキング
    */
-  private maskSensitiveData(message: string, data?: Record<string, any>): { message: string, data?: Record<string, any> } {
+  private maskSensitiveData(message: string, data?: Record<string, unknown>): { message: string, data?: Record<string, unknown> } {
     if (!this.config.global.sensitiveDataMask.enabled) {
       return { message, ...(data !== undefined && { data }) }
     }
@@ -496,7 +501,7 @@ export class Logger {
     const patterns = this.config.global.sensitiveDataMask.patterns
     const replacement = this.config.global.sensitiveDataMask.replacement
 
-    patterns.forEach(pattern => {
+    patterns.forEach((pattern) => {
       const regex = new RegExp(pattern, 'gi')
       maskedMessage = maskedMessage.replace(regex, replacement)
     })
@@ -504,22 +509,23 @@ export class Logger {
     let maskedData = data
     if (data) {
       maskedData = JSON.parse(JSON.stringify(data))
-      const maskRecursive = (obj: any): any => {
+      const maskRecursive = (obj: Record<string, unknown>): Record<string, unknown> => {
         if (typeof obj === 'object' && obj !== null) {
           for (const key in obj) {
             if (typeof obj[key] === 'string') {
-              patterns.forEach(pattern => {
+              patterns.forEach((pattern) => {
                 const regex = new RegExp(pattern, 'gi')
-                obj[key] = obj[key].replace(regex, replacement)
+                obj[key] = (obj[key] as string).replace(regex, replacement)
               })
-            } else if (typeof obj[key] === 'object') {
-              maskRecursive(obj[key])
+            }
+            else if (typeof obj[key] === 'object' && obj[key] !== null) {
+              obj[key] = maskRecursive(obj[key] as Record<string, unknown>)
             }
           }
         }
         return obj
       }
-      maskedData = maskRecursive(maskedData)
+      maskedData = maskRecursive(maskedData as Record<string, unknown>)
     }
 
     return { message: maskedMessage, ...(maskedData !== undefined && { data: maskedData }) }
@@ -533,21 +539,23 @@ export class Logger {
     try {
       const result = fn()
       const duration = Date.now() - start
-      
+
       if (this.config.global.performance.enabled) {
         if (duration > this.config.global.performance.slowOperationThreshold) {
           this.warn('Slow operation detected', {
             operation,
             duration,
-            threshold: this.config.global.performance.slowOperationThreshold
+            threshold: this.config.global.performance.slowOperationThreshold,
           })
-        } else {
+        }
+        else {
           this.debug('Operation completed', { operation, duration })
         }
       }
-      
+
       return result
-    } catch (error) {
+    }
+    catch (error) {
       const duration = Date.now() - start
       this.error('Operation failed', error as Error, { operation, duration })
       throw error
@@ -562,21 +570,23 @@ export class Logger {
     try {
       const result = await fn()
       const duration = Date.now() - start
-      
+
       if (this.config.global.performance.enabled) {
         if (duration > this.config.global.performance.slowOperationThreshold) {
           this.warn('Slow async operation detected', {
             operation,
             duration,
-            threshold: this.config.global.performance.slowOperationThreshold
+            threshold: this.config.global.performance.slowOperationThreshold,
           })
-        } else {
+        }
+        else {
           this.debug('Async operation completed', { operation, duration })
         }
       }
-      
+
       return result
-    } catch (error) {
+    }
+    catch (error) {
       const duration = Date.now() - start
       this.error('Async operation failed', error as Error, { operation, duration })
       throw error
@@ -594,8 +604,8 @@ export class Logger {
         recoverable: dbError.recoverable,
         operation: dbError.context?.operation || 'unknown',
         table: dbError.context?.table || null,
-        ...(dbError.context || {})
-      }
+        ...(dbError.context || {}),
+      },
     })
 
     const logData = {
@@ -603,9 +613,9 @@ export class Logger {
       error: {
         name: dbError.originalError.name,
         message: dbError.originalError.message,
-        stack: dbError.originalError.stack
+        stack: dbError.originalError.stack,
       },
-      suggestedAction: dbError.suggestedAction
+      suggestedAction: dbError.suggestedAction,
     }
 
     switch (dbError.severity) {
@@ -625,53 +635,53 @@ export class Logger {
   }
 
   // レベル別ログメソッド
-  public trace(message: string, data?: Record<string, any>, context?: Partial<LogContext>): void {
+  public trace(message: string, data?: Record<string, unknown>, context?: Partial<LogContext>): void {
     const { message: maskedMessage, data: maskedData } = this.maskSensitiveData(message, data)
     const logContext = this.createLogContext(context)
     this.pinoLogger?.trace({ context: logContext, ...maskedData }, maskedMessage)
   }
 
-  public debug(message: string, data?: Record<string, any>, context?: Partial<LogContext>): void {
+  public debug(message: string, data?: Record<string, unknown>, context?: Partial<LogContext>): void {
     const { message: maskedMessage, data: maskedData } = this.maskSensitiveData(message, data)
     const logContext = this.createLogContext(context)
     this.pinoLogger?.debug({ context: logContext, ...maskedData }, maskedMessage)
   }
 
-  public info(message: string, data?: Record<string, any>, context?: Partial<LogContext>): void {
+  public info(message: string, data?: Record<string, unknown>, context?: Partial<LogContext>): void {
     const { message: maskedMessage, data: maskedData } = this.maskSensitiveData(message, data)
     const logContext = this.createLogContext(context)
     this.pinoLogger?.info({ context: logContext, ...maskedData }, maskedMessage)
   }
 
-  public warn(message: string, data?: Record<string, any>, context?: Partial<LogContext>): void {
+  public warn(message: string, data?: Record<string, unknown>, context?: Partial<LogContext>): void {
     const { message: maskedMessage, data: maskedData } = this.maskSensitiveData(message, data)
     const logContext = this.createLogContext(context)
     this.pinoLogger?.warn({ context: logContext, ...maskedData }, maskedMessage)
   }
 
-  public error(message: string, error?: Error, data?: Record<string, any>, context?: Partial<LogContext>): void {
+  public error(message: string, error?: Error, data?: Record<string, unknown>, context?: Partial<LogContext>): void {
     const { message: maskedMessage, data: maskedData } = this.maskSensitiveData(message, data)
     const logContext = this.createLogContext(context)
-    
+
     const logData = {
       context: logContext,
       ...maskedData,
-      ...(error && { error: { name: error.name, message: error.message, stack: error.stack } })
+      ...(error && { error: { name: error.name, message: error.message, stack: error.stack } }),
     }
-    
+
     this.pinoLogger?.error(logData, maskedMessage)
   }
 
-  public fatal(message: string, error?: Error, data?: Record<string, any>, context?: Partial<LogContext>): void {
+  public fatal(message: string, error?: Error, data?: Record<string, unknown>, context?: Partial<LogContext>): void {
     const { message: maskedMessage, data: maskedData } = this.maskSensitiveData(message, data)
     const logContext = this.createLogContext(context)
-    
+
     const logData = {
       context: logContext,
       ...maskedData,
-      ...(error && { error: { name: error.name, message: error.message, stack: error.stack } })
+      ...(error && { error: { name: error.name, message: error.message, stack: error.stack } }),
     }
-    
+
     this.pinoLogger?.fatal(logData, maskedMessage)
   }
 
@@ -701,11 +711,11 @@ export class Logger {
   /**
    * ヘルスチェック
    */
-  public healthCheck(): { status: 'ok' | 'error', details: Record<string, any> } {
+  public healthCheck(): { status: 'ok' | 'error', details: Record<string, unknown> } {
     try {
       const logDir = getLogDirectory()
       const currentEnvConfig = this.config.environments[this.config.currentEnvironment]
-      
+
       return {
         status: 'ok',
         details: {
@@ -714,15 +724,16 @@ export class Logger {
           logDirectory: logDir,
           logDirectoryExists: fs.existsSync(logDir),
           uptime: Date.now() - this.startTime,
-          sessionId: this.sessionId
-        }
+          sessionId: this.sessionId,
+        },
       }
-    } catch (error) {
+    }
+    catch (error) {
       return {
         status: 'error',
         details: {
-          error: error instanceof Error ? error.message : String(error)
-        }
+          error: error instanceof Error ? error.message : String(error),
+        },
       }
     }
   }
@@ -732,12 +743,12 @@ export class Logger {
    */
   public destroy(): void {
     this.info('Logger shutting down')
-    
+
     if (this.rotationTransform) {
       this.rotationTransform.destroy()
       this.rotationTransform = null
     }
-    
+
     if (this.pinoLogger) {
       this.pinoLogger.flush()
     }
@@ -748,12 +759,12 @@ export class Logger {
 const logger = Logger.getInstance()
 
 // 便利な関数エクスポート
-export const trace = (message: string, data?: Record<string, any>) => logger.trace(message, data)
-export const debug = (message: string, data?: Record<string, any>) => logger.debug(message, data) 
-export const info = (message: string, data?: Record<string, any>) => logger.info(message, data)
-export const warn = (message: string, data?: Record<string, any>) => logger.warn(message, data)
-export const error = (message: string, err?: Error, data?: Record<string, any>) => logger.error(message, err, data)
-export const fatal = (message: string, err?: Error, data?: Record<string, any>) => logger.fatal(message, err, data)
+export const trace = (message: string, data?: Record<string, unknown>): void => logger.trace(message, data)
+export const debug = (message: string, data?: Record<string, unknown>): void => logger.debug(message, data)
+export const info = (message: string, data?: Record<string, unknown>): void => logger.info(message, data)
+export const warn = (message: string, data?: Record<string, unknown>): void => logger.warn(message, data)
+export const error = (message: string, err?: Error, data?: Record<string, unknown>): void => logger.error(message, err, data)
+export const fatal = (message: string, err?: Error, data?: Record<string, unknown>): void => logger.fatal(message, err, data)
 
 // パフォーマンス測定用
 export const withPerformance = <T>(operation: string, fn: () => T): T => logger.withPerformance(operation, fn)

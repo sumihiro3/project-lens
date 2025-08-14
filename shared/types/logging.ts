@@ -360,4 +360,3 @@ export const defaultLoggingConfig: LoggingConfig = {
     },
   },
 }
-

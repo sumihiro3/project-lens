@@ -1,14 +1,14 @@
 /**
  * Logger Usage Examples
- * 
+ *
  * ProjectLens Pinoログシステムの使用例を示すファイル
  * このファイルは実際のアプリケーションでは使用されません
  */
 
-import logger, { 
+import logger, {
   trace, debug, info, warn, error, fatal,
   withPerformance, withAsyncPerformance,
-  logDatabaseError 
+  logDatabaseError,
 } from './logger'
 import { handleDatabaseError } from '../database/utils/error-handler'
 
@@ -17,7 +17,7 @@ import { handleDatabaseError } from '../database/utils/error-handler'
  */
 export function basicLoggingExamples(): void {
   console.log('\n=== 基本的なログ出力例 ===\n')
-  
+
   // 異なるレベルのログ
   trace('デバッグ情報: 細かい処理フロー')
   debug('デバッグ: 変数値の確認', { userId: 123, action: 'login' })
@@ -32,20 +32,20 @@ export function basicLoggingExamples(): void {
  */
 export function contextualLoggingExamples(): void {
   console.log('\n=== コンテキスト付きログ例 ===\n')
-  
+
   // ソース情報付き
-  logger.info('ユーザー認証開始', 
+  logger.info('ユーザー認証開始',
     { userId: 456, method: 'oauth' },
-    { 
+    {
       source: { file: 'auth.ts', line: 125, function: 'authenticateUser' },
-      requestId: 'req-789'
-    }
+      requestId: 'req-789',
+    },
   )
-  
+
   // ユーザー固有情報付き
   logger.debug('ユーザー設定読み込み',
-    { settings: { theme: 'dark', language: 'ja' }},
-    { userId: 456 }
+    { settings: { theme: 'dark', language: 'ja' } },
+    { userId: 456 },
   )
 }
 
@@ -54,7 +54,7 @@ export function contextualLoggingExamples(): void {
  */
 export function performanceLoggingExamples(): void {
   console.log('\n=== パフォーマンス計測例 ===\n')
-  
+
   // 同期処理のパフォーマンス計測
   const result1 = withPerformance('heavy-calculation', () => {
     // 重い計算のシミュレーション
@@ -65,16 +65,16 @@ export function performanceLoggingExamples(): void {
     return sum
   })
   info('計算結果', { result: result1 })
-  
+
   // 非同期処理のパフォーマンス計測
   withAsyncPerformance('database-query', async () => {
     // データベースクエリのシミュレーション
     await new Promise(resolve => setTimeout(resolve, 100))
     return { records: 150 }
-  }).then(result => {
+  }).then((result) => {
     info('データベースクエリ完了', { result })
   })
-  
+
   // 遅い操作のシミュレーション（警告が出る）
   withPerformance('slow-operation', () => {
     // 1.5秒の遅延（デフォルト闾値は1秒）
@@ -91,15 +91,15 @@ export function performanceLoggingExamples(): void {
  */
 export function sensitiveDataMaskingExamples(): void {
   console.log('\n=== 機密情報マスキング例 ===\n')
-  
+
   // パスワードやトークンがマスクされる
   info('ユーザー認証データ', {
     username: 'john.doe',
     password: 'secret123',
     token: 'bearer-token-abc123',
-    apiKey: 'api-key-xyz789'
+    apiKey: 'api-key-xyz789',
   })
-  
+
   // メッセージ内の機密情報もマスクされる
   warn('認証エラー: password=wrongpass token=invalid-token')
 }
@@ -109,24 +109,26 @@ export function sensitiveDataMaskingExamples(): void {
  */
 export function databaseErrorLoggingExamples(): void {
   console.log('\n=== データベースエラーログ例 ===\n')
-  
+
   // データベース接続エラーのシミュレーション
   try {
     throw new Error('SQLITE_CANTOPEN: unable to open database file')
-  } catch (err) {
+  }
+  catch (err) {
     const dbError = handleDatabaseError(err, {
       operation: 'connect',
-      filePath: '/path/to/database.sqlite'
+      filePath: '/path/to/database.sqlite',
     })
-    
+
     // 特化したデータベースエラーログ
     logDatabaseError(dbError)
   }
-  
+
   // データ制約違反エラー
   try {
     throw new Error('SQLITE_CONSTRAINT: UNIQUE constraint failed')
-  } catch (err) {
+  }
+  catch (err) {
     const dbError = handleDatabaseError(err, {
       operation: 'insert',
       table: 'users',
@@ -141,23 +143,23 @@ export function databaseErrorLoggingExamples(): void {
  */
 export function configurationExamples(): void {
   console.log('\n=== ログ設定管理例 ===\n')
-  
+
   // 現在の設定表示
   const currentConfig = logger.getConfig()
-  info('現在のログ設定', { 
+  info('現在のログ設定', {
     environment: currentConfig.currentEnvironment,
-    minLevel: currentConfig.environments[currentConfig.currentEnvironment].minLevel
+    minLevel: currentConfig.environments[currentConfig.currentEnvironment].minLevel,
   })
-  
+
   // ログレベルの動的変更
   logger.setLevel('warn')
   info('このメッセージは表示されないはず') // warnレベルなので非表示
   warn('この警告メッセージは表示される')
-  
+
   // レベルを元に戻す
   logger.setLevel('debug')
   debug('デバッグレベルに戻しました')
-  
+
   // ヘルスチェック
   const health = logger.healthCheck()
   info('ロガーヘルスチェック', health)
@@ -168,14 +170,14 @@ export function configurationExamples(): void {
  */
 export function runAllExamples(): void {
   console.log('🚀 ProjectLens Logger Examples 開始\n')
-  
+
   basicLoggingExamples()
-  contextualLoggingExamples() 
+  contextualLoggingExamples()
   performanceLoggingExamples()
   sensitiveDataMaskingExamples()
   databaseErrorLoggingExamples()
   configurationExamples()
-  
+
   console.log('\n✓ すべての例を実行完了\n')
 }
 
