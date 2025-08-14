@@ -22,7 +22,7 @@ function fixCjsImports(directory) {
 
       // 相対パスのrequire文を.cjs拡張子付きに修正
       content = content.replace(
-        /require\(["'](\.\/.+?)["']\)/g,
+        /require\(["'](\.\.?\/.+?)["']\)/g,
         (match, relativePath) => {
           // 既に拡張子がある場合はスキップ
           if (relativePath.endsWith('.cjs') || relativePath.endsWith('.js')) {
@@ -44,7 +44,7 @@ function fixCjsImports(directory) {
 
       // import文も処理（dynamic import等）
       content = content.replace(
-        /import\(["'](\.\/.+?)["']\)/g,
+        /import\(["'](\.\.?\/.+?)["']\)/g,
         (match, relativePath) => {
           if (relativePath.endsWith('.cjs') || relativePath.endsWith('.js')) {
             return match
@@ -55,7 +55,7 @@ function fixCjsImports(directory) {
 
       // from句のimport文も処理
       content = content.replace(
-        /from\s+["'](\.\/.+?)["']/g,
+        /from\s+["'](\.\.?\/.+?)["']/g,
         (match, relativePath) => {
           if (relativePath.endsWith('.cjs') || relativePath.endsWith('.js')) {
             return match
