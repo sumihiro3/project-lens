@@ -41,3 +41,11 @@ tmp/
 bundle-report.html
 stats.json
 .webpack-bundle-analyzer/
+
+# SQLite database files
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm

@@ -94,7 +94,7 @@ export class PerformanceMonitor {
             this.observer.observe({ entryTypes: [type] })
           }
         }
-        catch (_error) {
+        catch {
           // サポートされていないエントリタイプは無視
         }
       })
@@ -149,7 +149,13 @@ export class PerformanceMonitor {
       return { used: 0, total: 0, percentage: 0 }
     }
 
-    const memory = (performance as any).memory
+    const memory = (performance as Performance & {
+      memory?: {
+        usedJSHeapSize: number
+        totalJSHeapSize: number
+        jsHeapSizeLimit: number
+      }
+    }).memory
     if (memory && typeof memory.usedJSHeapSize === 'number' && typeof memory.totalJSHeapSize === 'number') {
       const used = Math.round(memory.usedJSHeapSize / 1024 / 1024) // MB
       const total = Math.round(memory.totalJSHeapSize / 1024 / 1024) // MB
@@ -218,7 +224,7 @@ export class PerformanceMonitor {
 
     const resourceEntries = performance.getEntriesByType('resource') as PerformanceResourceTiming[]
     const totalTransferSize = resourceEntries.reduce((total, entry) => {
-      const transferSize = (entry as any).transferSize
+      const transferSize = (entry as PerformanceResourceTiming & { transferSize?: number }).transferSize
       return total + (typeof transferSize === 'number' ? transferSize : 0)
     }, 0)
 
@@ -469,11 +475,16 @@ export function getPerformanceMonitor(options?: Partial<PerformanceMonitorOption
  * メモリ使用量を簡単に取得
  */
 export function getCurrentMemoryUsage(): { used: number, percentage: number } | null {
-  if (typeof window === 'undefined' || !(performance as any).memory) {
+  const memory = (performance as Performance & {
+    memory?: {
+      usedJSHeapSize: number
+      totalJSHeapSize: number
+      jsHeapSizeLimit: number
+    }
+  }).memory
+  if (typeof window === 'undefined' || !memory) {
     return null
   }
-
-  const memory = (performance as any).memory
   const used = Math.round(memory.usedJSHeapSize / 1024 / 1024)
   const total = Math.round(memory.totalJSHeapSize / 1024 / 1024)
   const percentage = Math.round((used / total) * 100)
@@ -484,10 +495,10 @@ export function getCurrentMemoryUsage(): { used: number, percentage: number } | 
 /**
  * パフォーマンス測定用デコレーター
  */
-export function measurePerformance(_target: any, propertyName: string, descriptor: PropertyDescriptor) {
+export function measurePerformance(_target: unknown, propertyName: string, descriptor: PropertyDescriptor) {
   const originalMethod = descriptor.value
 
-  descriptor.value = function (...args: any[]) {
+  descriptor.value = function (...args: unknown[]) {
     const startTime = performance.now()
     const result = originalMethod.apply(this, args)
     const endTime = performance.now()

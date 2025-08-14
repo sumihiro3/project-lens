@@ -12,7 +12,18 @@ ProjectLens/
 │   └── specs/                  # 機能別仕様書（実装済み）
 ├── electron/                   # Electron プロセス（実装済み）
 │   ├── main/                   # Electron メインプロセス（実装済み）
-│   │   └── index.ts           # メインプロセスエントリーポイント（実装済み）
+│   │   ├── index.ts           # メインプロセスエントリーポイント（実装済み）
+│   │   └── database/          # データベース基盤（実装済み）
+│   │       ├── connection-config.ts   # 接続設定（実装済み）
+│   │       ├── connection-manager.ts  # 接続管理（実装済み）
+│   │       ├── connection.ts          # DB接続（実装済み）
+│   │       ├── health-checker.ts      # ヘルスチェック（実装済み）
+│   │       ├── test.ts               # テスト用（実装済み）
+│   │       ├── schema/               # スキーマ定義（実装済み）
+│   │       │   └── index.ts          # Drizzle ORM スキーマ（実装済み）
+│   │       └── utils/                # DB用ユーティリティ（実装済み）
+│   │           ├── error-handler.ts  # エラーハンドリング（実装済み）
+│   │           └── migration-runner.ts # マイグレーション実行（実装済み）
 │   └── preload/               # プリロードスクリプト（実装済み）
 │       └── index.ts           # プリロードスクリプト（実装済み）
 ├── src/                       # Nuxt 3 アプリケーション（実装済み）
@@ -51,7 +62,8 @@ ProjectLens/
 ├── scripts/                   # ビルド・パフォーマンススクリプト（実装済み）
 │   ├── performance-monitor.cjs # パフォーマンス監視（実装済み）
 │   ├── bundle-analyzer.cjs    # バンドル解析（実装済み）
-│   └── fix-electron-paths.cjs # Electronパス修正（実装済み）
+│   ├── fix-electron-paths.cjs # Electronパス修正（実装済み）
+│   └── fix-cjs-imports.cjs    # CJSインポート修正（実装済み）
 ├── docs/                      # ドキュメント（実装済み）
 │   ├── memo.md                # メモ（実装済み）
 │   ├── performance-guide.md   # パフォーマンスガイド（実装済み）
@@ -65,6 +77,7 @@ ProjectLens/
 ├── nuxt.config.ts            # Nuxt 3設定（実装済み）
 ├── electron-vite.config.ts   # Electron Vite設定（実装済み）
 ├── vitest.config.ts          # Vitest設定（実装済み）
+├── drizzle.config.ts         # Drizzle ORM設定（実装済み）
 ├── eslint.config.js          # ESLint設定（実装済み）
 ├── .prettierrc.js            # Prettier設定（実装済み）
 ├── LICENSE                   # MITライセンス（実装済み）
@@ -76,8 +89,19 @@ ProjectLens/
 ### `/electron/main/` - Electron メインプロセス
 
 ```sh
-electron/main/
-└── index.ts                   # メインプロセスエントリーポイント
+electron/main/                 # 現在の実装状態（データベース基盤完成）
+├── index.ts                   # メインプロセスエントリーポイント（実装済み）
+└── database/                  # データベース関連（実装済み）
+    ├── connection-config.ts   # 接続設定（実装済み）
+    ├── connection-manager.ts  # 接続管理（実装済み）
+    ├── connection.ts          # SQLite接続設定（実装済み）
+    ├── health-checker.ts      # ヘルスチェック（実装済み）
+    ├── test.ts               # テスト用（実装済み）
+    ├── schema/               # Drizzle ORM スキーマ定義（実装済み）
+    │   └── index.ts          # データベーススキーマ（実装済み）
+    └── utils/                # データベースユーティリティ（実装済み）
+        ├── error-handler.ts  # エラーハンドリング（実装済み）
+        └── migration-runner.ts # マイグレーション実行（実装済み）
 
 [今後追加予定の構造]
 ├── services/                  # バックエンドサービス
@@ -86,10 +110,6 @@ electron/main/
 │   ├── notification-service.ts # 通知システム
 │   ├── background-worker.ts   # バックグラウンド処理
 │   └── settings-manager.ts    # 設定管理
-├── database/                  # データベース関連
-│   ├── connection.ts          # SQLite接続設定
-│   ├── migrations/            # データベースマイグレーション
-│   └── models/                # Drizzle ORM スキーマ定義
 ├── ai/                        # AI・LLM統合
 │   ├── mastra-service.ts      # Mastra AI サービス
 │   ├── fallback-manager.ts    # フォールバック処理

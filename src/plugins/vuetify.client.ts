@@ -147,8 +147,7 @@ const directives = {
 // 追加コンポーネントの動的ローディング用ヘルパー
 export const loadVuetifyComponent = async (componentName: string) => {
   try {
-    /* @vite-ignore */
-    const component = await import(`vuetify/components/${componentName}`)
+    const component = await import(/* @vite-ignore */ `vuetify/components/${componentName}`)
     return component
   }
   catch (error) {
