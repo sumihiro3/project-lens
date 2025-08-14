@@ -1,18 +1,18 @@
 /**
  * Drizzle ORMスキーマ定義
- * 
+ *
  * shared/types/database.tsの型定義を基に、
  * Drizzle ORM用のSQLiteスキーマを定義します。
  */
 
-import { 
-  sqliteTable, 
-  integer, 
-  text, 
+import {
+  sqliteTable,
+  integer,
+  text,
   real,
   primaryKey,
   index,
-  uniqueIndex
+  uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 // 型定義は必要に応じてインポート
@@ -31,12 +31,12 @@ export const users = sqliteTable('users', {
   lastSeen: text('last_seen'),
   preferences: text('preferences', { mode: 'json' }), // JSON数字列として保存
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   backlogUserIdIdx: uniqueIndex('users_backlog_user_id_idx').on(table.backlogUserId),
   emailIdx: index('users_email_idx').on(table.email),
   isActiveIdx: index('users_is_active_idx').on(table.isActive),
-  lastSeenIdx: index('users_last_seen_idx').on(table.lastSeen)
+  lastSeenIdx: index('users_last_seen_idx').on(table.lastSeen),
 }))
 
 // ====================
@@ -55,14 +55,14 @@ export const projects = sqliteTable('projects', {
   settings: text('settings', { mode: 'json' }),
   lastSyncAt: text('last_sync_at'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   backlogProjectIdIdx: uniqueIndex('projects_backlog_project_id_idx').on(table.backlogProjectId),
   projectKeyIdx: uniqueIndex('projects_project_key_idx').on(table.projectKey),
   isActiveIdx: index('projects_is_active_idx').on(table.isActive),
   isFavoriteIdx: index('projects_is_favorite_idx').on(table.isFavorite),
   sortOrderIdx: index('projects_sort_order_idx').on(table.sortOrder),
-  lastSyncAtIdx: index('projects_last_sync_at_idx').on(table.lastSyncAt)
+  lastSyncAtIdx: index('projects_last_sync_at_idx').on(table.lastSyncAt),
 }))
 
 // ====================
@@ -91,8 +91,8 @@ export const issues = sqliteTable('issues', {
   backlogData: text('backlog_data', { mode: 'json' }).notNull(), // 元のBacklogデータ
   lastSyncAt: text('last_sync_at'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   backlogIssueIdIdx: uniqueIndex('issues_backlog_issue_id_idx').on(table.backlogIssueId),
   issueKeyIdx: uniqueIndex('issues_issue_key_idx').on(table.issueKey),
   projectIdIdx: index('issues_project_id_idx').on(table.projectId),
@@ -107,7 +107,7 @@ export const issues = sqliteTable('issues', {
   titleSearchIdx: index('issues_title_search_idx').on(table.title),
   // 複合インデックス
   projectStatusIdx: index('issues_project_status_idx').on(table.projectId, table.status),
-  assigneeStatusIdx: index('issues_assignee_status_idx').on(table.assigneeId, table.status)
+  assigneeStatusIdx: index('issues_assignee_status_idx').on(table.assigneeId, table.status),
 }))
 
 // ====================
@@ -123,13 +123,13 @@ export const comments = sqliteTable('comments', {
   attachments: text('attachments', { mode: 'json' }).notNull().default('[]'), // ファイルパスの配列
   backlogData: text('backlog_data', { mode: 'json' }).notNull(),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   backlogCommentIdIdx: uniqueIndex('comments_backlog_comment_id_idx').on(table.backlogCommentId),
   issueIdIdx: index('comments_issue_id_idx').on(table.issueId),
   userIdIdx: index('comments_user_id_idx').on(table.userId),
   isInternalIdx: index('comments_is_internal_idx').on(table.isInternal),
-  createdAtIdx: index('comments_created_at_idx').on(table.createdAt)
+  createdAtIdx: index('comments_created_at_idx').on(table.createdAt),
 }))
 
 // ====================
@@ -142,10 +142,10 @@ export const labels = sqliteTable('labels', {
   description: text('description'),
   isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   nameIdx: uniqueIndex('labels_name_idx').on(table.name),
-  isSystemIdx: index('labels_is_system_idx').on(table.isSystem)
+  isSystemIdx: index('labels_is_system_idx').on(table.isSystem),
 }))
 
 // ====================
@@ -154,11 +154,11 @@ export const labels = sqliteTable('labels', {
 export const issueLabels = sqliteTable('issue_labels', {
   issueId: integer('issue_id').notNull().references(() => issues.id, { onDelete: 'cascade' }),
   labelId: integer('label_id').notNull().references(() => labels.id, { onDelete: 'cascade' }),
-  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   pk: primaryKey({ columns: [table.issueId, table.labelId] }),
   issueIdIdx: index('issue_labels_issue_id_idx').on(table.issueId),
-  labelIdIdx: index('issue_labels_label_id_idx').on(table.labelId)
+  labelIdIdx: index('issue_labels_label_id_idx').on(table.labelId),
 }))
 
 // ====================
@@ -170,11 +170,11 @@ export const bookmarks = sqliteTable('bookmarks', {
   issueId: integer('issue_id').notNull().references(() => issues.id, { onDelete: 'cascade' }),
   note: text('note'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userIssueIdx: uniqueIndex('bookmarks_user_issue_idx').on(table.userId, table.issueId),
   userIdIdx: index('bookmarks_user_id_idx').on(table.userId),
-  issueIdIdx: index('bookmarks_issue_id_idx').on(table.issueId)
+  issueIdIdx: index('bookmarks_issue_id_idx').on(table.issueId),
 }))
 
 // ====================
@@ -189,8 +189,8 @@ export const activityLogs = sqliteTable('activity_logs', {
   details: text('details', { mode: 'json' }),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
-  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userIdIdx: index('activity_logs_user_id_idx').on(table.userId),
   actionIdx: index('activity_logs_action_idx').on(table.action),
   resourceTypeIdx: index('activity_logs_resource_type_idx').on(table.resourceType),
@@ -198,7 +198,7 @@ export const activityLogs = sqliteTable('activity_logs', {
   createdAtIdx: index('activity_logs_created_at_idx').on(table.createdAt),
   // 複合インデックス
   resourceIdx: index('activity_logs_resource_idx').on(table.resourceType, table.resourceId),
-  userActionIdx: index('activity_logs_user_action_idx').on(table.userId, table.action)
+  userActionIdx: index('activity_logs_user_action_idx').on(table.userId, table.action),
 }))
 
 // ====================
@@ -214,14 +214,14 @@ export const notifications = sqliteTable('notifications', {
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   readAt: text('read_at'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userIdIdx: index('notifications_user_id_idx').on(table.userId),
   typeIdx: index('notifications_type_idx').on(table.type),
   isReadIdx: index('notifications_is_read_idx').on(table.isRead),
   createdAtIdx: index('notifications_created_at_idx').on(table.createdAt),
   // 複合インデックス
-  userUnreadIdx: index('notifications_user_unread_idx').on(table.userId, table.isRead)
+  userUnreadIdx: index('notifications_user_unread_idx').on(table.userId, table.isRead),
 }))
 
 // ====================
@@ -233,11 +233,11 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(), // JSON文字列で保存
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }), // nullの場合はグローバル設定
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   keyUserIdx: uniqueIndex('settings_key_user_idx').on(table.key, table.userId),
   keyIdx: index('settings_key_idx').on(table.key),
-  userIdIdx: index('settings_user_id_idx').on(table.userId)
+  userIdIdx: index('settings_user_id_idx').on(table.userId),
 }))
 
 // ====================
@@ -257,13 +257,13 @@ export const syncLogs = sqliteTable('sync_logs', {
   itemsDeleted: integer('items_deleted').notNull().default(0),
   errorMessage: text('error_message'),
   errorDetails: text('error_details', { mode: 'json' }),
-}, (table) => ({
+}, table => ({
   connectionIdIdx: index('sync_logs_connection_id_idx').on(table.connectionId),
   projectIdIdx: index('sync_logs_project_id_idx').on(table.projectId),
   syncTypeIdx: index('sync_logs_sync_type_idx').on(table.syncType),
   statusIdx: index('sync_logs_status_idx').on(table.status),
   startedAtIdx: index('sync_logs_started_at_idx').on(table.startedAt),
-  completedAtIdx: index('sync_logs_completed_at_idx').on(table.completedAt)
+  completedAtIdx: index('sync_logs_completed_at_idx').on(table.completedAt),
 }))
 
 // ====================
@@ -275,10 +275,10 @@ export const cache = sqliteTable('cache', {
   value: text('value').notNull(), // JSON文字列
   expiresAt: text('expires_at'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   keyIdx: uniqueIndex('cache_key_idx').on(table.key),
-  expiresAtIdx: index('cache_expires_at_idx').on(table.expiresAt)
+  expiresAtIdx: index('cache_expires_at_idx').on(table.expiresAt),
 }))
 
 // ====================
@@ -290,10 +290,10 @@ export const sessions = sqliteTable('sessions', {
   data: text('data', { mode: 'json' }),
   expiresAt: text('expires_at').notNull(),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userIdIdx: index('sessions_user_id_idx').on(table.userId),
-  expiresAtIdx: index('sessions_expires_at_idx').on(table.expiresAt)
+  expiresAtIdx: index('sessions_expires_at_idx').on(table.expiresAt),
 }))
 
 // ====================
@@ -313,15 +313,15 @@ export const files = sqliteTable('files', {
   isTemporary: integer('is_temporary', { mode: 'boolean' }).notNull().default(false),
   expiresAt: text('expires_at'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   pathIdx: uniqueIndex('files_path_idx').on(table.path),
   hashIdx: index('files_hash_idx').on(table.hash),
   userIdIdx: index('files_user_id_idx').on(table.userId),
   issueIdIdx: index('files_issue_id_idx').on(table.issueId),
   commentIdIdx: index('files_comment_id_idx').on(table.commentId),
   isTemporaryIdx: index('files_is_temporary_idx').on(table.isTemporary),
-  expiresAtIdx: index('files_expires_at_idx').on(table.expiresAt)
+  expiresAtIdx: index('files_expires_at_idx').on(table.expiresAt),
 }))
 
 // ====================
@@ -333,11 +333,11 @@ export const searchHistory = sqliteTable('search_history', {
   query: text('query').notNull(),
   filters: text('filters', { mode: 'json' }),
   resultCount: integer('result_count').notNull(),
-  executedAt: text('executed_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  executedAt: text('executed_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userIdIdx: index('search_history_user_id_idx').on(table.userId),
   queryIdx: index('search_history_query_idx').on(table.query),
-  executedAtIdx: index('search_history_executed_at_idx').on(table.executedAt)
+  executedAtIdx: index('search_history_executed_at_idx').on(table.executedAt),
 }))
 
 // ====================
@@ -353,12 +353,12 @@ export const savedSearches = sqliteTable('saved_searches', {
   isGlobal: integer('is_global', { mode: 'boolean' }).notNull().default(false),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userNameIdx: uniqueIndex('saved_searches_user_name_idx').on(table.userId, table.name),
   userIdIdx: index('saved_searches_user_id_idx').on(table.userId),
   isGlobalIdx: index('saved_searches_is_global_idx').on(table.isGlobal),
-  sortOrderIdx: index('saved_searches_sort_order_idx').on(table.sortOrder)
+  sortOrderIdx: index('saved_searches_sort_order_idx').on(table.sortOrder),
 }))
 
 // ====================
@@ -374,13 +374,13 @@ export const dashboards = sqliteTable('dashboards', {
   isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
-}, (table) => ({
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
   userNameIdx: uniqueIndex('dashboards_user_name_idx').on(table.userId, table.name),
   userIdIdx: index('dashboards_user_id_idx').on(table.userId),
   isDefaultIdx: index('dashboards_is_default_idx').on(table.isDefault),
   isPublicIdx: index('dashboards_is_public_idx').on(table.isPublic),
-  sortOrderIdx: index('dashboards_sort_order_idx').on(table.sortOrder)
+  sortOrderIdx: index('dashboards_sort_order_idx').on(table.sortOrder),
 }))
 
 // ====================
@@ -403,7 +403,7 @@ export const schema = {
   files,
   searchHistory,
   savedSearches,
-  dashboards
+  dashboards,
 }
 
 // ====================
