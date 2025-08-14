@@ -18,7 +18,8 @@
       "Bash(npm run compile:electron:*)",
       "Bash(npm run lint:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(osascript:*)"
     ],
     "deny": []
   }
