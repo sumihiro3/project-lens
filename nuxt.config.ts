@@ -29,6 +29,9 @@ export default defineNuxtConfig({
     // 産産環境でのVue DevTools無効化
     ...(process.env.NODE_ENV === 'production' ? [] : []),
   ],
+
+  // SPA mode for Electron
+  ssr: false,
   devtools: { enabled: process.env.NODE_ENV !== 'production' },
 
   // Electron optimization
@@ -45,10 +48,11 @@ export default defineNuxtConfig({
     },
   },
 
-  // SPA mode for Electron
-  ssr: false,
-  spaLoadingTemplate: false,
-  
+  // CSS framework
+  css: [
+    'vuetify/lib/styles/main.sass',
+  ],
+
   // Router configuration for Electron file:// protocol
   router: {
     options: {
@@ -56,11 +60,7 @@ export default defineNuxtConfig({
       hashMode: process.env.NODE_ENV === 'production',
     },
   },
-
-  // CSS framework
-  css: [
-    'vuetify/lib/styles/main.sass',
-  ],
+  spaLoadingTemplate: false,
 
   // パフォーマンス最適化: ランタイム設定
   runtimeConfig: {
@@ -109,13 +109,13 @@ export default defineNuxtConfig({
       output: {
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith('.css')) {
-            return '_nuxt/[name]-[hash][extname]';
+            return '_nuxt/[name]-[hash][extname]'
           }
-          return 'assets/[name]-[hash][extname]';
+          return 'assets/[name]-[hash][extname]'
         },
       },
     },
-    // Electronでの静的ルーティング設定  
+    // Electronでの静的ルーティング設定
     prerender: {
       routes: ['/'],
       crawlLinks: false,
@@ -148,17 +148,17 @@ export default defineNuxtConfig({
         output: {
           // 静的アセットの相対パスを設定（CSSファイルを_nuxtディレクトリに配置）
           assetFileNames: (assetInfo) => {
-            const extType = assetInfo.name?.split('.').pop();
+            const extType = assetInfo.name?.split('.').pop()
             if (/css/i.test(extType || '')) {
-              return '_nuxt/[name]-[hash][extname]'; // CSSファイルを_nuxtに配置
+              return '_nuxt/[name]-[hash][extname]' // CSSファイルを_nuxtに配置
             }
             if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType || '')) {
-              return 'assets/images/[name]-[hash][extname]';
+              return 'assets/images/[name]-[hash][extname]'
             }
             if (/woff|woff2|eot|ttf|otf/i.test(extType || '')) {
-              return 'assets/fonts/[name]-[hash][extname]';
+              return 'assets/fonts/[name]-[hash][extname]'
             }
-            return 'assets/[name]-[hash][extname]';
+            return 'assets/[name]-[hash][extname]'
           },
           manualChunks: {
             'vue-vendor': ['vue', '@vue/runtime-core'],
