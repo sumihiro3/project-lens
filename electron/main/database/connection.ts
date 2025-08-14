@@ -123,7 +123,7 @@ class DatabaseConnectionPool {
     try {
       const connection = new Database(filePath, {
         readonly: false,
-        fileMustExist: config.environment !== 'test', // テスト環境ではファイルを自動作成
+        fileMustExist: false, // ファイルが存在しない場合は自動作成
         timeout: config.connectionTimeout || this.connectionTimeout,
         verbose: config.enableLogging ? console.log : undefined
       })
@@ -340,6 +340,12 @@ export class DatabaseManager {
       // ディレクトリの作成（必要な場合）
       await this.ensureDirectoryExists(path.dirname(dbPath))
       
+      // データベースファイルの存在確認
+      const isNewDatabase = dbPath !== ':memory:' && !fs.existsSync(dbPath)
+      if (isNewDatabase) {
+        console.log(`📄 新規データベースファイルを作成します: ${dbPath}`)
+      }
+      
       // ファイル権限とディスク容量のチェック
       await this.validateDatabaseEnvironment(dbPath)
       
@@ -420,10 +426,11 @@ export class DatabaseManager {
     }
 
     try {
-      // ファイル権限のチェック
-      const permissions = await DatabaseErrorHandler.checkFilePermissions(dbPath)
+      // ファイルまたはディレクトリの権限をチェック
+      const checkPath = fs.existsSync(dbPath) ? dbPath : path.dirname(dbPath)
+      const permissions = await DatabaseErrorHandler.checkFilePermissions(checkPath)
       if (!permissions.writable) {
-        throw new Error('データベースファイルに書き込み権限がありません')
+        throw new Error('データベースファイルまたはディレクトリに書き込み権限がありません')
       }
 
       // ディスク容量のチェック（本番環境のみ）

@@ -211,7 +211,7 @@ export async function runDatabaseTests() {
 }
 
 // スクリプトとして直接実行された場合
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   runDatabaseTests()
     .then((success) => {
       console.log('\n🚀 テスト完了')
