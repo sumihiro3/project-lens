@@ -1,10 +1,12 @@
 import { app, BrowserWindow, shell, protocol } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
+import { getDatabase, type DatabaseConfig } from './database/connection'
 
 // パフォーマンス最適化: 起動時間測定
 const startTime = Date.now()
 let windowReadyTime: number | null = null
+let databaseInitTime: number | null = null
 
 // パフォーマンス最適化: メモリ使用量を最適化
 app.commandLine.appendSwitch('disable-background-timer-throttling')
@@ -71,6 +73,9 @@ function createWindow(): void {
     // 開発時のパフォーマンス情報表示
     if (is.dev) {
       console.log(`🚀 Electronウィンドウが ${windowReadyTime}ms で準備完了しました`)
+      if (databaseInitTime !== null) {
+        console.log(`🗄️ データベース初期化: ${databaseInitTime}ms`)
+      }
     }
   })
 
@@ -101,8 +106,11 @@ function createWindow(): void {
   // パフォーマンス最適化: 並列でリソースをプリロード
   if (isDevelopment) {
     // Development: Connect to Nuxt dev server
-    console.log(`📱 開発モードでNuxtサーバーに接続`)
-    mainWindow.loadURL('http://localhost:3000')
+    // Nuxtが使用可能なポートを動的に検出
+    const devServerPort = process.env.NUXT_PORT || '3000'
+    const devServerUrl = `http://localhost:${devServerPort}`
+    console.log(`📱 開発モードでNuxtサーバーに接続: ${devServerUrl}`)
+    mainWindow.loadURL(devServerUrl)
 
     // 開発時の追加最適化
     mainWindow.webContents.once('did-finish-load', () => {
@@ -159,6 +167,91 @@ if (!is.dev) {
   ])
 }
 
+/**
+ * データベース初期化
+ */
+async function initializeDatabase(): Promise<void> {
+  const dbStartTime = Date.now()
+  
+  try {
+    const db = getDatabase()
+    
+    // 環境判定
+    const isDevelopment = is.dev || process.env.NODE_ENV === 'development'
+    const isTest = process.env.NODE_ENV === 'test'
+    
+    // データベース設定
+    const dbConfig: Partial<DatabaseConfig> = {
+      environment: isTest ? 'test' : isDevelopment ? 'development' : 'production',
+      enableWAL: !isTest, // テスト時はWALモードを無効化
+      enableForeignKeys: true,
+      busyTimeout: 5000,
+      cacheSize: isDevelopment ? -1000 : -2000, // 開発時1MB、本番時2MB
+      enableSynchronous: isDevelopment ? 'OFF' : 'NORMAL',
+      enableMigrations: true,
+      maxConnections: isDevelopment ? 3 : 5,
+      connectionTimeout: 30000,
+      enableLogging: isDevelopment && process.env.DATABASE_DEBUG === 'true'
+    }
+    
+    console.log(`🗄️ データベース初期化開始 (環境: ${dbConfig.environment})`)
+    
+    // データベース初期化とマイグレーション実行
+    await db.initialize(dbConfig)
+    
+    // 接続テスト
+    const isHealthy = await db.testConnection()
+    if (!isHealthy) {
+      throw new Error('データベース接続テストに失敗しました')
+    }
+    
+    // ヘルスチェック（本番環境のみ）
+    if (!isDevelopment) {
+      const health = await db.healthCheck()
+      if (!health.isHealthy) {
+        console.warn('⚠️ データベースヘルスチェックで問題が検出されました:', health.issues)
+      }
+    }
+    
+    databaseInitTime = Date.now() - dbStartTime
+    console.log(`✅ データベース初期化完了: ${databaseInitTime}ms`)
+    
+    // パフォーマンス監視用ログ
+    if (process.env.PERFORMANCE_MONITOR) {
+      const status = db.getStatus()
+      console.log('Database ready', {
+        initTime: databaseInitTime,
+        environment: status.environment,
+        isHealthy: status.connectionInfo?.isConnected || false
+      })
+    }
+    
+  } catch (error) {
+    databaseInitTime = Date.now() - dbStartTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    
+    // 環境判定（エラーハンドリング用）
+    const isDev = is.dev || process.env.NODE_ENV === 'development'
+    
+    console.error(`❌ データベース初期化に失敗しました (${databaseInitTime}ms):`, errorMessage)
+    
+    // 開発時はエラーの詳細を表示
+    if (isDev) {
+      console.error('データベースエラーの詳細:', error)
+    }
+    
+    
+    // データベース初期化エラーは致命的なため、アプリケーションを終了
+    // ただし、開発時は警告のみ表示してアプリケーションを継続
+    if (!isDev) {
+      app.quit()
+      return
+    } else {
+      console.warn('⚠️ 開発環境のため、データベースエラーを無視してアプリケーションを継続します')
+    }
+  }
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -166,6 +259,9 @@ app.whenReady().then(async () => {
   // パフォーマンス測定
   const appReadyTime = Date.now() - startTime
   console.log(`⚡ Electronアプリ初期化完了: ${appReadyTime}ms`)
+  
+  // データベース初期化（並列実行）
+  const databaseInitPromise = initializeDatabase()
 
   // Set app user model id for windows
   app.setAppUserModelId('com.projectlens.desktop')
@@ -176,6 +272,13 @@ app.whenReady().then(async () => {
   // メモリ最適化: 不要なプロセスを削減
   if (!is.dev) {
     app.setPath('crashDumps', join(app.getPath('temp'), 'crashes'))
+  }
+
+  // データベース初期化の完了を待つ
+  try {
+    await databaseInitPromise
+  } catch (error) {
+    console.error('データベース初期化エラー:', error)
   }
 
   // Default open or close DevTools by F12 in development
@@ -332,9 +435,18 @@ app.on('browser-window-blur', () => {
 })
 
 // 終了時のクリーンアップ
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   const totalTime = Date.now() - startTime
   console.log(`👋 アプリケーション終了 (実行時間: ${totalTime}ms)`)
+
+  // データベース接続のクリーンアップ
+  try {
+    const db = getDatabase()
+    await db.cleanup()
+    console.log('🗄️ データベース接続をクリーンアップしました')
+  } catch (error) {
+    console.error('データベースクリーンアップエラー:', error)
+  }
 
   // メモリクリーンアップ
   if (typeof global !== 'undefined' && global.gc) {
@@ -347,6 +459,17 @@ if (is.dev) {
   setInterval(() => {
     const memUsage = process.memoryUsage()
     console.log(`🧠 メモリ使用量: RSS=${Math.round(memUsage.rss / 1024 / 1024)}MB, Heap=${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`)
+    
+    // データベースのパフォーマンス統計も表示
+    try {
+      const db = getDatabase()
+      const status = db.getStatus()
+      if (status.isInitialized && status.performance) {
+        console.log(`🗄️ DB統計: クエリ数=${status.performance.queryCount}, 平均時間=${status.performance.averageQueryTime.toFixed(2)}ms, 低速クエリ=${status.performance.slowQueryCount}`)
+      }
+    } catch (error) {
+      // データベースが初期化されていない場合は無視
+    }
   }, 30000) // 30秒ごと
 }
 
