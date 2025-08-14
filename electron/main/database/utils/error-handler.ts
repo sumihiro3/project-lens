@@ -239,29 +239,35 @@ export class DatabaseErrorHandler {
   }
 
   /**
-   * エラーログを出力（将来のPino連携準備）
+   * エラーログを出力（Pinoログシステム統合済み）
    */
   private logError(error: DatabaseError): void {
-    const logData = {
-      level: this.mapSeverityToLogLevel(error.severity),
-      msg: error.message,
-      error: {
-        type: error.type,
-        original: error.originalError.message,
-        stack: error.originalError.stack,
-        context: error.context,
-      },
-      timestamp: error.timestamp.toISOString(),
-      recoverable: error.recoverable,
-      suggestedAction: error.suggestedAction,
-    }
+    try {
+      // Pinoロガーの遅延インポートでCircular dependency回避
+      const { logDatabaseError } = require('../../utils/logger')
+      logDatabaseError(error)
+    } catch (importError) {
+      // Logger未利用時のフォールバック
+      const logData = {
+        level: this.mapSeverityToLogLevel(error.severity),
+        msg: error.message,
+        error: {
+          type: error.type,
+          original: error.originalError.message,
+          stack: error.originalError.stack,
+          context: error.context,
+        },
+        timestamp: error.timestamp.toISOString(),
+        recoverable: error.recoverable,
+        suggestedAction: error.suggestedAction,
+      }
 
-    // 現在は console.error を使用、将来的にPinoに置き換え
-    if (error.severity === 'critical' || error.severity === 'high') {
-      console.error('[DatabaseError]', JSON.stringify(logData, null, 2))
-    }
-    else {
-      console.warn('[DatabaseError]', JSON.stringify(logData, null, 2))
+      if (error.severity === 'critical' || error.severity === 'high') {
+        console.error('[DatabaseError]', JSON.stringify(logData, null, 2))
+      }
+      else {
+        console.warn('[DatabaseError]', JSON.stringify(logData, null, 2))
+      }
     }
   }
 
