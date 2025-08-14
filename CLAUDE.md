@@ -7,6 +7,7 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 ### Important
 
 - When the task is complete, run `afplay /System/Library/Sounds/Hero.aiff` to play the notification sound.
+- When asking for user input or requiring user response, run `afplay /System/Library/Sounds/Submarine.aiff` to play the notification sound.
 
 ### Paths
 

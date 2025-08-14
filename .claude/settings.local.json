@@ -16,7 +16,9 @@
       "Bash(npm test)",
       "Bash(tree:*)",
       "Bash(npm run compile:electron:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm test:*)"
     ],
     "deny": []
   }

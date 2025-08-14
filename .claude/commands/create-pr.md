@@ -31,7 +31,7 @@ I will help you create a pull request by following these steps:
      - 関連Issue: Closes #<issue-numbers>
 
 4. **Execute PR creation:**
-   - Run `gh pr create` with generated title and Japanese description
+   - Run `gh pr create --base develop` with generated title and Japanese description
    - Handle draft PR option for large changes
    - Auto-assign reviewers based on CODEOWNERS if available
 
