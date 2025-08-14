@@ -244,9 +244,11 @@ export class DatabaseErrorHandler {
   private logError(error: DatabaseError): void {
     try {
       // Pinoロガーの遅延インポートでCircular dependency回避
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
       const { logDatabaseError } = require('../../utils/logger')
       logDatabaseError(error)
-    } catch (importError) {
+    }
+    catch {
       // Logger未利用時のフォールバック
       const logData = {
         level: this.mapSeverityToLogLevel(error.severity),

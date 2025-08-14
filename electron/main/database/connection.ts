@@ -63,28 +63,29 @@ export function getDatabase(): DatabaseManager {
  */
 export async function initializeDatabase(config?: Partial<DatabaseConfig>): Promise<ReturnType<typeof drizzle>> {
   const logger = Logger.getInstance()
-  
+
   return await withAsyncPerformance('database.initializeDatabase', async () => {
     logger.info('データベース初期化を開始します', {
       hasCustomConfig: !!config,
-      environment: config?.environment || 'default'
+      environment: config?.environment || 'default',
     })
-    
+
     try {
       const db = getDatabase()
       await db.initialize(config)
       const drizzleInstance = db.getDrizzle()
-      
+
       logger.info('データベース初期化が完了しました', {
         environment: config?.environment || 'default',
-        status: 'success'
+        status: 'success',
       })
-      
+
       return drizzleInstance
-    } catch (error) {
+    }
+    catch (error) {
       logger.error('データベース初期化に失敗しました', error as Error, {
         environment: config?.environment || 'default',
-        customConfig: config
+        customConfig: config,
       })
       throw error
     }
@@ -103,41 +104,41 @@ export async function executeQuery<T>(
 
   return await withAsyncPerformance('database.executeQuery', async () => {
     const startTime = Date.now()
-    
+
     try {
       logger.debug('データベースクエリの実行を開始します')
-      
+
       const result = await queryFn(drizzleDb)
       const endTime = Date.now()
       const queryTime = endTime - startTime
-      
+
       db.updatePerformanceStats(queryTime)
-      
+
       logger.debug('データベースクエリが正常に完了しました', {
         queryTime,
-        status: 'success'
+        status: 'success',
       })
-      
+
       if (queryTime > 1000) {
         logger.warn('低速なクエリが検出されました', {
           queryTime,
-          threshold: 1000
+          threshold: 1000,
         })
       }
-      
+
       return result
     }
     catch (error) {
       const endTime = Date.now()
       const queryTime = endTime - startTime
-      
+
       db.updatePerformanceStats(queryTime)
-      
+
       logger.error('データベースクエリの実行中にエラーが発生しました', error as Error, {
         queryTime,
-        status: 'failed'
+        status: 'failed',
       })
-      
+
       throw error
     }
   })
@@ -155,41 +156,41 @@ export async function executeTransaction<T>(
 
   return await withAsyncPerformance('database.executeTransaction', async () => {
     const startTime = Date.now()
-    
+
     try {
       logger.debug('データベーストランザクションの実行を開始します')
-      
+
       const result = await drizzleDb.transaction(transactionFn)
       const endTime = Date.now()
       const transactionTime = endTime - startTime
-      
+
       db.updatePerformanceStats(transactionTime)
-      
+
       logger.info('データベーストランザクションが正常に完了しました', {
         transactionTime,
-        status: 'committed'
+        status: 'committed',
       })
-      
+
       if (transactionTime > 2000) {
         logger.warn('長時間実行されたトランザクションが検出されました', {
           transactionTime,
-          threshold: 2000
+          threshold: 2000,
         })
       }
-      
+
       return result
     }
     catch (error) {
       const endTime = Date.now()
       const transactionTime = endTime - startTime
-      
+
       db.updatePerformanceStats(transactionTime)
-      
+
       logger.error('データベーストランザクションでエラーが発生しました', error as Error, {
         transactionTime,
-        status: 'rolled_back'
+        status: 'rolled_back',
       })
-      
+
       throw error
     }
   })

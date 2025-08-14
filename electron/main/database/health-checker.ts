@@ -142,7 +142,7 @@ export class DatabaseHealthChecker {
 
       const responseTime = Date.now() - startTime
       const isHealthy = Object.values(checks).every(Boolean) && issues.length === 0
-      
+
       let status: 'healthy' | 'warning' | 'error' = 'healthy'
       if (!isHealthy) {
         status = checks.connection ? 'warning' : 'error'

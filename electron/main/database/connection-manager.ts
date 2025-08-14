@@ -57,7 +57,7 @@ export class DatabaseConnectionPool {
       logger.debug('データベース接続の取得を開始', {
         filePath,
         environment: config.environment,
-        connectionKey: key
+        connectionKey: key,
       })
 
       let connection = this.connections.get(key)
@@ -65,7 +65,7 @@ export class DatabaseConnectionPool {
         this.updateConnectionInfo(key, { connectionCount: this.getConnectionInfo(key).connectionCount + 1 })
         logger.debug('既存のデータベース接続を再利用', {
           connectionKey: key,
-          connectionCount: this.getConnectionInfo(key).connectionCount
+          connectionCount: this.getConnectionInfo(key).connectionCount,
         })
         return connection
       }
@@ -74,14 +74,14 @@ export class DatabaseConnectionPool {
       if (this.connections.size >= this.maxConnections) {
         logger.warn('最大接続数に近づいています。アイドル接続をクリーンアップします', {
           currentConnections: this.connections.size,
-          maxConnections: this.maxConnections
+          maxConnections: this.maxConnections,
         })
         await this.cleanupIdleConnections()
         if (this.connections.size >= this.maxConnections) {
           const error = new Error(`最大接続数に達しました (${this.maxConnections})`)
           logger.error('データベース接続プールが満杯です', error, {
             currentConnections: this.connections.size,
-            maxConnections: this.maxConnections
+            maxConnections: this.maxConnections,
           })
           throw error
         }
@@ -108,7 +108,7 @@ export class DatabaseConnectionPool {
         filePath,
         environment: config.environment,
         connectionKey: key,
-        totalConnections: this.connections.size
+        totalConnections: this.connections.size,
       })
 
       return connection
@@ -127,7 +127,7 @@ export class DatabaseConnectionPool {
         filePath,
         environment: config.environment,
         readonly: false,
-        timeout: config.connectionTimeout || this.connectionTimeout
+        timeout: config.connectionTimeout || this.connectionTimeout,
       })
 
       const connection = new Database(filePath, {
@@ -145,7 +145,7 @@ export class DatabaseConnectionPool {
         filePath,
         environment: config.environment,
         connectionTime,
-        isOpen: connection.open
+        isOpen: connection.open,
       })
 
       return connection
@@ -156,15 +156,15 @@ export class DatabaseConnectionPool {
         operation: 'createConnection',
         filePath,
       })
-      
+
       logger.error('データベース接続の作成に失敗しました', error as Error, {
         filePath,
         environment: config.environment,
         connectionTime,
         errorType: dbError.type,
-        severity: dbError.severity
+        severity: dbError.severity,
       })
-      
+
       throw new Error(`データベース接続の作成に失敗しました: ${dbError.message}`)
     }
   }
@@ -174,14 +174,14 @@ export class DatabaseConnectionPool {
    */
   private async configureSQLite(connection: Database.Database, config: DatabaseConfig): Promise<void> {
     const logger = Logger.getInstance()
-    
+
     try {
       logger.debug('SQLite設定の適用を開始', {
         environment: config.environment,
         enableWAL: config.enableWAL !== false && config.environment !== 'test',
         enableForeignKeys: config.enableForeignKeys !== false,
         busyTimeout: config.busyTimeout,
-        cacheSize: config.cacheSize
+        cacheSize: config.cacheSize,
       })
 
       // WALモードの有効化（パフォーマンス向上）
@@ -223,19 +223,19 @@ export class DatabaseConnectionPool {
       logger.info('SQLite設定の適用が完了しました', {
         environment: config.environment,
         walEnabled: config.enableWAL !== false && config.environment !== 'test',
-        foreignKeysEnabled: config.enableForeignKeys !== false
+        foreignKeysEnabled: config.enableForeignKeys !== false,
       })
     }
     catch (error) {
       const dbError = handleDatabaseError(error, {
         operation: 'configureSQLite',
       })
-      
+
       logger.warn('SQLite設定の適用中に警告が発生しました', {
         errorType: dbError.type,
         severity: dbError.severity,
         message: dbError.message,
-        recoverable: dbError.recoverable
+        recoverable: dbError.recoverable,
       })
     }
   }
@@ -268,21 +268,21 @@ export class DatabaseConnectionPool {
           connectionKey: key,
           filePath: connectionInfo?.filePath,
           environment: connectionInfo?.environment,
-          connectionCount: connectionInfo?.connectionCount
+          connectionCount: connectionInfo?.connectionCount,
         })
-        
+
         connection.close()
         this.connections.delete(key)
-        
+
         logger.info('データベース接続を正常に閉じました', {
           connectionKey: key,
-          remainingConnections: this.connections.size
+          remainingConnections: this.connections.size,
         })
       }
       catch (error) {
         logger.warn('接続のクローズ中にエラーが発生しました', {
           connectionKey: key,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         })
       }
     }
@@ -300,16 +300,16 @@ export class DatabaseConnectionPool {
   async closeAllConnections(): Promise<void> {
     const logger = Logger.getInstance()
     const connectionCount = this.connections.size
-    
+
     logger.info('すべてのデータベース接続を閉じています', {
-      totalConnections: connectionCount
+      totalConnections: connectionCount,
     })
-    
+
     const promises = Array.from(this.connections.keys()).map(key => this.closeConnection(key))
     await Promise.all(promises)
-    
+
     logger.info('すべてのデータベース接続を閉じました', {
-      closedConnections: connectionCount
+      closedConnections: connectionCount,
     })
   }
 
@@ -386,19 +386,19 @@ export class DatabaseManager {
    */
   public async initialize(config?: Partial<DatabaseConfig>): Promise<void> {
     const logger = Logger.getInstance()
-    
+
     if (this.isInitialized) {
       logger.debug('データベースは既に初期化済みです')
       return
     }
 
     const startTime = Date.now()
-    
+
     return await withAsyncPerformance('database.initialize', async () => {
       try {
         logger.info('データベースの初期化を開始します', {
           environment: this.config.environment,
-          customPath: config?.customPath
+          customPath: config?.customPath,
         })
 
         // 設定をマージ
@@ -410,7 +410,7 @@ export class DatabaseManager {
         logger.debug('データベースファイルパスを決定しました', {
           dbPath,
           isCustomPath: !!this.config.customPath,
-          environment: this.config.environment
+          environment: this.config.environment,
         })
 
         // ディレクトリの作成（必要な場合）
@@ -420,7 +420,8 @@ export class DatabaseManager {
         const isNewDatabase = dbPath !== ':memory:' && !fs.existsSync(dbPath)
         if (isNewDatabase) {
           logger.info('新規データベースファイルを作成します', { dbPath })
-        } else if (dbPath !== ':memory:') {
+        }
+        else if (dbPath !== ':memory:') {
           logger.debug('既存のデータベースファイルを使用します', { dbPath })
         }
 
@@ -456,7 +457,7 @@ export class DatabaseManager {
           environment: this.config.environment,
           initTime,
           isNewDatabase,
-          migrationsEnabled: this.config.enableMigrations
+          migrationsEnabled: this.config.enableMigrations,
         })
       }
       catch (error) {
@@ -466,16 +467,16 @@ export class DatabaseManager {
           operation: 'initialize',
           filePath: dbPath,
         })
-        
+
         logger.error('データベースの初期化に失敗しました', error as Error, {
           dbPath,
           environment: this.config.environment,
           initTime,
           errorType: dbError.type,
           severity: dbError.severity,
-          recoverable: dbError.recoverable
+          recoverable: dbError.recoverable,
         })
-        
+
         throw new Error(`データベースの初期化に失敗しました: ${dbError.message}`)
       }
     })
@@ -651,18 +652,18 @@ export class DatabaseManager {
    */
   public async cleanup(): Promise<void> {
     const logger = Logger.getInstance()
-    
+
     try {
       logger.info('データベースのクリーンアップを開始します', {
         isInitialized: this.isInitialized,
-        hasConnection: !!this.currentConnection
+        hasConnection: !!this.currentConnection,
       })
-      
+
       await this.pool.closeAllConnections()
       this.currentConnection = undefined
       this.currentDrizzle = undefined
       this.isInitialized = false
-      
+
       logger.info('データベース接続のクリーンアップが完了しました')
     }
     catch (error) {
@@ -676,20 +677,21 @@ export class DatabaseManager {
    */
   public async testConnection(): Promise<boolean> {
     const logger = Logger.getInstance()
-    
+
     return await withAsyncPerformance('database.testConnection', async () => {
       logger.debug('データベース接続テストを開始します')
-      
+
       try {
         const result = await this.healthChecker.testConnection()
-        
+
         logger.info('データベース接続テストが完了しました', {
           success: result,
-          isInitialized: this.isInitialized
+          isInitialized: this.isInitialized,
         })
-        
+
         return result
-      } catch (error) {
+      }
+      catch (error) {
         logger.error('データベース接続テストに失敗しました', error as Error)
         return false
       }
@@ -701,27 +703,28 @@ export class DatabaseManager {
    */
   public async healthCheck(): Promise<HealthCheckResult> {
     const logger = Logger.getInstance()
-    
+
     return await withAsyncPerformance('database.healthCheck', async () => {
       logger.debug('データベースヘルスチェックを開始します')
-      
+
       try {
         const result = await this.healthChecker.healthCheck()
-        
+
         logger.info('データベースヘルスチェックが完了しました', {
           status: result.status,
           responseTime: result.responseTime,
-          issues: result.issues?.length || 0
+          issues: result.issues?.length || 0,
         })
-        
+
         if (result.issues && result.issues.length > 0) {
           logger.warn('ヘルスチェックで問題が検出されました', {
-            issues: result.issues
+            issues: result.issues,
           })
         }
-        
+
         return result
-      } catch (error) {
+      }
+      catch (error) {
         logger.error('データベースヘルスチェックに失敗しました', error as Error)
         throw error
       }
