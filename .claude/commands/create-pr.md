@@ -1,6 +1,6 @@
 # Create Pull Request
 
-Creates a pull request with automatic issue closing.
+Creates a pull request with automatic issue closing. 作成されるPRは必ずdevelopブランチをベースとします。
 
 ## Usage
 
@@ -15,6 +15,7 @@ I will help you create a pull request by following these steps:
    - Confirm local changes exist using `git rev-list develop..HEAD --count`
    - Validate GitHub CLI authentication with `gh auth status`
    - Parse and verify issue numbers are accessible
+   - Ensure develop branch exists and is up-to-date
 
 2. **Branch preparation:**
    - Show change summary with `git log develop..HEAD --oneline` and `git diff develop --stat`
@@ -31,7 +32,7 @@ I will help you create a pull request by following these steps:
      - 関連Issue: Closes #<issue-numbers>
 
 4. **Execute PR creation:**
-   - Run `gh pr create --base develop` with generated title and Japanese description
+   - Run `gh pr create --base develop` with generated title and Japanese description (必ずdevelopブランチをベースとする)
    - Handle draft PR option for large changes
    - Auto-assign reviewers based on CODEOWNERS if available
 
