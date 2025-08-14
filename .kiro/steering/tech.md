@@ -9,6 +9,8 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 ### コアフレームワーク
 
 - **Electron 33.0.0**: クロスプラットフォームデスクトップアプリケーション
+- **@electron-toolkit/preload 3.0.2**: Electronプリロード用ユーティリティ（実装済み）
+- **@electron-toolkit/utils 4.0.0**: Electron開発支援ユーティリティ（実装済み）
 - **Nuxt 3.18.1**: Vue 3ベースのフレームワーク、SSR無効設定
 - **Vue 3.5.0**: Composition APIによるリアクティブUI
 - **TypeScript 5.7.2**: strict mode + 追加厳密設定で型安全性を確保
@@ -27,16 +29,16 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 
 - **Pinia 3.0.3**: Vue 3対応の軽量状態管理
 - **@pinia/nuxt 0.11.2**: Nuxt 3統合
-- **@vueuse/core 13.6.0**: Vue Composition API ユーティリティ
-- **@vueuse/nuxt 13.6.0**: Nuxt 3統合
+- **@vueuse/core 13.6.0**: Vue Composition API ユーティリティ（実装済み）
 
 ## バックエンド・データ技術
 
 ### ランタイム・データベース
 
 - **Node.js 22+**: JavaScriptランタイム
-- **[予定] SQLite3 + better-sqlite3**: 高速同期SQLiteドライバー（今後実装予定）
-- **[予定] Drizzle ORM**: TypeScript-firstの軽量ORM（今後実装予定）
+- **better-sqlite3 12.2.0**: 高速同期SQLiteドライバー（実装済み）
+- **Drizzle ORM 0.44.4**: TypeScript-firstの軽量ORM（実装済み）
+- **drizzle-kit 0.31.4**: マイグレーション管理ツール（実装済み）
 
 ### AI・コミュニケーション
 
@@ -82,6 +84,9 @@ ProjectLens は Electron + Nuxt 3 + Vuetify の技術スタックを採用し、
 - **TypeScript**: strict mode有効で厳密な型チェック（実装済み）
 - **Vitest 3.2.0**: 高速テストランナー（実装済み）
 - **happy-dom 16.3.0**: 軽量DOMテスト環境（実装済み）
+- **gzip-size 7.0.0**: バンドルサイズ解析ツール（実装済み）
+- **wait-on 8.0.4**: プロセス待機ユーティリティ（実装済み）
+- **concurrently 9.2.0**: 並列プロセス実行（実装済み）
 
 ## 共通開発コマンド
 
@@ -94,11 +99,23 @@ npm run dev
 # Electron開発サーバー起動
 npm run dev:electron
 
+# 高速Electron開発（クイックコンパイル）
+npm run dev:fast
+
+# Electron監視モード（ファイル変更時再コンパイル）
+npm run dev:watch
+
 # プロダクションビルド（Nuxt）
 npm run build
 
 # Electronビルド
 npm run build:electron
+
+# Electronコンパイル（TypeScript → CommonJS）
+npm run compile:electron
+
+# Electron高速コンパイル（開発用）
+npm run compile:electron:quick
 
 # プレビューモード
 npm run preview
@@ -135,9 +152,13 @@ npm run build:mac
 npm run build:linux
 
 # パフォーマンス監視・解析（実装済み）
-npm run perf:monitor    # パフォーマンス監視
-npm run perf:analyze    # バンドルサイズ解析
-npm run perf:report     # 総合レポート生成
+npm run perf:monitor    # パフォーマンス監視（実装済み）
+npm run perf:analyze    # バンドルサイズ解析（実装済み）
+npm run perf:report     # 総合レポート生成（実装済み）
+npm run perf:startup    # 起動パフォーマンス測定（実装済み）
+npm run perf:memory     # メモリ使用量測定（実装済み）
+npm run perf:bundle     # バンドルサイズ測定（実装済み）
+npm run perf:ci         # CI用パフォーマンステスト（実装済み）
 ```
 
 ## 環境変数
