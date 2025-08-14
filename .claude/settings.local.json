@@ -13,7 +13,8 @@
       "Bash(npm run type-check:*)",
       "Bash(git rev-list:*)",
       "Bash(gh auth:*)",
-      "Bash(npm test)"
+      "Bash(npm test)",
+      "Bash(tree:*)"
     ],
     "deny": []
   }
