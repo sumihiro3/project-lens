@@ -3,11 +3,56 @@ import { join } from 'node:path'
 import * as fs from 'node:fs'
 import { is } from '@electron-toolkit/utils'
 import { getDatabase, type DatabaseConfig } from './database/connection'
+import logger, { info, error, warn, debug, fatal, withAsyncPerformance } from './utils/logger'
 
 // パフォーマンス最適化: 起動時間測定
 const startTime = Date.now()
 let windowReadyTime: number | null = null
 let databaseInitTime: number | null = null
+
+// Pinoログシステムの早期初期化（100ms以内保証）
+// logger は default export でインポートされているため、ここで追加設定
+logger.info('Electron main process starting', {
+  version: app.getVersion(),
+  platform: process.platform,
+  arch: process.arch,
+  nodeVersion: process.version,
+  electronVersion: process.versions.electron,
+})
+
+// 未処理例外とプロセス終了のログ設定
+process.on('uncaughtException', (error) => {
+  fatal('Uncaught Exception', error, {
+    origin: 'uncaughtException',
+    pid: process.pid,
+    uptime: process.uptime(),
+  })
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  const errorReason = reason instanceof Error ? reason : new Error(String(reason))
+  error('Unhandled Rejection', errorReason, {
+    origin: 'unhandledRejection',
+    promise: promise.toString(),
+  })
+})
+
+// Electronアプリエラーハンドリング
+app.on('render-process-gone', (_, __, details) => {
+  error('Render process gone', new Error(details.reason), {
+    reason: details.reason,
+    exitCode: details.exitCode,
+  })
+})
+
+app.on('child-process-gone', (_, details) => {
+  error('Child process gone', new Error(details.reason), {
+    serviceName: details.serviceName,
+    reason: details.reason,
+    exitCode: details.exitCode,
+  })
+})
 
 // パフォーマンス最適化: メモリ使用量を最適化
 app.commandLine.appendSwitch('disable-background-timer-throttling')
@@ -25,6 +70,8 @@ if (!is.dev) {
 }
 
 function createWindow(): void {
+  logger.debug('Creating main window')
+
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -64,14 +111,20 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     windowReadyTime = Date.now() - startTime
 
-    // パフォーマンスモニター用ログ
+    logger.info('Main window ready to show', {
+      windowReadyTime,
+      databaseInitTime,
+      performanceMonitor: !!process.env.PERFORMANCE_MONITOR,
+    })
+
+    // パフォーマンスモニター用ログ（従来の機能を維持）
     if (process.env.PERFORMANCE_MONITOR) {
       console.log(`⚡ ウィンドウ準備完了: ${windowReadyTime}ms`)
     }
 
     mainWindow.show()
 
-    // 開発時のパフォーマンス情報表示
+    // 開発時のパフォーマンス情報表示（従来の機能を維持）
     if (is.dev) {
       console.log(`🚀 Electronウィンドウが ${windowReadyTime}ms で準備完了しました`)
       if (databaseInitTime !== null) {
@@ -101,6 +154,13 @@ function createWindow(): void {
   const isDevelopment = is.dev || process.env.NODE_ENV === 'development'
   const isProduction = !isDevelopment || process.env.NODE_ENV === 'production'
 
+  logger.debug('Environment detection', {
+    isDev: is.dev,
+    nodeEnv: process.env.NODE_ENV,
+    isDevelopment,
+    isProduction,
+  })
+
   console.log(`🔍 環境判定: is.dev=${is.dev}, NODE_ENV=${process.env.NODE_ENV}`)
   console.log(`🔍 判定結果: isDevelopment=${isDevelopment}, isProduction=${isProduction}`)
 
@@ -110,12 +170,24 @@ function createWindow(): void {
     // Nuxtが使用可能なポートを動的に検出
     const devServerPort = process.env.NUXT_PORT || '3000'
     const devServerUrl = `http://localhost:${devServerPort}`
+
+    logger.info('Connecting to Nuxt dev server', {
+      devServerUrl,
+      port: devServerPort,
+    })
+
     console.log(`📱 開発モードでNuxtサーバーに接続: ${devServerUrl}`)
     mainWindow.loadURL(devServerUrl)
 
     // 開発時の追加最適化
     mainWindow.webContents.once('did-finish-load', () => {
       const loadTime = Date.now() - startTime
+
+      logger.info('Development server loaded', {
+        loadTime,
+        url: devServerUrl,
+      })
+
       console.log(`📱 開発サーバーのロード完了: ${loadTime}ms`)
 
       if (process.env.PERFORMANCE_MONITOR) {
@@ -126,14 +198,27 @@ function createWindow(): void {
   else {
     // Production: Load built Nuxt files - 200.htmlを使用してSPAルーティングに対応
     const htmlPath = join(__dirname, '../../.output/public/200.html')
+    const fileExists = fs.existsSync(htmlPath)
+
+    logger.info('Loading production build', {
+      htmlPath,
+      fileExists,
+    })
+
     console.log(`🔍 プロダクション用HTMLファイルパス: ${htmlPath}`)
-    console.log(`📂 HTMLファイルの存在確認: ${fs.existsSync(htmlPath)}`)
+    console.log(`📂 HTMLファイルの存在確認: ${fileExists}`)
 
     mainWindow.loadFile(htmlPath)
 
     // プロダクション時の最適化とデバッグログ
     mainWindow.webContents.once('did-finish-load', () => {
       const loadTime = Date.now() - startTime
+
+      logger.info('Production build loaded', {
+        loadTime,
+        htmlPath,
+      })
+
       console.log(`📦 プロダクションビルドのロード完了: ${loadTime}ms`)
 
       if (process.env.PERFORMANCE_MONITOR) {
@@ -143,11 +228,16 @@ function createWindow(): void {
 
     // エラーハンドリングを追加
     mainWindow.webContents.once('did-fail-load', (_, errorCode, errorDescription) => {
+      logger.error('Page load failed', new Error(errorDescription), {
+        errorCode,
+        htmlPath,
+      })
       console.error(`❌ ページの読み込みに失敗しました:`, errorCode, errorDescription)
     })
 
     // ページ読み込み開始時のログ
     mainWindow.webContents.once('did-start-loading', () => {
+      logger.debug('Starting to load production HTML file', { htmlPath })
       console.log(`🚀 プロダクションHTMLファイルの読み込み開始`)
     })
   }
@@ -172,85 +262,117 @@ if (!is.dev) {
  * データベース初期化
  */
 async function initializeDatabase(): Promise<void> {
-  const dbStartTime = Date.now()
+  return withAsyncPerformance('database-initialization', async () => {
+    const dbStartTime = Date.now()
 
-  try {
-    const db = getDatabase()
+    logger.info('Starting database initialization')
 
-    // 環境判定
-    const isDevelopment = is.dev || process.env.NODE_ENV === 'development'
-    const isTest = process.env.NODE_ENV === 'test'
+    try {
+      const db = getDatabase()
 
-    // データベース設定
-    const dbConfig: Partial<DatabaseConfig> = {
-      environment: isTest ? 'test' : isDevelopment ? 'development' : 'production',
-      enableWAL: !isTest, // テスト時はWALモードを無効化
-      enableForeignKeys: true,
-      busyTimeout: 5000,
-      cacheSize: isDevelopment ? -1000 : -2000, // 開発時1MB、本番時2MB
-      enableSynchronous: isDevelopment ? 'OFF' : 'NORMAL',
-      enableMigrations: true,
-      maxConnections: isDevelopment ? 3 : 5,
-      connectionTimeout: 30000,
-      enableLogging: isDevelopment && process.env.DATABASE_DEBUG === 'true',
-    }
+      // 環境判定
+      const isDevelopment = is.dev || process.env.NODE_ENV === 'development'
+      const isTest = process.env.NODE_ENV === 'test'
 
-    console.log(`🗄️ データベース初期化開始 (環境: ${dbConfig.environment})`)
+      // データベース設定
+      const dbConfig: Partial<DatabaseConfig> = {
+        environment: isTest ? 'test' : isDevelopment ? 'development' : 'production',
+        enableWAL: !isTest, // テスト時はWALモードを無効化
+        enableForeignKeys: true,
+        busyTimeout: 5000,
+        cacheSize: isDevelopment ? -1000 : -2000, // 開発時1MB、本番時2MB
+        enableSynchronous: isDevelopment ? 'OFF' : 'NORMAL',
+        enableMigrations: true,
+        maxConnections: isDevelopment ? 3 : 5,
+        connectionTimeout: 30000,
+        enableLogging: isDevelopment && process.env.DATABASE_DEBUG === 'true',
+      }
 
-    // データベース初期化とマイグレーション実行
-    await db.initialize(dbConfig)
+      logger.info('Database initialization started', {
+        environment: dbConfig.environment,
+        config: {
+          enableWAL: dbConfig.enableWAL,
+          busyTimeout: dbConfig.busyTimeout,
+          cacheSize: dbConfig.cacheSize,
+        },
+      })
 
-    // 接続テスト
-    const isHealthy = await db.testConnection()
-    if (!isHealthy) {
-      throw new Error('データベース接続テストに失敗しました')
-    }
+      console.log(`🗄️ データベース初期化開始 (環境: ${dbConfig.environment})`)
 
-    // ヘルスチェック（本番環境のみ）
-    if (!isDevelopment) {
-      const health = await db.healthCheck()
-      if (!health.isHealthy) {
-        console.warn('⚠️ データベースヘルスチェックで問題が検出されました:', health.issues)
+      // データベース初期化とマイグレーション実行
+      await db.initialize(dbConfig)
+
+      // 接続テスト
+      const isHealthy = await db.testConnection()
+      if (!isHealthy) {
+        const connectionError = new Error('データベース接続テストに失敗しました')
+        logger.error('Database connection test failed', connectionError)
+        throw connectionError
+      }
+
+      // ヘルスチェック（本番環境のみ）
+      if (!isDevelopment) {
+        const health = await db.healthCheck()
+        if (!health.isHealthy) {
+          logger.warn('Database health check detected issues', {
+            issues: health.issues,
+          })
+          console.warn('⚠️ データベースヘルスチェックで問題が検出されました:', health.issues)
+        }
+      }
+
+      databaseInitTime = Date.now() - dbStartTime
+
+      logger.info('Database initialization completed successfully', {
+        initTime: databaseInitTime,
+        environment: dbConfig.environment,
+      })
+
+      console.log(`✅ データベース初期化完了: ${databaseInitTime}ms`)
+
+      // パフォーマンス監視用ログ
+      if (process.env.PERFORMANCE_MONITOR) {
+        const status = db.getStatus()
+        console.log('Database ready', {
+          initTime: databaseInitTime,
+          environment: status.environment,
+          isHealthy: status.connectionInfo?.isConnected || false,
+        })
       }
     }
+    catch (error) {
+      databaseInitTime = Date.now() - dbStartTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
 
-    databaseInitTime = Date.now() - dbStartTime
-    console.log(`✅ データベース初期化完了: ${databaseInitTime}ms`)
+      // 環境判定（エラーハンドリング用）
+      const isDev = is.dev || process.env.NODE_ENV === 'development'
 
-    // パフォーマンス監視用ログ
-    if (process.env.PERFORMANCE_MONITOR) {
-      const status = db.getStatus()
-      console.log('Database ready', {
+      logger.error('Database initialization failed', error as Error, {
         initTime: databaseInitTime,
-        environment: status.environment,
-        isHealthy: status.connectionInfo?.isConnected || false,
+        isDev,
+        environment: process.env.NODE_ENV,
       })
-    }
-  }
-  catch (error) {
-    databaseInitTime = Date.now() - dbStartTime
-    const errorMessage = error instanceof Error ? error.message : String(error)
 
-    // 環境判定（エラーハンドリング用）
-    const isDev = is.dev || process.env.NODE_ENV === 'development'
+      console.error(`❌ データベース初期化に失敗しました (${databaseInitTime}ms):`, errorMessage)
 
-    console.error(`❌ データベース初期化に失敗しました (${databaseInitTime}ms):`, errorMessage)
+      // 開発時はエラーの詳細を表示
+      if (isDev) {
+        console.error('データベースエラーの詳細:', error)
+      }
 
-    // 開発時はエラーの詳細を表示
-    if (isDev) {
-      console.error('データベースエラーの詳細:', error)
+      // データベース初期化エラーは致命的なため、アプリケーションを終了
+      // ただし、開発時は警告のみ表示してアプリケーションを継続
+      if (!isDev) {
+        logger.fatal('Database initialization failed in production - quitting app', error as Error)
+        app.quit()
+        return
+      }
+      else {
+        logger.warn('Continuing despite database error in development environment')
+        console.warn('⚠️ 開発環境のため、データベースエラーを無視してアプリケーションを継続します')
+      }
     }
-
-    // データベース初期化エラーは致命的なため、アプリケーションを終了
-    // ただし、開発時は警告のみ表示してアプリケーションを継続
-    if (!isDev) {
-      app.quit()
-      return
-    }
-    else {
-      console.warn('⚠️ 開発環境のため、データベースエラーを無視してアプリケーションを継続します')
-    }
-  }
+  })
 }
 
 // This method will be called when Electron has finished
@@ -259,6 +381,13 @@ async function initializeDatabase(): Promise<void> {
 app.whenReady().then(async () => {
   // パフォーマンス測定
   const appReadyTime = Date.now() - startTime
+
+  logger.info('Electron app ready', {
+    appReadyTime,
+    appVersion: app.getVersion(),
+    userModelId: 'com.projectlens.desktop',
+  })
+
   console.log(`⚡ Electronアプリ初期化完了: ${appReadyTime}ms`)
 
   // データベース初期化（並列実行）
@@ -278,8 +407,10 @@ app.whenReady().then(async () => {
   // データベース初期化の完了を待つ
   try {
     await databaseInitPromise
+    logger.debug('Database initialization promise resolved')
   }
   catch (error) {
+    logger.error('Database initialization promise rejected', error as Error)
     console.error('データベース初期化エラー:', error)
   }
 
@@ -292,16 +423,20 @@ app.whenReady().then(async () => {
         setTimeout(() => {
           try {
             window.webContents.openDevTools({ mode: 'detach' })
+            logger.debug('DevTools opened in development mode')
             console.log('🔧 開発時DevToolsを開きました')
           }
           catch (error) {
+            logger.warn('Failed to open DevTools (primary method)', { error })
             console.error('❌ DevToolsを開けませんでした:', error)
             // 代替方法でDevToolsを開く
             try {
               window.webContents.toggleDevTools()
+              logger.debug('DevTools opened using alternative method')
               console.log('🔧 代替方法でDevToolsを開きました')
             }
             catch (altError) {
+              logger.error('Failed to open DevTools (alternative method)', altError as Error)
               console.error('❌ 代替方法でもDevToolsを開けませんでした:', altError)
             }
           }
@@ -311,6 +446,28 @@ app.whenReady().then(async () => {
 
     // コンソールメッセージをElectronのメインプロセスに転送
     window.webContents.on('console-message', (_, level, message, line, sourceId) => {
+      // レンダラープロセスのログレベルに応じてメインプロセスでログ出力
+      const logData = {
+        renderer: true,
+        line,
+        sourceId: sourceId || 'unknown',
+      }
+
+      switch (level) {
+        case 0: // verbose
+        case 1: // info
+          debug(`[Renderer] ${message}`, logData)
+          break
+        case 2: // warning
+          warn(`[Renderer] ${message}`, logData)
+          break
+        case 3: // error
+          error(`[Renderer] ${message}`, new Error(message), logData)
+          break
+        default:
+          info(`[Renderer] ${message}`, logData)
+      }
+
       console.log(`🖥️  [Renderer Console] ${level}: ${message} (${sourceId}:${line})`)
     })
 
@@ -384,6 +541,11 @@ app.whenReady().then(async () => {
 
       // リソース読み込みエラーをキャッチ
       window.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        logger.error('Resource load failed', new Error(errorDescription), {
+          errorCode,
+          validatedURL,
+          isMainFrame,
+        })
         console.error('📛 リソース読み込み失敗:', {
           errorCode,
           errorDescription,
@@ -394,11 +556,21 @@ app.whenReady().then(async () => {
 
       // ネットワークリクエストのエラーのみをログに記録（成功は記録しない）
       window.webContents.session.webRequest.onErrorOccurred((details) => {
+        logger.warn('Network request error', {
+          url: details.url,
+          error: details.error,
+          method: details.method,
+        })
         console.error('🚨 ネットワークエラー:', details.url, details.error)
       })
 
       window.webContents.session.webRequest.onCompleted((details) => {
         if (details.statusCode >= 400) {
+          logger.warn('HTTP error response', {
+            url: details.url,
+            statusCode: details.statusCode,
+            method: details.method,
+          })
           console.error('🔥 HTTPエラー:', details.url, details.statusCode)
         }
       })
@@ -406,22 +578,34 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+  logger.info('Main window created and initialized')
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    logger.debug('App activated')
+    if (BrowserWindow.getAllWindows().length === 0) {
+      logger.info('No windows open - creating new window')
+      createWindow()
+    }
   })
 })
 
 // パフォーマンス最適化: ガベージコレクション最適化
 app.on('window-all-closed', () => {
+  logger.info('All windows closed', {
+    platform: process.platform,
+    willQuit: process.platform !== 'darwin',
+  })
+
   // メモリクリーンアップ
   if (typeof global !== 'undefined' && global.gc) {
     global.gc()
+    logger.debug('Garbage collection triggered')
   }
 
   if (process.platform !== 'darwin') {
+    logger.info('Quitting application (non-macOS platform)')
     app.quit()
   }
 })
@@ -441,22 +625,40 @@ app.on('browser-window-blur', () => {
 // 終了時のクリーンアップ
 app.on('before-quit', async () => {
   const totalTime = Date.now() - startTime
+
+  logger.info('Application before quit', {
+    totalRuntime: totalTime,
+    version: app.getVersion(),
+  })
+
   console.log(`👋 アプリケーション終了 (実行時間: ${totalTime}ms)`)
 
   // データベース接続のクリーンアップ
   try {
     const db = getDatabase()
     await db.cleanup()
+    logger.info('Database cleanup completed successfully')
     console.log('🗄️ データベース接続をクリーンアップしました')
   }
   catch (error) {
+    logger.error('Database cleanup failed', error as Error)
     console.error('データベースクリーンアップエラー:', error)
   }
 
   // メモリクリーンアップ
   if (typeof global !== 'undefined' && global.gc) {
     global.gc()
+    logger.debug('Final garbage collection triggered')
   }
+
+  // ログシステムのクリーンアップ
+  logger.info('Shutting down logger system')
+  logger.destroy()
+})
+
+// アプリが完全に終了する直前のログ
+app.on('will-quit', () => {
+  info('Application will quit - final cleanup')
 })
 
 // パフォーマンス最適化: メモリ使用量監視（開発時のみ）
@@ -478,6 +680,17 @@ if (is.dev) {
     }
   }, 30000) // 30秒ごと
 }
+
+// 最終的なシグナルハンドリング（Graceful shutdown）
+process.on('SIGINT', () => {
+  logger.info('Received SIGINT signal - initiating graceful shutdown')
+  app.quit()
+})
+
+process.on('SIGTERM', () => {
+  logger.info('Received SIGTERM signal - initiating graceful shutdown')
+  app.quit()
+})
 
 // In this file you can include the rest of your app's main process code.
 // You can also put them in separate files and require them here.

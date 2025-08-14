@@ -1,15 +1,21 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "CommonJS",
     "target": "ES2020",
     "moduleResolution": "node",
     "outDir": "./dist-electron",
-    "rootDir": "./electron",
+    "baseUrl": ".",
     "skipLibCheck": true,
+    "allowJs": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "noImplicitOverride": false,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": false,
     "types": [
       "node",
       "electron"

@@ -13,6 +13,8 @@ import type { DatabaseConfig } from './connection-config'
  */
 export interface HealthCheckResult {
   isHealthy: boolean
+  status: 'healthy' | 'warning' | 'error'
+  responseTime: number
   checks: {
     connection: boolean
     diskSpace: boolean
@@ -91,6 +93,7 @@ export class DatabaseHealthChecker {
    * データベースのヘルスチェックを実行
    */
   async healthCheck(): Promise<HealthCheckResult> {
+    const startTime = Date.now()
     const issues: string[] = []
     const checks = {
       connection: false,
@@ -137,16 +140,29 @@ export class DatabaseHealthChecker {
         checks.permissions = true
       }
 
+      const responseTime = Date.now() - startTime
+      const isHealthy = Object.values(checks).every(Boolean) && issues.length === 0
+
+      let status: 'healthy' | 'warning' | 'error' = 'healthy'
+      if (!isHealthy) {
+        status = checks.connection ? 'warning' : 'error'
+      }
+
       return {
-        isHealthy: Object.values(checks).every(Boolean) && issues.length === 0,
+        isHealthy,
+        status,
+        responseTime,
         checks,
         issues,
       }
     }
     catch (error) {
+      const responseTime = Date.now() - startTime
       issues.push(`ヘルスチェックの実行中にエラー: ${error instanceof Error ? error.message : String(error)}`)
       return {
         isHealthy: false,
+        status: 'error',
+        responseTime,
         checks,
         issues,
       }
