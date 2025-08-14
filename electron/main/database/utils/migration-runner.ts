@@ -1,6 +1,6 @@
 /**
  * マイグレーション実行機能
- * 
+ *
  * Drizzle ORMを使用したデータベースマイグレーションの自動実行、
  * 失敗時のロールバック、履歴管理を提供します。
  */
@@ -32,7 +32,7 @@ export interface MigrationHistoryEntry {
   appliedAt: Date
   duration: number
   success: boolean
-  errorMessage?: string
+  errorMessage?: string | undefined
 }
 
 /**
@@ -63,7 +63,7 @@ export class MigrationRunner {
       tableName: config.tableName || '__drizzle_migrations',
       timeout: config.timeout || this.defaultTimeout,
       createBackup: config.createBackup ?? true,
-      backupPath: config.backupPath || path.join(path.dirname(db.name || ''), 'backups')
+      backupPath: config.backupPath || path.join(path.dirname(db.name || ''), 'backups'),
     }
 
     this.initializeMigrationTable()
@@ -85,10 +85,11 @@ export class MigrationRunner {
         )
       `
       this.db.exec(createTableSQL)
-    } catch (error) {
+    }
+    catch (error) {
       const dbError = handleDatabaseError(error, {
         operation: 'initializeMigrationTable',
-        table: this.config.tableName
+        table: this.config.tableName,
       })
       throw new Error(`マイグレーション履歴テーブルの初期化に失敗しました: ${dbError.message}`)
     }
@@ -103,7 +104,7 @@ export class MigrationRunner {
       success: false,
       appliedMigrations: [],
       duration: 0,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
 
     try {
@@ -127,7 +128,7 @@ export class MigrationRunner {
         })
 
         const migrationPromise = migrate(this.drizzleDb, {
-          migrationsFolder: this.config.migrationsFolder
+          migrationsFolder: this.config.migrationsFolder,
         })
 
         await Promise.race([migrationPromise, timeoutPromise])
@@ -136,7 +137,7 @@ export class MigrationRunner {
       // マイグレーション後の状態を確認
       const postMigrationVersions = await this.getAppliedMigrations()
       result.appliedMigrations = postMigrationVersions.filter(
-        version => !preMigrationVersions.includes(version)
+        version => !preMigrationVersions.includes(version),
       )
 
       result.success = true
@@ -148,15 +149,15 @@ export class MigrationRunner {
       }
 
       return result
-
-    } catch (error) {
+    }
+    catch (error) {
       result.success = false
       result.duration = Date.now() - startTime
       result.error = error instanceof Error ? error : new Error(String(error))
 
       const dbError = handleDatabaseError(result.error, {
         operation: 'runMigrations',
-        filePath: this.config.migrationsFolder
+        filePath: this.config.migrationsFolder,
       })
 
       // 失敗したマイグレーションをログに記録
@@ -165,9 +166,10 @@ export class MigrationRunner {
           result.failedMigration || 'unknown',
           result.duration,
           false,
-          dbError.message
+          dbError.message,
         )
-      } catch (logError) {
+      }
+      catch (logError) {
         console.error('マイグレーション履歴の記録に失敗:', logError)
       }
 
@@ -176,7 +178,8 @@ export class MigrationRunner {
         try {
           await this.rollbackToBackup()
           console.log('バックアップからのロールバックが完了しました')
-        } catch (rollbackError) {
+        }
+        catch (rollbackError) {
           console.error('ロールバックに失敗:', rollbackError)
         }
       }
@@ -194,7 +197,8 @@ export class MigrationRunner {
       const stmt = this.db.prepare(query)
       const rows = stmt.all() as { version: string }[]
       return rows.map(row => row.version)
-    } catch (error) {
+    }
+    catch {
       // マイグレーション履歴テーブルが存在しない場合は空配列を返す
       return []
     }
@@ -207,7 +211,7 @@ export class MigrationRunner {
     version: string,
     duration: number,
     success: boolean,
-    errorMessage?: string
+    errorMessage?: string,
   ): Promise<void> {
     try {
       const query = `
@@ -216,7 +220,8 @@ export class MigrationRunner {
       `
       const stmt = this.db.prepare(query)
       stmt.run(version, duration, success ? 1 : 0, errorMessage || null)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('マイグレーション履歴の記録に失敗:', error)
     }
   }
@@ -245,10 +250,11 @@ export class MigrationRunner {
       await this.cleanupOldBackups(backupDir)
 
       return backupPath
-    } catch (error) {
+    }
+    catch (error) {
       const dbError = handleDatabaseError(error, {
         operation: 'createBackup',
-        filePath: this.config.backupPath
+        filePath: this.config.backupPath,
       })
       throw new Error(`バックアップの作成に失敗しました: ${dbError.message}`)
     }
@@ -278,10 +284,10 @@ export class MigrationRunner {
       if (!latestBackupFile) {
         throw new Error('バックアップファイルが見つかりません')
       }
-      
+
       const latestBackup = path.join(backupDir, latestBackupFile)
       const currentDbPath = this.db.name
-      
+
       if (!currentDbPath) {
         throw new Error('データベースパスが不明です')
       }
@@ -295,15 +301,16 @@ export class MigrationRunner {
       // データベース接続を再開
       if (currentDbPath) {
         this.db = new Database(currentDbPath)
-      } else {
+      }
+      else {
         throw new Error('データベースパスが不明です')
       }
       this.drizzleDb = drizzle(this.db)
-
-    } catch (error) {
+    }
+    catch (error) {
       const dbError = handleDatabaseError(error, {
         operation: 'rollbackToBackup',
-        filePath: this.config.backupPath
+        filePath: this.config.backupPath,
       })
       throw new Error(`ロールバックに失敗しました: ${dbError.message}`)
     }
@@ -319,7 +326,7 @@ export class MigrationRunner {
         .map(file => ({
           name: file,
           path: path.join(backupDir, file),
-          stats: fs.statSync(path.join(backupDir, file))
+          stats: fs.statSync(path.join(backupDir, file)),
         }))
         .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime())
 
@@ -329,7 +336,8 @@ export class MigrationRunner {
           await fs.promises.unlink(file.path)
         }
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.warn('古いバックアップファイルの削除に失敗:', error)
     }
   }
@@ -350,19 +358,26 @@ export class MigrationRunner {
         ORDER BY applied_at DESC
       `
       const stmt = this.db.prepare(query)
-      const rows = stmt.all() as any[]
+      const rows = stmt.all() as {
+        version: string
+        applied_at: string
+        duration: number
+        success: number
+        error_message: string | null
+      }[]
 
       return rows.map(row => ({
         version: row.version,
         appliedAt: new Date(row.applied_at),
         duration: row.duration,
         success: Boolean(row.success),
-        errorMessage: row.error_message || undefined
+        errorMessage: row.error_message ?? undefined,
       }))
-    } catch (error) {
+    }
+    catch (error) {
       const dbError = handleDatabaseError(error, {
         operation: 'getMigrationHistory',
-        table: this.config.tableName
+        table: this.config.tableName,
       })
       throw new Error(`マイグレーション履歴の取得に失敗しました: ${dbError.message}`)
     }
@@ -380,9 +395,9 @@ export class MigrationRunner {
     try {
       const appliedMigrations = await this.getAppliedMigrations()
       const availableMigrations = this.getAvailableMigrations()
-      
+
       const pendingMigrations = availableMigrations.filter(
-        migration => !appliedMigrations.includes(migration)
+        migration => !appliedMigrations.includes(migration),
       )
 
       const history = await this.getMigrationHistory()
@@ -392,11 +407,12 @@ export class MigrationRunner {
         hasAppliedMigrations: appliedMigrations.length > 0,
         ...(lastSuccess?.version && { lastMigrationVersion: lastSuccess.version }),
         ...(lastSuccess?.appliedAt && { lastMigrationDate: lastSuccess.appliedAt }),
-        pendingMigrations
+        pendingMigrations,
       }
-    } catch (error) {
+    }
+    catch (error) {
       const dbError = handleDatabaseError(error, {
-        operation: 'getLatestMigrationStatus'
+        operation: 'getLatestMigrationStatus',
       })
       throw new Error(`マイグレーション状態の確認に失敗しました: ${dbError.message}`)
     }
@@ -414,7 +430,8 @@ export class MigrationRunner {
       return fs.readdirSync(this.config.migrationsFolder)
         .filter(file => file.endsWith('.sql'))
         .sort()
-    } catch (error) {
+    }
+    catch (error) {
       console.warn('利用可能なマイグレーションファイルの取得に失敗:', error)
       return []
     }
@@ -438,19 +455,21 @@ export class MigrationRunner {
       // データベース接続の確認
       try {
         this.db.exec('SELECT 1')
-      } catch {
+      }
+      catch {
         issues.push('データベースに接続できません')
       }
 
       // ディスク容量の確認
       try {
-        const diskSpace = await import('./error-handler').then(module => 
-          module.DatabaseErrorHandler.checkDiskSpace(this.db.name || '')
+        const diskSpace = await import('./error-handler').then(module =>
+          module.DatabaseErrorHandler.checkDiskSpace(this.db.name || ''),
         )
         if (diskSpace.available < 100 * 1024 * 1024) { // 100MB未満
           issues.push('ディスク容量が不足しています')
         }
-      } catch (error) {
+      }
+      catch {
         issues.push('ディスク容量の確認に失敗しました')
       }
 
@@ -461,20 +480,22 @@ export class MigrationRunner {
           if (!fs.existsSync(parentDir)) {
             fs.mkdirSync(parentDir, { recursive: true })
           }
-        } catch {
+        }
+        catch {
           issues.push('バックアップディレクトリにアクセスできません')
         }
       }
 
       return {
         isValid: issues.length === 0,
-        issues
+        issues,
       }
-    } catch (error) {
+    }
+    catch (error) {
       issues.push(`検証中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`)
       return {
         isValid: false,
-        issues
+        issues,
       }
     }
   }
@@ -493,10 +514,10 @@ export class MigrationRunner {
  */
 export async function runDatabaseMigrations(
   db: Database.Database,
-  config: MigrationConfig
+  config: MigrationConfig,
 ): Promise<MigrationResult> {
   const runner = new MigrationRunner(db, config)
-  
+
   try {
     // マイグレーション前の検証
     const validation = await runner.validateBeforeMigration()
@@ -506,7 +527,8 @@ export async function runDatabaseMigrations(
 
     // マイグレーション実行
     return await runner.runMigrations()
-  } finally {
+  }
+  finally {
     runner.cleanup()
   }
 }

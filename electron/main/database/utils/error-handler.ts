@@ -1,6 +1,6 @@
 /**
  * データベースエラーハンドリング
- * 
+ *
  * SQLiteデータベース操作で発生する可能性のあるエラーを
  * 分類・処理し、適切なエラーメッセージとロギングを提供します。
  */
@@ -21,7 +21,7 @@ export enum DatabaseErrorType {
   QUERY_ERROR = 'QUERY_ERROR',
   CONSTRAINT_VIOLATION = 'CONSTRAINT_VIOLATION',
   TRANSACTION_FAILED = 'TRANSACTION_FAILED',
-  UNKNOWN = 'UNKNOWN'
+  UNKNOWN = 'UNKNOWN',
 }
 
 /**
@@ -76,7 +76,7 @@ export class DatabaseErrorHandler {
       timestamp: new Date(),
       severity: this.determineSeverity(error),
       recoverable: this.isRecoverable(error),
-      suggestedAction: this.getSuggestedAction(error)
+      suggestedAction: this.getSuggestedAction(error),
     }
 
     // エラー履歴に追加（サイズ制限あり）
@@ -93,7 +93,7 @@ export class DatabaseErrorHandler {
    */
   private classifyError(error: Error): DatabaseErrorType {
     const message = error.message.toLowerCase()
-    const code = (error as any).code
+    const code = (error as Error & { code?: string }).code
 
     // SQLiteエラーコードによる分類
     if (code === 'SQLITE_CANTOPEN' || message.includes('no such file')) {
@@ -249,17 +249,18 @@ export class DatabaseErrorHandler {
         type: error.type,
         original: error.originalError.message,
         stack: error.originalError.stack,
-        context: error.context
+        context: error.context,
       },
       timestamp: error.timestamp.toISOString(),
       recoverable: error.recoverable,
-      suggestedAction: error.suggestedAction
+      suggestedAction: error.suggestedAction,
     }
 
     // 現在は console.error を使用、将来的にPinoに置き換え
     if (error.severity === 'critical' || error.severity === 'high') {
       console.error('[DatabaseError]', JSON.stringify(logData, null, 2))
-    } else {
+    }
+    else {
       console.warn('[DatabaseError]', JSON.stringify(logData, null, 2))
     }
   }
@@ -306,14 +307,15 @@ export class DatabaseErrorHandler {
   /**
    * ディスク容量チェック
    */
-  public static async checkDiskSpace(filePath: string): Promise<{ available: number; total: number }> {
+  public static async checkDiskSpace(filePath: string): Promise<{ available: number, total: number }> {
     try {
       const stats = await fs.promises.statfs(path.dirname(filePath))
       return {
         available: stats.bavail * stats.bsize,
-        total: stats.blocks * stats.bsize
+        total: stats.blocks * stats.bsize,
       }
-    } catch (error) {
+    }
+    catch (error) {
       throw new Error(`ディスク容量の確認に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -321,33 +323,44 @@ export class DatabaseErrorHandler {
   /**
    * ファイル権限チェック
    */
-  public static async checkFilePermissions(filePath: string): Promise<{ readable: boolean; writable: boolean }> {
+  public static async checkFilePermissions(filePath: string): Promise<{ readable: boolean, writable: boolean }> {
     try {
       const result = { readable: false, writable: false }
-      
+
       // ファイルが存在する場合
       if (fs.existsSync(filePath)) {
         try {
           await fs.promises.access(filePath, fs.constants.R_OK)
           result.readable = true
-        } catch {}
-        
+        }
+        catch {
+          // アクセス権限なし
+        }
+
         try {
           await fs.promises.access(filePath, fs.constants.W_OK)
           result.writable = true
-        } catch {}
-      } else {
+        }
+        catch {
+          // 書き込み権限なし
+        }
+      }
+      else {
         // ファイルが存在しない場合、親ディレクトリの権限をチェック
         const parentDir = path.dirname(filePath)
         try {
           await fs.promises.access(parentDir, fs.constants.W_OK)
           result.writable = true
           result.readable = true // 作成できれば読み書き可能
-        } catch {}
+        }
+        catch {
+          // 親ディレクトリへの書き込み権限なし
+        }
       }
-      
+
       return result
-    } catch (error) {
+    }
+    catch (error) {
       throw new Error(`ファイル権限の確認に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -369,34 +382,38 @@ export async function executeWithRetry<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
   baseDelay: number = 1000,
-  backoffMultiplier: number = 2
+  backoffMultiplier: number = 2,
 ): Promise<T> {
-  let lastError: Error
-  
+  let lastError: Error | undefined = undefined
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await operation()
-    } catch (error) {
+    }
+    catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
-      
+
       // 最後の試行の場合は例外を投げる
       if (attempt === maxRetries) {
         break
       }
-      
+
       // 復旧不可能なエラーの場合は即座に失敗
       const dbError = handleDatabaseError(lastError)
       if (!dbError.recoverable) {
         break
       }
-      
+
       // 指数バックオフで待機
       const delay = baseDelay * Math.pow(backoffMultiplier, attempt)
       await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
-  
-  throw lastError!
+
+  if (lastError) {
+    throw lastError
+  }
+  throw new Error('リトライが失敗しました')
 }
 
 export default DatabaseErrorHandler
