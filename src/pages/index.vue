@@ -52,9 +52,6 @@ import { useI18n } from 'vue-i18n'
 // 言語切り替えコンポーネントで使用
 // テンプレート内のv-model="locale"で参照
 const { locale } = useI18n()
-
-// テンプレートでの使用をTypeScriptに認識させる
-export { locale }
 const platformInfo = ref<string>('Unknown')
 const electronVersion = ref<string>('N/A')
 
