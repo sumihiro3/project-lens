@@ -1,6 +1,6 @@
 /**
  * Backlog Connection Manager Unit Tests
- * 
+ *
  * テスト範囲:
  * - 複数スペース設定管理
  * - APIキー暗号化保存
@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { safeStorage } from 'electron'
 import { BacklogConnectionManager } from '../../../../electron/main/services/backlog/connection-manager'
-import { BacklogRateLimiter } from '../../../../electron/main/services/backlog/rate-limiter'
+import type { BacklogRateLimiter } from '../../../../electron/main/services/backlog/rate-limiter'
 import type { DatabaseManager } from '../../../../electron/main/database/connection'
 import type { SpaceConnectionConfig } from '../../../../electron/main/services/backlog/connection-manager'
 
@@ -22,14 +22,14 @@ vi.mock('../../../../electron/main/services/backlog/api-client', () => ({
   BacklogApiClient: vi.fn().mockImplementation(() => ({
     testConnection: vi.fn().mockResolvedValue({
       success: true,
-      data: { connected: true, user: { id: 1, name: 'Test User' }, space: { id: 1, name: 'Test Space' } }
+      data: { connected: true, user: { id: 1, name: 'Test User' }, space: { id: 1, name: 'Test Space' } },
     }),
     healthCheck: vi.fn().mockResolvedValue({
       status: 'healthy',
       checks: { connection: true, authentication: true },
-      responseTime: 100
-    })
-  }))
+      responseTime: 100,
+    }),
+  })),
 }))
 
 // Electron safeStorage モック
@@ -41,8 +41,8 @@ vi.mock('electron', () => ({
     }),
     decryptString: vi.fn().mockImplementation((buffer: Buffer) => {
       return buffer.toString('utf8').replace('encrypted_', '')
-    })
-  }
+    }),
+  },
 }))
 
 // データベースモック
@@ -50,22 +50,22 @@ const mockDatabase = {
   getDrizzle: vi.fn().mockReturnValue({
     insert: vi.fn().mockReturnValue({
       values: vi.fn().mockReturnValue({
-        onConflictDoUpdate: vi.fn().mockResolvedValue({})
-      })
+        onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+      }),
     }),
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([])
-        })
-      })
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      }),
     }),
     delete: vi.fn().mockReturnValue({
       where: vi.fn().mockReturnValue({
-        run: vi.fn().mockResolvedValue({ changes: 0 })
-      })
-    })
-  })
+        run: vi.fn().mockResolvedValue({ changes: 0 }),
+      }),
+    }),
+  }),
 } as unknown as DatabaseManager
 
 // Rate Limiter モック
@@ -75,8 +75,8 @@ const mockRateLimiter = {
   getRateLimitStatus: vi.fn().mockResolvedValue({
     remaining: 100,
     total: 150,
-    utilizationPercent: 33.3
-  })
+    utilizationPercent: 33.3,
+  }),
 } as unknown as BacklogRateLimiter
 
 // タイマーモック
@@ -85,22 +85,22 @@ vi.useFakeTimers()
 describe('BacklogConnectionManager', () => {
   let connectionManager: BacklogConnectionManager
   let eventListener: ReturnType<typeof vi.fn>
-  
+
   // グローバルなテスト設定
   const testSpaceConfig: Omit<SpaceConnectionConfig, 'createdAt' | 'connectionCount' | 'errorCount'> = {
     spaceId: 'test-space',
-    name: 'Test Space', 
+    name: 'Test Space',
     apiKey: 'test-api-key-123',
     host: 'backlog.jp',
     isActive: true,
-    priority: 1
+    priority: 1,
   }
 
   beforeEach(() => {
     // レートリミッターのモックリセット
     ;(mockRateLimiter.checkRequestPermission as any).mockResolvedValue(0)
     ;(mockRateLimiter.calculateOptimalConcurrency as any).mockResolvedValue(5)
-    
+
     connectionManager = new BacklogConnectionManager(mockDatabase, mockRateLimiter)
     eventListener = vi.fn()
   })
@@ -126,13 +126,12 @@ describe('BacklogConnectionManager', () => {
   })
 
   describe('スペース設定管理', () => {
-
     it('新しいスペース設定を追加できる', async () => {
       const result = await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       expect(result).toBe(true)
       expect(vi.mocked(safeStorage).encryptString).toHaveBeenCalledWith('test-api-key-123')
-      
+
       const spaces = connectionManager.getAllSpaces()
       expect(spaces).toHaveLength(1)
       expect(spaces[0].spaceId).toBe('test-space')
@@ -140,7 +139,7 @@ describe('BacklogConnectionManager', () => {
 
     it('APIキーが暗号化される', async () => {
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       const spaceConfig = connectionManager.getSpaceConfig('test-space')
       expect(spaceConfig?.apiKey).not.toBe('test-api-key-123')
       expect(spaceConfig?.apiKey).toContain('****') // マスクされている
@@ -152,7 +151,7 @@ describe('BacklogConnectionManager', () => {
         await connectionManager.addSpaceConfig({
           ...testSpaceConfig,
           spaceId: `space-${i}`,
-          name: `Space ${i}`
+          name: `Space ${i}`,
         })
       }
 
@@ -160,35 +159,34 @@ describe('BacklogConnectionManager', () => {
       const result = await connectionManager.addSpaceConfig({
         ...testSpaceConfig,
         spaceId: 'space-11',
-        name: 'Space 11'
+        name: 'Space 11',
       })
-      
+
       expect(result).toBe(false)
     })
 
     it('重複するスペースIDは追加できない', async () => {
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       const result = await connectionManager.addSpaceConfig(testSpaceConfig)
       expect(result).toBe(false)
     })
 
     it('暗号化機能が利用できない場合は追加できない', async () => {
       vi.mocked(safeStorage).isEncryptionAvailable.mockReturnValueOnce(false)
-      
+
       const result = await connectionManager.addSpaceConfig(testSpaceConfig)
       expect(result).toBe(false)
     })
   })
 
   describe('スペース設定削除', () => {
-
     it('スペース設定を削除できる', async () => {
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       const result = await connectionManager.removeSpaceConfig('test-space')
       expect(result).toBe(true)
-      
+
       const spaceConfig = connectionManager.getSpaceConfig('test-space')
       expect(spaceConfig).toBeNull()
     })
@@ -201,14 +199,14 @@ describe('BacklogConnectionManager', () => {
     it('削除時に適切なイベントが発火される', async () => {
       connectionManager.addEventListener(eventListener)
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       await connectionManager.removeSpaceConfig('test-space')
-      
+
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'disconnected',
-          spaceId: 'test-space'
-        })
+          spaceId: 'test-space',
+        }),
       )
     })
   })
@@ -221,24 +219,24 @@ describe('BacklogConnectionManager', () => {
           name: 'Space 1',
           apiKey: 'key-1',
           isActive: true,
-          priority: 3
+          priority: 3,
         },
         {
           spaceId: 'space-2',
           name: 'Space 2',
           apiKey: 'key-2',
           isActive: false,
-          priority: 2
+          priority: 2,
         },
         {
           spaceId: 'space-3',
           name: 'Space 3',
           apiKey: 'key-3',
           isActive: true,
-          priority: 1
-        }
+          priority: 1,
+        },
       ]
-      
+
       for (const config of configs) {
         await connectionManager.addSpaceConfig(config)
       }
@@ -246,21 +244,21 @@ describe('BacklogConnectionManager', () => {
 
     it('アクティブなスペースのみを取得できる', () => {
       const activeSpaces = connectionManager.getActiveSpaces()
-      
+
       expect(activeSpaces).toHaveLength(2)
       expect(activeSpaces.map(s => s.spaceId)).toEqual(['space-1', 'space-3'])
     })
 
     it('優先度順でソートされる', () => {
       const allSpaces = connectionManager.getAllSpaces()
-      
+
       expect(allSpaces).toHaveLength(3)
       expect(allSpaces.map(s => s.priority)).toEqual([3, 2, 1]) // 高い順
     })
 
     it('特定のスペース設定を取得できる', () => {
       const spaceConfig = connectionManager.getSpaceConfig('space-1')
-      
+
       expect(spaceConfig).toBeTruthy()
       expect(spaceConfig?.spaceId).toBe('space-1')
       expect(spaceConfig?.name).toBe('Space 1')
@@ -273,10 +271,9 @@ describe('BacklogConnectionManager', () => {
   })
 
   describe('APIクライアント取得', () => {
-
     it('アクティブなスペースのAPIクライアントを取得できる', async () => {
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       const apiClient = connectionManager.getApiClient('test-space')
       expect(apiClient).toBeTruthy()
     })
@@ -284,9 +281,9 @@ describe('BacklogConnectionManager', () => {
     it('非アクティブなスペースのAPIクライアントはnullを返す', async () => {
       await connectionManager.addSpaceConfig({
         ...testSpaceConfig,
-        isActive: false
+        isActive: false,
       })
-      
+
       const apiClient = connectionManager.getApiClient('test-space')
       expect(apiClient).toBeNull()
     })
@@ -298,10 +295,9 @@ describe('BacklogConnectionManager', () => {
   })
 
   describe('接続テスト', () => {
-
     it('正常な接続テストが実行できる', async () => {
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       // APIクライアントのモックを設定
       const mockApiClient = {
         testConnection: vi.fn().mockResolvedValue({
@@ -309,40 +305,40 @@ describe('BacklogConnectionManager', () => {
           data: {
             connected: true,
             user: { id: 1, name: 'Test User' },
-            space: { id: 1, name: 'Test Space' }
-          }
-        })
+            space: { id: 1, name: 'Test Space' },
+          },
+        }),
       }
-      
+
       // APIクライアントをモックで置き換え
       ;(connectionManager as any).apiClients.set('test-space', mockApiClient)
-      
+
       const result = await connectionManager.testConnection('test-space')
-      
+
       expect(result.success).toBe(true)
       expect(result.data?.connected).toBe(true)
     })
 
     it('APIクライアントがない場合はエラーを返す', async () => {
       const result = await connectionManager.testConnection('non-existent')
-      
+
       expect(result.success).toBe(false)
       expect(result.error).toContain('APIクライアントが見つかりません')
     })
 
     it('接続回数とエラー回数が更新される', async () => {
       await connectionManager.addSpaceConfig(testSpaceConfig)
-      
+
       const mockApiClient = {
         testConnection: vi.fn().mockResolvedValue({
           success: true,
-          data: { connected: true }
-        })
+          data: { connected: true },
+        }),
       }
       ;(connectionManager as any).apiClients.set('test-space', mockApiClient)
-      
+
       await connectionManager.testConnection('test-space')
-      
+
       const spaceConfig = connectionManager.getSpaceConfig('test-space')
       expect(spaceConfig?.connectionCount).toBe(1)
       expect(spaceConfig?.lastConnected).toBeDefined()
@@ -354,20 +350,20 @@ describe('BacklogConnectionManager', () => {
       const requests = [
         {
           spaceId: 'space-1',
-          requestFn: vi.fn().mockResolvedValue({ data: 'result-1' })
+          requestFn: vi.fn().mockResolvedValue({ data: 'result-1' }),
         },
         {
           spaceId: 'space-2',
-          requestFn: vi.fn().mockResolvedValue({ data: 'result-2' })
+          requestFn: vi.fn().mockResolvedValue({ data: 'result-2' }),
         },
         {
           spaceId: 'space-3',
-          requestFn: vi.fn().mockResolvedValue({ data: 'result-3' })
-        }
+          requestFn: vi.fn().mockResolvedValue({ data: 'result-3' }),
+        },
       ]
 
       const results = await connectionManager.executeParallelRequests(requests)
-      
+
       expect(results).toHaveLength(3)
       expect(results.every(r => r.error === undefined)).toBe(true)
       expect(results.map(r => r.result?.data)).toEqual(['result-1', 'result-2', 'result-3'])
@@ -377,20 +373,20 @@ describe('BacklogConnectionManager', () => {
       const requests = [
         {
           spaceId: 'space-1',
-          requestFn: vi.fn().mockResolvedValue({ data: 'result-1' })
+          requestFn: vi.fn().mockResolvedValue({ data: 'result-1' }),
         },
         {
           spaceId: 'space-2',
-          requestFn: vi.fn().mockRejectedValue(new Error('Request failed'))
+          requestFn: vi.fn().mockRejectedValue(new Error('Request failed')),
         },
         {
           spaceId: 'space-3',
-          requestFn: vi.fn().mockResolvedValue({ data: 'result-3' })
-        }
+          requestFn: vi.fn().mockResolvedValue({ data: 'result-3' }),
+        },
       ]
 
       const results = await connectionManager.executeParallelRequests(requests)
-      
+
       expect(results).toHaveLength(3)
       expect(results[0].error).toBeUndefined()
       expect(results[1].error).toBeDefined()
@@ -400,15 +396,15 @@ describe('BacklogConnectionManager', () => {
     it.skip('レート制限を考慮した遅延が適用される', async () => {
       // 遅延ありのモック設定（1msに短縮）
       ;(mockRateLimiter.checkRequestPermission as any).mockReset().mockResolvedValue(1) // 1ms遅延
-      
+
       const requests = [{
         spaceId: 'space-1',
-        requestFn: vi.fn().mockResolvedValue({ data: 'result' })
+        requestFn: vi.fn().mockResolvedValue({ data: 'result' }),
       }]
 
       const startTime = Date.now()
       await connectionManager.executeParallelRequests(requests)
-      
+
       expect(mockRateLimiter.checkRequestPermission).toHaveBeenCalledWith('space-1')
     }, 5000)
 
@@ -416,14 +412,14 @@ describe('BacklogConnectionManager', () => {
       // より短い実行時間のリクエストを作成
       const requests = Array.from({ length: 5 }, (_, i) => ({
         spaceId: 'space-1',
-        requestFn: vi.fn().mockResolvedValue({ data: `result-${i}` })
+        requestFn: vi.fn().mockResolvedValue({ data: `result-${i}` }),
       }))
 
       // レート制限チェックを高速化
       ;(mockRateLimiter.checkRequestPermission as any).mockReset().mockResolvedValue(0) // 遅延なし
 
       await connectionManager.executeParallelRequests(requests)
-      
+
       expect(mockRateLimiter.calculateOptimalConcurrency).toHaveBeenCalledWith('space-1')
     }, 5000)
   })
@@ -435,14 +431,14 @@ describe('BacklogConnectionManager', () => {
         name: 'Space 1',
         apiKey: 'key-1',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
       await connectionManager.addSpaceConfig({
         spaceId: 'space-2',
         name: 'Space 2',
         apiKey: 'key-2',
         isActive: true,
-        priority: 2
+        priority: 2,
       })
     })
 
@@ -452,18 +448,18 @@ describe('BacklogConnectionManager', () => {
           status: 'healthy',
           checks: {
             connection: true,
-            authentication: true
+            authentication: true,
           },
-          responseTime: 100
-        })
+          responseTime: 100,
+        }),
       }
-      
+
       // 全スペースにAPIクライアントを設定
       ;(connectionManager as any).apiClients.set('space-1', mockApiClient)
       ;(connectionManager as any).apiClients.set('space-2', mockApiClient)
-      
+
       const results = await connectionManager.performHealthCheck()
-      
+
       expect(results).toHaveLength(2)
       expect(results.every(r => r.status === 'healthy')).toBe(true)
     })
@@ -474,15 +470,15 @@ describe('BacklogConnectionManager', () => {
           status: 'healthy',
           checks: {
             connection: true,
-            authentication: true
+            authentication: true,
           },
-          responseTime: 100
-        })
+          responseTime: 100,
+        }),
       }
       ;(connectionManager as any).apiClients.set('space-1', mockApiClient)
-      
+
       const results = await connectionManager.performHealthCheck('space-1')
-      
+
       expect(results).toHaveLength(1)
       expect(results[0].spaceId).toBe('space-1')
     })
@@ -491,14 +487,14 @@ describe('BacklogConnectionManager', () => {
       // スペース設定を追加（但しAPIクライアントは設定しない）
       await connectionManager.addSpaceConfig({
         ...testSpaceConfig,
-        spaceId: 'space-1'
+        spaceId: 'space-1',
       })
-      
+
       // APIクライアントを削除してテスト条件を整える
       ;(connectionManager as any).apiClients.delete('space-1')
-      
+
       const results = await connectionManager.performHealthCheck('space-1')
-      
+
       expect(results).toHaveLength(1)
       expect(results[0].status).toBe('unhealthy')
       expect(results[0].errorMessage).toContain('APIクライアントが見つかりません')
@@ -506,23 +502,23 @@ describe('BacklogConnectionManager', () => {
 
     it('ヘルスチェックイベントが発火される', async () => {
       connectionManager.addEventListener(eventListener)
-      
+
       const mockApiClient = {
         healthCheck: vi.fn().mockResolvedValue({
           status: 'healthy',
           checks: { connection: true, authentication: true },
-          responseTime: 100
-        })
+          responseTime: 100,
+        }),
       }
       ;(connectionManager as any).apiClients.set('space-1', mockApiClient)
-      
+
       await connectionManager.performHealthCheck('space-1')
-      
+
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'health_check',
-          spaceId: 'space-1'
-        })
+          spaceId: 'space-1',
+        }),
       )
     })
 
@@ -531,15 +527,15 @@ describe('BacklogConnectionManager', () => {
         healthCheck: vi.fn().mockResolvedValue({
           status: 'healthy',
           checks: { connection: true, authentication: true },
-          responseTime: 100
-        })
+          responseTime: 100,
+        }),
       }
       ;(connectionManager as any).apiClients.set('space-1', mockApiClient)
       ;(connectionManager as any).apiClients.set('space-2', mockApiClient)
-      
+
       // 単発のヘルスチェックを実行
       await connectionManager.performHealthCheck()
-      
+
       expect(mockApiClient.healthCheck).toHaveBeenCalled()
     })
   })
@@ -560,51 +556,51 @@ describe('BacklogConnectionManager', () => {
     it('イベントリスナーを追加・削除できる', () => {
       connectionManager.addEventListener(eventListener)
       expect(eventListener).not.toHaveBeenCalled()
-      
+
       connectionManager.removeEventListener(eventListener)
     })
 
     it('接続時にイベントが発火される', async () => {
       connectionManager.addEventListener(eventListener)
-      
+
       await connectionManager.addSpaceConfig({
         spaceId: 'test-space',
         name: 'Test Space',
         apiKey: 'test-key',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'connected',
-          spaceId: 'test-space'
-        })
+          spaceId: 'test-space',
+        }),
       )
     })
 
     it('エラー時にイベントが発火される', async () => {
       connectionManager.addEventListener(eventListener)
-      
+
       // スペース設定を追加してから、APIクライアントを削除してエラーを発生させる
       await connectionManager.addSpaceConfig({
         ...testSpaceConfig,
-        spaceId: 'error-space'
+        spaceId: 'error-space',
       })
-      
+
       // APIクライアントにエラーを発生させる
       const mockApiClient = {
-        healthCheck: vi.fn().mockRejectedValue(new Error('Health check failed'))
+        healthCheck: vi.fn().mockRejectedValue(new Error('Health check failed')),
       }
       ;(connectionManager as any).apiClients.set('error-space', mockApiClient)
-      
+
       await connectionManager.performHealthCheck('error-space')
-      
+
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'error',
-          spaceId: 'error-space'
-        })
+          spaceId: 'error-space',
+        }),
       )
     })
   })
@@ -616,16 +612,16 @@ describe('BacklogConnectionManager', () => {
         name: 'Test Space',
         apiKey: 'test-key',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       const initialTimerCount = vi.getTimerCount()
-      
+
       await connectionManager.destroy()
-      
+
       // タイマーが停止されたことを確認
       expect(vi.getTimerCount()).toBeLessThan(initialTimerCount)
-      
+
       // 設定がクリアされたことを確認
       expect(connectionManager.getAllSpaces()).toHaveLength(0)
     })
@@ -633,14 +629,14 @@ describe('BacklogConnectionManager', () => {
     it('接続プールが適切にクリーンアップされる', async () => {
       await connectionManager.addSpaceConfig({
         spaceId: 'test-space',
-        name: 'Test Space', 
+        name: 'Test Space',
         apiKey: 'test-key',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       await connectionManager.destroy()
-      
+
       // destroy後はスペース設定がない
       expect(connectionManager.getSpaceConfig('test-space')).toBeNull()
     })
@@ -651,15 +647,15 @@ describe('BacklogConnectionManager', () => {
       vi.mocked(safeStorage).encryptString.mockImplementationOnce(() => {
         throw new Error('Encryption failed')
       })
-      
+
       const result = await connectionManager.addSpaceConfig({
         spaceId: 'test-space',
         name: 'Test Space',
         apiKey: 'test-key',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       expect(result).toBe(false)
     })
 
@@ -669,17 +665,17 @@ describe('BacklogConnectionManager', () => {
         name: 'Test Space',
         apiKey: 'test-key',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       // 既存のAPIクライアントを削除
       ;(connectionManager as any).apiClients.delete('test-space')
-      
+
       // 復号化エラーをシミュレート
       vi.mocked(safeStorage).decryptString.mockImplementationOnce(() => {
         throw new Error('Decryption failed')
       })
-      
+
       const apiClient = connectionManager.getApiClient('test-space')
       expect(apiClient).toBeNull()
     })
@@ -692,9 +688,9 @@ describe('BacklogConnectionManager', () => {
         name: 'Test Space',
         apiKey: 'super-secret-key',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       const spaceConfig = connectionManager.getSpaceConfig('test-space')
       expect(spaceConfig?.apiKey).not.toBe('super-secret-key')
       expect(spaceConfig?.apiKey).not.toContain('super-secret-key')
@@ -706,9 +702,9 @@ describe('BacklogConnectionManager', () => {
         name: 'Test Space',
         apiKey: 'abcdefghijklmnop',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       const spaceConfig = connectionManager.getSpaceConfig('test-space')
       expect(spaceConfig?.apiKey).toBe('abcd****mnop')
     })
@@ -719,9 +715,9 @@ describe('BacklogConnectionManager', () => {
         name: 'Test Space',
         apiKey: 'short',
         isActive: true,
-        priority: 1
+        priority: 1,
       })
-      
+
       const spaceConfig = connectionManager.getSpaceConfig('test-space')
       expect(spaceConfig?.apiKey).toBe('****')
     })

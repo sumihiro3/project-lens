@@ -1,6 +1,6 @@
 /**
  * Backlog Rate Limiter Unit Tests
- * 
+ *
  * テスト範囲:
  * - レート制限ヘッダー解析
  * - データベース保存とクエリ
@@ -20,39 +20,39 @@ const mockDatabase = {
   getDrizzle: vi.fn().mockReturnValue({
     insert: vi.fn().mockReturnValue({
       values: vi.fn().mockReturnValue({
-        onConflictDoUpdate: vi.fn().mockResolvedValue({})
-      })
+        onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+      }),
     }),
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           orderBy: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
+            limit: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      }),
     }),
     delete: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue({ changes: 0 })
-    })
+      where: vi.fn().mockResolvedValue({ changes: 0 }),
+    }),
   }),
   insert: vi.fn().mockReturnValue({
     values: vi.fn().mockReturnValue({
-      onConflictDoUpdate: vi.fn().mockResolvedValue({})
-    })
+      onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+    }),
   }),
   select: vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
       where: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([])
-        })
-      })
-    })
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    }),
   }),
   delete: vi.fn().mockReturnValue({
-    where: vi.fn().mockResolvedValue({ changes: 0 })
-  })
+    where: vi.fn().mockResolvedValue({ changes: 0 }),
+  }),
 } as unknown as DatabaseManager
 
 // タイマーモック
@@ -66,12 +66,12 @@ describe('BacklogRateLimiter', () => {
     rateLimiter = new BacklogRateLimiter(mockDatabase)
     eventListener = vi.fn()
     vi.clearAllMocks()
-    
+
     // データベースモックを正常な状態にリセット
     ;(mockDatabase.getDrizzle().insert as any).mockReturnValue({
       values: vi.fn().mockReturnValue({
-        onConflictDoUpdate: vi.fn().mockResolvedValue({})
-      })
+        onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+      }),
     })
   })
 
@@ -89,7 +89,7 @@ describe('BacklogRateLimiter', () => {
       const customConfig = {
         baseRate: 200,
         maxConcurrency: 15,
-        safetyMargin: 0.3
+        safetyMargin: 0.3,
       }
       const customRateLimiter = new BacklogRateLimiter(mockDatabase, customConfig)
       expect(customRateLimiter).toBeDefined()
@@ -107,7 +107,7 @@ describe('BacklogRateLimiter', () => {
         'X-RateLimit-Remaining': '100',
         'X-RateLimit-Total': '150',
         'X-RateLimit-Reset': '1640995200',
-        'X-RateLimit-Limit': '150'
+        'X-RateLimit-Limit': '150',
       })
 
       const result = rateLimiter.parseRateLimitHeaders(headers)
@@ -116,13 +116,13 @@ describe('BacklogRateLimiter', () => {
         remaining: 100,
         total: 150,
         reset: 1640995200,
-        limit: 150
+        limit: 150,
       })
     })
 
     it('不完全なヘッダーの場合nullを返す', () => {
       const headers = new Headers({
-        'X-RateLimit-Remaining': '100'
+        'X-RateLimit-Remaining': '100',
         // totalとresetが不足
       })
 
@@ -135,7 +135,7 @@ describe('BacklogRateLimiter', () => {
       const headers = new Headers({
         'X-RateLimit-Remaining': 'invalid',
         'X-RateLimit-Total': '150',
-        'X-RateLimit-Reset': '1640995200'
+        'X-RateLimit-Reset': '1640995200',
       })
 
       const result = rateLimiter.parseRateLimitHeaders(headers)
@@ -147,7 +147,7 @@ describe('BacklogRateLimiter', () => {
       const headers = new Headers({
         'X-RateLimit-Remaining': '100',
         'X-RateLimit-Total': '150',
-        'X-RateLimit-Reset': '1640995200'
+        'X-RateLimit-Reset': '1640995200',
       })
 
       const result = rateLimiter.parseRateLimitHeaders(headers)
@@ -161,7 +161,7 @@ describe('BacklogRateLimiter', () => {
     const validHeaders: RateLimitHeaders = {
       remaining: 100,
       total: 150,
-      reset: 1640995200
+      reset: 1640995200,
     }
 
     it('レート制限状態を正しく更新する', async () => {
@@ -169,7 +169,7 @@ describe('BacklogRateLimiter', () => {
         'test-space',
         validHeaders,
         '/issues',
-        'GET'
+        'GET',
       )
 
       expect(mockDatabase.getDrizzle().insert).toHaveBeenCalled()
@@ -180,12 +180,12 @@ describe('BacklogRateLimiter', () => {
         'test-space',
         validHeaders,
         '/issues',
-        'GET'
+        'GET',
       )
 
       const insertCall = mockDatabase.getDrizzle().insert as any
       const valuesCall = insertCall().values as any
-      
+
       expect(valuesCall).toHaveBeenCalledWith(
         expect.objectContaining({
           spaceId: 'test-space',
@@ -195,8 +195,8 @@ describe('BacklogRateLimiter', () => {
           windowStart: expect.any(String),
           endpoint: '/issues',
           method: 'GET',
-          isActive: true
-        })
+          isActive: true,
+        }),
       )
     })
 
@@ -204,12 +204,12 @@ describe('BacklogRateLimiter', () => {
       const highUtilizationHeaders = {
         remaining: 10,
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
 
       await rateLimiter.updateRateLimit(
         'test-space',
-        highUtilizationHeaders
+        highUtilizationHeaders,
       )
 
       // 利用率は (150-10)/150 = 93.3%
@@ -223,12 +223,12 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
       const result = await rateLimiter.getRateLimitStatus('test-space')
-      
+
       expect(result).toBeTruthy()
       expect(result?.spaceId).toBe('test-space')
       expect(result?.remaining).toBe(100)
@@ -251,17 +251,17 @@ describe('BacklogRateLimiter', () => {
         lastUpdated: new Date(Date.now() - 3600000).toISOString(),
         isActive: true,
         endpoint: null,
-        method: 'GET'
+        method: 'GET',
       }]
-      
+
       mockDatabase.select = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue(expiredData)
-            })
-          })
-        })
+              limit: vi.fn().mockResolvedValue(expiredData),
+            }),
+          }),
+        }),
       })
 
       const result = await rateLimiter.getRateLimitStatus('test-space')
@@ -275,12 +275,12 @@ describe('BacklogRateLimiter', () => {
       const lowUtilizationHeaders: RateLimitHeaders = {
         remaining: 148,
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
       await rateLimiter.updateRateLimit('test-space', lowUtilizationHeaders)
 
       const concurrency = await rateLimiter.calculateOptimalConcurrency('test-space')
-      
+
       // デフォルト設定では、minConcurrency=1になるため、1以上を期待
       expect(concurrency).toBeGreaterThanOrEqual(1)
       expect(concurrency).toBeLessThanOrEqual(10) // maxConcurrency
@@ -291,12 +291,12 @@ describe('BacklogRateLimiter', () => {
       const highUtilizationHeaders: RateLimitHeaders = {
         remaining: 5,
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
       await rateLimiter.updateRateLimit('test-space', highUtilizationHeaders)
 
       const concurrency = await rateLimiter.calculateOptimalConcurrency('test-space')
-      
+
       expect(concurrency).toBe(1) // 大幅に制限される
     })
 
@@ -309,12 +309,12 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 60 // 1分後
+        reset: Math.floor(Date.now() / 1000) + 60, // 1分後
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
       const concurrency = await rateLimiter.calculateOptimalConcurrency('test-space')
-      
+
       // 安全マージン(20%)を考慮した値になっているはず
       expect(concurrency).toBeGreaterThan(0)
     })
@@ -325,7 +325,7 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 149, // 非常に余裕のある値に設定（99%余裕）
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
@@ -338,7 +338,7 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 0,
         total: 150,
-        reset: resetTime
+        reset: resetTime,
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
@@ -351,7 +351,7 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 10, // 6.7%の利用率残り（警告しきい値10%以下）
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
@@ -380,15 +380,15 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'update',
-          spaceId: 'test-space'
-        })
+          spaceId: 'test-space',
+        }),
       )
     })
 
@@ -398,15 +398,15 @@ describe('BacklogRateLimiter', () => {
       const warningHeaders: RateLimitHeaders = {
         remaining: 5, // 警告しきい値を下回る
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
       await rateLimiter.updateRateLimit('test-space', warningHeaders)
 
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'warning',
-          spaceId: 'test-space'
-        })
+          spaceId: 'test-space',
+        }),
       )
     })
 
@@ -416,15 +416,15 @@ describe('BacklogRateLimiter', () => {
       const limitHeaders: RateLimitHeaders = {
         remaining: 0,
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
       await rateLimiter.updateRateLimit('test-space', limitHeaders)
 
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'limit_reached',
-          spaceId: 'test-space'
-        })
+          spaceId: 'test-space',
+        }),
       )
     })
   })
@@ -434,7 +434,7 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: Math.floor(Date.now() / 1000) + 3600
+        reset: Math.floor(Date.now() / 1000) + 3600,
       }
       await rateLimiter.updateRateLimit('test-space', headers)
 
@@ -448,20 +448,20 @@ describe('BacklogRateLimiter', () => {
         lastUpdated: new Date().toISOString(),
         isActive: true,
         endpoint: null,
-        method: 'GET'
+        method: 'GET',
       }]
-      
+
       // モックデータベースのselectを更新
       ;(mockDatabase.getDrizzle().select as any).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue(mockStats)
-          })
-        })
+            orderBy: vi.fn().mockResolvedValue(mockStats),
+          }),
+        }),
       })
 
       const stats = await rateLimiter.getStats('test-space')
-      
+
       expect(stats).toBeTruthy()
       expect(stats?.totalRequests).toBe(150)
       expect(stats?.remainingRequests).toBe(100)
@@ -472,11 +472,11 @@ describe('BacklogRateLimiter', () => {
       ;(mockDatabase.getDrizzle().select as any).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([]) // 空の結果
-          })
-        })
+            orderBy: vi.fn().mockResolvedValue([]), // 空の結果
+          }),
+        }),
       })
-      
+
       const stats = await rateLimiter.getStats('non-existent-space')
       expect(stats).toBeNull()
     })
@@ -491,20 +491,20 @@ describe('BacklogRateLimiter', () => {
     it('クリーンアップスケジューラーが定期実行される', async () => {
       // 1時間進める
       vi.advanceTimersByTime(60 * 60 * 1000)
-      
+
       expect(mockDatabase.getDrizzle().delete).toHaveBeenCalled()
     })
 
     it('クリーンアップイベントが発火される', async () => {
       rateLimiter.addEventListener(eventListener)
-      
+
       await rateLimiter.cleanup()
-      
+
       expect(eventListener).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'cleanup',
-          spaceId: 'system'
-        })
+          spaceId: 'system',
+        }),
       )
     })
   })
@@ -512,9 +512,9 @@ describe('BacklogRateLimiter', () => {
   describe('リソース管理', () => {
     it('destroy()でリソースが適切にクリーンアップされる', async () => {
       const initialTimerCount = vi.getTimerCount()
-      
+
       await rateLimiter.destroy()
-      
+
       // タイマーが停止されたことを確認
       expect(vi.getTimerCount()).toBeLessThan(initialTimerCount)
     })
@@ -522,7 +522,7 @@ describe('BacklogRateLimiter', () => {
     it('destroy()後はイベントリスナーがクリアされる', async () => {
       rateLimiter.addEventListener(eventListener)
       await rateLimiter.destroy()
-      
+
       // destroy後はイベントが発火されないことを確認する
       // （実際のテストは実装依存）
     })
@@ -538,7 +538,7 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
 
       await expect(rateLimiter.updateRateLimit('test-space', headers))
@@ -549,7 +549,7 @@ describe('BacklogRateLimiter', () => {
       const invalidHeaders = new Headers({
         'X-RateLimit-Remaining': '',
         'X-RateLimit-Total': 'not-a-number',
-        'X-RateLimit-Reset': 'invalid-timestamp'
+        'X-RateLimit-Reset': 'invalid-timestamp',
       })
 
       const result = rateLimiter.parseRateLimitHeaders(invalidHeaders)
@@ -562,13 +562,13 @@ describe('BacklogRateLimiter', () => {
       const headers: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
 
       const promises = [
         rateLimiter.updateRateLimit('space-1', headers),
         rateLimiter.updateRateLimit('space-2', headers),
-        rateLimiter.updateRateLimit('space-3', headers)
+        rateLimiter.updateRateLimit('space-3', headers),
       ]
 
       await expect(Promise.all(promises)).resolves.toEqual([undefined, undefined, undefined])
@@ -578,17 +578,17 @@ describe('BacklogRateLimiter', () => {
       const headers1: RateLimitHeaders = {
         remaining: 100,
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
       const headers2: RateLimitHeaders = {
         remaining: 90,
         total: 150,
-        reset: 1640995200
+        reset: 1640995200,
       }
 
       const promises = [
         rateLimiter.updateRateLimit('test-space', headers1),
-        rateLimiter.updateRateLimit('test-space', headers2)
+        rateLimiter.updateRateLimit('test-space', headers2),
       ]
 
       await expect(Promise.all(promises)).resolves.toEqual([undefined, undefined])

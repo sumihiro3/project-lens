@@ -1,9 +1,9 @@
 /**
  * Backlog Direct API接続管理サービス Phase 3
- * 
+ *
  * 複数スペース設定管理、APIキー暗号化保存、接続プール管理、
  * 並列リクエスト処理、ヘルスモニタリング機能を提供します。
- * 
+ *
  * Features:
  * - 最大10スペースの同時管理
  * - Electron safeStorageによるAPIキーの暗号化
@@ -14,9 +14,9 @@
 
 import { safeStorage } from 'electron'
 import { Agent as HttpsAgent } from 'https'
-import Database from '../../database/connection'
+import type Database from '../../database/connection'
 import { BacklogApiClient } from './api-client'
-import { BacklogRateLimiter } from './rate-limiter'
+import type { BacklogRateLimiter } from './rate-limiter'
 import type { BacklogApiConfig } from '../../../../shared/types/backlog'
 import type { ApiResponse } from '../../../../shared/types/common'
 
@@ -89,7 +89,7 @@ interface EncryptedApiKey {
  */
 class ConnectionPool {
   private readonly agents = new Map<string, HttpsAgent>()
-  private readonly stats = new Map<string, ConnectionPoolStats & { startTime: number; errorCount: number }>()
+  private readonly stats = new Map<string, ConnectionPoolStats & { startTime: number, errorCount: number }>()
   private readonly config: {
     maxSockets: number
     keepAlive: boolean
@@ -111,7 +111,7 @@ class ConnectionPool {
    */
   public getAgent(spaceId: string): HttpsAgent {
     let agent = this.agents.get(spaceId)
-    
+
     if (!agent) {
       agent = new HttpsAgent({
         ...this.config,
@@ -124,7 +124,7 @@ class ConnectionPool {
         // 接続再利用の最適化
         scheduling: 'fifo',
       })
-      
+
       // エージェントイベントリスナーを設定
       agent.on('free', (_socket, options) => {
         console.log('ソケットが解放されました', {
@@ -133,10 +133,10 @@ class ConnectionPool {
           port: options.port,
         })
       })
-      
+
       this.agents.set(spaceId, agent)
       this.initializeStats(spaceId)
-      
+
       console.log('新しいHTTPSエージェントを作成しました', {
         spaceId,
         maxSockets: this.config.maxSockets,
@@ -144,7 +144,7 @@ class ConnectionPool {
         keepAliveMsecs: this.config.keepAliveMsecs,
       })
     }
-    
+
     return agent
   }
 
@@ -154,24 +154,24 @@ class ConnectionPool {
   public updateStats(
     spaceId: string,
     responseTime: number,
-    success: boolean
+    success: boolean,
   ): void {
     const stats = this.stats.get(spaceId)
     if (!stats) return
 
     stats.totalRequests++
     stats.averageResponseTime = (
-      (stats.averageResponseTime * (stats.totalRequests - 1) + responseTime) / 
-      stats.totalRequests
+      (stats.averageResponseTime * (stats.totalRequests - 1) + responseTime)
+      / stats.totalRequests
     )
-    
+
     if (!success) {
       stats.errorCount++
     }
-    
+
     stats.errorRate = (stats.errorCount / stats.totalRequests) * 100
     stats.throughput = stats.totalRequests / ((Date.now() - stats.startTime) / 1000)
-    
+
     // アクティブ接続数を更新
     const agent = this.agents.get(spaceId)
     if (agent) {
@@ -191,7 +191,7 @@ class ConnectionPool {
   public getStats(spaceId: string): ConnectionPoolStats | null {
     const stats = this.stats.get(spaceId)
     if (!stats) return null
-    
+
     // 内部プロパティを除外してReturnする
     const { startTime, errorCount, ...publicStats } = stats
     return publicStats
@@ -221,7 +221,8 @@ class ConnectionPool {
         this.stats.delete(spaceId)
         console.log('スペースの接続プールをクリーンアップしました', { spaceId })
       }
-    } else {
+    }
+    else {
       // 全スペースのクリーンアップ
       for (const [_spaceId, agent] of this.agents) {
         agent.destroy()
@@ -252,7 +253,7 @@ class ConnectionPool {
 
 /**
  * Backlog API接続管理サービス
- * 
+ *
  * 複数スペースの接続管理、APIキー暗号化、接続プール、
  * ヘルスモニタリング機能を提供します。
  */
@@ -269,7 +270,7 @@ export class BacklogConnectionManager {
 
   /**
    * コンストラクター
-   * 
+   *
    * @param db - データベース接続インスタンス
    * @param rateLimiter - レート制限管理インスタンス
    */
@@ -277,7 +278,7 @@ export class BacklogConnectionManager {
     this._db = db
     this.rateLimiter = rateLimiter
     this.connectionPool = new ConnectionPool()
-    
+
     console.log('Backlog接続管理サービスを初期化しました', {
       maxSpaces: this.maxSpaces,
       safeStorageAvailable: safeStorage.isEncryptionAvailable(),
@@ -289,7 +290,7 @@ export class BacklogConnectionManager {
 
   /**
    * スペース設定を追加
-   * 
+   *
    * @param config - スペース接続設定
    * @returns 設定が正常に追加されたかどうか
    */
@@ -362,7 +363,8 @@ export class BacklogConnectionManager {
       // テスト環境では接続テストをスキップ
       if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
         console.log('テスト環境のため接続テストをスキップしました', { spaceId: config.spaceId })
-      } else {
+      }
+      else {
         // 接続テストを実行
         const testResult = await this.testConnection(config.spaceId)
         if (!testResult.success) {
@@ -396,7 +398,8 @@ export class BacklogConnectionManager {
       })
 
       return true
-    } catch (error) {
+    }
+    catch (error) {
       console.error('スペース設定の追加に失敗しました', {
         spaceId: config.spaceId,
         error: error instanceof Error ? error.message : String(error),
@@ -407,7 +410,7 @@ export class BacklogConnectionManager {
 
   /**
    * スペース設定を削除
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @returns 削除が正常に完了したかどうか
    */
@@ -427,7 +430,7 @@ export class BacklogConnectionManager {
 
       if (removed) {
         console.log('スペース設定を削除しました', { spaceId })
-        
+
         // 切断イベントを発火
         await this.emitEvent({
           type: 'disconnected',
@@ -437,7 +440,8 @@ export class BacklogConnectionManager {
       }
 
       return removed
-    } catch (error) {
+    }
+    catch (error) {
       console.error('スペース設定の削除に失敗しました', {
         spaceId,
         error: error instanceof Error ? error.message : String(error),
@@ -448,7 +452,7 @@ export class BacklogConnectionManager {
 
   /**
    * 復号化されたAPIキーを取得
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @returns 復号化されたAPIキー
    */
@@ -465,7 +469,8 @@ export class BacklogConnectionManager {
       }
 
       return safeStorage.decryptString(encryptedKeyInfo.encryptedData)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('APIキーの復号化に失敗しました', {
         spaceId,
         error: error instanceof Error ? error.message : String(error),
@@ -476,7 +481,7 @@ export class BacklogConnectionManager {
 
   /**
    * スペースのAPIクライアントを取得
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @returns APIクライアントインスタンス
    */
@@ -515,7 +520,7 @@ export class BacklogConnectionManager {
 
   /**
    * スペース設定を取得
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @returns スペース設定（APIキーはマスク済み）
    */
@@ -528,12 +533,13 @@ export class BacklogConnectionManager {
     // 元のAPIキーを復号化してマスクして返す
     const encryptedKeyInfo = this.encryptedKeys.get(spaceId)
     let maskedApiKey = '****'
-    
+
     if (encryptedKeyInfo && safeStorage.isEncryptionAvailable()) {
       try {
         const originalApiKey = safeStorage.decryptString(encryptedKeyInfo.encryptedData)
         maskedApiKey = this.maskApiKey(originalApiKey)
-      } catch (error) {
+      }
+      catch (error) {
         console.error('APIキーの復号化に失敗しました（マスク用）', { spaceId, error })
         maskedApiKey = '****'
       }
@@ -547,11 +553,11 @@ export class BacklogConnectionManager {
 
   /**
    * 接続テストを実行
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @returns 接続テスト結果
    */
-  public async testConnection(spaceId: string): Promise<ApiResponse<{ connected: boolean; user?: any; space?: any }>> {
+  public async testConnection(spaceId: string): Promise<ApiResponse<{ connected: boolean, user?: any, space?: any }>> {
     try {
       const apiClient = this.getApiClient(spaceId)
       if (!apiClient) {
@@ -564,13 +570,13 @@ export class BacklogConnectionManager {
 
       console.log('接続テストを開始します', { spaceId })
       const startTime = Date.now()
-      
+
       const result = await apiClient.testConnection()
       const responseTime = Date.now() - startTime
 
       // 統計情報を更新
       this.connectionPool.updateStats(spaceId, responseTime, result.success)
-      
+
       // 接続回数を更新
       const config = this.spaceConfigs.get(spaceId)
       if (config) {
@@ -588,7 +594,8 @@ export class BacklogConnectionManager {
       })
 
       return result
-    } catch (error) {
+    }
+    catch (error) {
       console.error('接続テストでエラーが発生しました', {
         spaceId,
         error: error instanceof Error ? error.message : String(error),
@@ -604,17 +611,17 @@ export class BacklogConnectionManager {
 
   /**
    * 並列リクエスト実行
-   * 
+   *
    * @param requests - 実行するリクエスト関数の配列
    * @param maxConcurrency - 最大並列数
    * @returns 実行結果の配列
    */
   public async executeParallelRequests<T>(
-    requests: Array<{ spaceId: string; requestFn: () => Promise<T> }>,
-    maxConcurrency?: number
-  ): Promise<Array<{ spaceId: string; result: T | null; error?: Error }>> {
-    const results: Array<{ spaceId: string; result: T | null; error?: Error }> = []
-    
+    requests: Array<{ spaceId: string, requestFn: () => Promise<T> }>,
+    maxConcurrency?: number,
+  ): Promise<Array<{ spaceId: string, result: T | null, error?: Error }>> {
+    const results: Array<{ spaceId: string, result: T | null, error?: Error }> = []
+
     // 動的並列数制御
     const concurrencyLimits = new Map<string, number>()
     for (const request of requests) {
@@ -637,16 +644,16 @@ export class BacklogConnectionManager {
     const spacePromises = Array.from(requestsBySpace.entries()).map(async ([spaceId, spaceRequests]) => {
       const concurrency = Math.min(
         maxConcurrency || 5,
-        concurrencyLimits.get(spaceId) || 1
+        concurrencyLimits.get(spaceId) || 1,
       )
 
       const spaceResults: typeof results = []
-      
+
       // 並列実行バッチを作成
       for (let i = 0; i < spaceRequests.length; i += concurrency) {
         const batch = spaceRequests.slice(i, i + concurrency)
-        
-        const batchPromises = batch.map(async request => {
+
+        const batchPromises = batch.map(async (request) => {
           try {
             // レート制限チェック
             const delay = await this.rateLimiter.checkRequestPermission(request.spaceId)
@@ -661,23 +668,24 @@ export class BacklogConnectionManager {
             const startTime = Date.now()
             const result = await request.requestFn()
             const responseTime = Date.now() - startTime
-            
+
             // 統計情報を更新
             this.connectionPool.updateStats(request.spaceId, responseTime, true)
-            
-            return { 
-              spaceId: request.spaceId, 
-              result, 
+
+            return {
+              spaceId: request.spaceId,
+              result,
             }
-          } catch (error) {
+          }
+          catch (error) {
             console.error('並列リクエストでエラーが発生しました', {
               spaceId: request.spaceId,
               error: error instanceof Error ? error.message : String(error),
             })
-            
+
             // エラー統計を更新
             this.connectionPool.updateStats(request.spaceId, 0, false)
-            
+
             return {
               spaceId: request.spaceId,
               result: null,
@@ -717,21 +725,21 @@ export class BacklogConnectionManager {
 
   /**
    * ヘルスチェックを実行
-   * 
+   *
    * @param spaceId - チェック対象のスペースID（省略時は全スペース）
    * @returns ヘルスチェック結果
    */
   public async performHealthCheck(spaceId?: string): Promise<HealthCheckResult[]> {
     const results: HealthCheckResult[] = []
-    const spacesToCheck = spaceId 
-      ? [spaceId] 
+    const spacesToCheck = spaceId
+      ? [spaceId]
       : this.getActiveSpaces().map(config => config.spaceId)
 
     for (const currentSpaceId of spacesToCheck) {
       try {
         const startTime = Date.now()
         const apiClient = this.getApiClient(currentSpaceId)
-        
+
         if (!apiClient) {
           results.push({
             spaceId: currentSpaceId,
@@ -769,7 +777,7 @@ export class BacklogConnectionManager {
         }
 
         results.push(result)
-        
+
         // ヘルスチェックイベントを発火
         await this.emitEvent({
           type: 'health_check',
@@ -783,7 +791,8 @@ export class BacklogConnectionManager {
           status: result.status,
           responseTime: result.responseTime,
         })
-      } catch (error) {
+      }
+      catch (error) {
         const errorResult: HealthCheckResult = {
           spaceId: currentSpaceId,
           status: 'unhealthy',
@@ -794,14 +803,14 @@ export class BacklogConnectionManager {
           lastCheck: new Date(),
           errorMessage: error instanceof Error ? error.message : String(error),
         }
-        
+
         results.push(errorResult)
-        
+
         console.error('ヘルスチェックでエラーが発生しました', {
           spaceId: currentSpaceId,
           error: error instanceof Error ? error.message : String(error),
         })
-        
+
         // エラーイベントを発火
         await this.emitEvent({
           type: 'error',
@@ -817,7 +826,7 @@ export class BacklogConnectionManager {
 
   /**
    * 接続プール統計情報を取得
-   * 
+   *
    * @param spaceId - 特定のスペースID（省略時は全スペース）
    * @returns 接続プール統計情報
    */
@@ -830,7 +839,7 @@ export class BacklogConnectionManager {
 
   /**
    * イベントリスナーを追加
-   * 
+   *
    * @param listener - イベントリスナー関数
    */
   public addEventListener(listener: (event: ConnectionEvent) => void): void {
@@ -842,7 +851,7 @@ export class BacklogConnectionManager {
 
   /**
    * イベントリスナーを削除
-   * 
+   *
    * @param listener - 削除するイベントリスナー関数
    */
   public removeEventListener(listener: (event: ConnectionEvent) => void): void {
@@ -876,7 +885,8 @@ export class BacklogConnectionManager {
       this.eventListeners.length = 0
 
       console.log('Backlog接続管理サービスを終了しました')
-    } catch (error) {
+    }
+    catch (error) {
       console.error('接続管理サービスの終了時にエラーが発生しました', {
         error: error instanceof Error ? error.message : String(error),
       })
@@ -894,7 +904,7 @@ export class BacklogConnectionManager {
     if (!apiKey || apiKey === '[ENCRYPTED]') {
       return '****'
     }
-    return apiKey.length > 8 
+    return apiKey.length > 8
       ? `${apiKey.substring(0, 4)}****${apiKey.substring(apiKey.length - 4)}`
       : '****'
   }
@@ -906,7 +916,8 @@ export class BacklogConnectionManager {
     for (const listener of this.eventListeners) {
       try {
         listener(event)
-      } catch (error) {
+      }
+      catch (error) {
         console.error('接続管理イベントリスナーでエラーが発生しました', {
           eventType: event.type,
           spaceId: event.spaceId,
@@ -928,23 +939,24 @@ export class BacklogConnectionManager {
           console.log('アクティブなスペースがないため、ヘルスチェックをスキップします')
           return
         }
-        
+
         console.log('定期ヘルスチェックを実行中...', {
           activeSpaceCount: activeSpaces.length,
         })
-        
+
         const results = await this.performHealthCheck()
         const healthyCount = results.filter(r => r.status === 'healthy').length
         const degradedCount = results.filter(r => r.status === 'degraded').length
         const unhealthyCount = results.filter(r => r.status === 'unhealthy').length
-        
+
         console.log('定期ヘルスチェックが完了しました', {
           totalSpaces: results.length,
           healthy: healthyCount,
           degraded: degradedCount,
           unhealthy: unhealthyCount,
         })
-      } catch (error) {
+      }
+      catch (error) {
         console.error('定期ヘルスチェックでエラーが発生しました', {
           error: error instanceof Error ? error.message : String(error),
         })
@@ -957,38 +969,39 @@ export class BacklogConnectionManager {
 
 /**
  * 接続管理サービスファクトリー関数
- * 
+ *
  * @param db - データベース接続
  * @param rateLimiter - レート制限管理インスタンス
  * @returns BacklogConnectionManagerインスタンス
  */
 export function createBacklogConnectionManager(
   db: Database,
-  rateLimiter: BacklogRateLimiter
+  rateLimiter: BacklogRateLimiter,
 ): BacklogConnectionManager {
   return new BacklogConnectionManager(db, rateLimiter)
 }
 
 /**
  * 接続プール統計ヘルパー関数
- * 
+ *
  * @param stats - 接続プール統計情報
  * @returns フォーマットされた統計サマリー
  */
 export function formatConnectionPoolSummary(stats: ConnectionPoolStats): string {
-  const utilizationLevel = stats.poolUtilization >= 80 ? 'high' : 
-                          stats.poolUtilization >= 50 ? 'medium' : 'low'
-  
-  return `接続プール: ${stats.activeConnections}/${stats.peakConnections} アクティブ, ` +
-         `利用率: ${stats.poolUtilization.toFixed(1)}% (${utilizationLevel}), ` +
-         `スループット: ${stats.throughput.toFixed(2)} req/sec, ` +
-         `エラー率: ${stats.errorRate.toFixed(1)}%, ` +
-         `平均レスポンス: ${stats.averageResponseTime.toFixed(0)}ms`
+  const utilizationLevel = stats.poolUtilization >= 80
+    ? 'high'
+    : stats.poolUtilization >= 50 ? 'medium' : 'low'
+
+  return `接続プール: ${stats.activeConnections}/${stats.peakConnections} アクティブ, `
+    + `利用率: ${stats.poolUtilization.toFixed(1)}% (${utilizationLevel}), `
+    + `スループット: ${stats.throughput.toFixed(2)} req/sec, `
+    + `エラー率: ${stats.errorRate.toFixed(1)}%, `
+    + `平均レスポンス: ${stats.averageResponseTime.toFixed(0)}ms`
 }
 
 /**
  * ヘルスチェック結果のサマリー生成
- * 
+ *
  * @param results - ヘルスチェック結果配列
  * @returns サマリー情報
  */
@@ -1004,15 +1017,15 @@ export function summarizeHealthCheckResults(results: HealthCheckResult[]): {
   const healthy = results.filter(r => r.status === 'healthy').length
   const degraded = results.filter(r => r.status === 'degraded').length
   const unhealthy = results.filter(r => r.status === 'unhealthy').length
-  
+
   const responseTimes = results.map(r => r.responseTime).filter(t => t > 0)
-  const averageResponseTime = responseTimes.length > 0 
-    ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length 
+  const averageResponseTime = responseTimes.length > 0
+    ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
     : 0
-  const worstResponseTime = responseTimes.length > 0 
-    ? Math.max(...responseTimes) 
+  const worstResponseTime = responseTimes.length > 0
+    ? Math.max(...responseTimes)
     : 0
-  
+
   return {
     total,
     healthy,

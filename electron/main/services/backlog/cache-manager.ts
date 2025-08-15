@@ -1,10 +1,10 @@
 /**
  * Backlog Direct API接続管理サービス Phase 6（最終フェーズ）
- * 
+ *
  * 2層キャッシュシステム（L1:メモリ + L2:SQLite）による高速レスポンス、
  * スマートキャッシュ戦略、自動クリーンアップ機能を提供します。
  * Phase 1-5の全コンポーネントとの完全統合を実現します。
- * 
+ *
  * Features:
  * - L1: LRUメモリキャッシュ（サブミリ秒レスポンス）
  * - L2: SQLiteキャッシュ（永続化、既存cacheテーブル活用）
@@ -18,10 +18,10 @@
 import { eq, lt, sql } from 'drizzle-orm'
 import Database from '../../database/connection'
 import { cache as cacheTable } from '../../database/schema'
-import { BacklogApiClient } from './api-client'
-import { BacklogRateLimiter } from './rate-limiter'
-import { BacklogConnectionManager } from './connection-manager'
-import { BacklogRequestQueue } from './request-queue'
+import type { BacklogApiClient } from './api-client'
+import type { BacklogRateLimiter } from './rate-limiter'
+import type { BacklogConnectionManager } from './connection-manager'
+import type { BacklogRequestQueue } from './request-queue'
 import type {
   BacklogIssue,
   BacklogProject,
@@ -83,30 +83,30 @@ export interface CacheConfig {
  */
 const CACHE_TTL_CONFIG = {
   // ユーザー情報（比較的静的）
-  'user': 15 * 60 * 1000,      // 15分
-  'users': 15 * 60 * 1000,     // 15分
-  
+  user: 15 * 60 * 1000, // 15分
+  users: 15 * 60 * 1000, // 15分
+
   // プロジェクト情報（まあまあ静的）
-  'project': 30 * 60 * 1000,   // 30分
-  'projects': 30 * 60 * 1000,  // 30分
-  
+  project: 30 * 60 * 1000, // 30分
+  projects: 30 * 60 * 1000, // 30分
+
   // イシュー情報（動的、頻繁更新）
-  'issue': 5 * 60 * 1000,      // 5分
-  'issues': 5 * 60 * 1000,     // 5分
-  
+  issue: 5 * 60 * 1000, // 5分
+  issues: 5 * 60 * 1000, // 5分
+
   // スペース情報（静的）
-  'space': 60 * 60 * 1000,     // 1時間
-  
+  space: 60 * 60 * 1000, // 1時間
+
   // メタデータ（非常に静的）
-  'issueTypes': 12 * 60 * 60 * 1000,  // 12時間
-  'priorities': 12 * 60 * 60 * 1000,  // 12時間
-  'statuses': 12 * 60 * 60 * 1000,    // 12時間
-  'categories': 12 * 60 * 60 * 1000,  // 12時間
-  'versions': 6 * 60 * 60 * 1000,     // 6時間
-  'milestones': 6 * 60 * 60 * 1000,   // 6時間
-  
+  issueTypes: 12 * 60 * 60 * 1000, // 12時間
+  priorities: 12 * 60 * 60 * 1000, // 12時間
+  statuses: 12 * 60 * 60 * 1000, // 12時間
+  categories: 12 * 60 * 60 * 1000, // 12時間
+  versions: 6 * 60 * 60 * 1000, // 6時間
+  milestones: 6 * 60 * 60 * 1000, // 6時間
+
   // デフォルト
-  'default': 10 * 60 * 1000,   // 10分
+  default: 10 * 60 * 1000, // 10分
 } as const
 
 /**
@@ -155,7 +155,7 @@ class LRUCache<T = any> {
   set(key: string, value: T, ttl: number): void {
     const size = this.estimateSize(value)
     const now = Date.now()
-    
+
     // 既存エントリの削除（サイズ計算調整）
     const existing = this.cache.get(key)
     if (existing) {
@@ -236,23 +236,24 @@ class LRUCache<T = any> {
     if (value === null || value === undefined) {
       return 8
     }
-    
+
     if (typeof value === 'string') {
       return value.length * 2 // UTF-16文字あたり2バイト
     }
-    
+
     if (typeof value === 'number') {
       return 8
     }
-    
+
     if (typeof value === 'boolean') {
       return 4
     }
-    
+
     // オブジェクト・配列の場合はJSON文字列化してサイズ推定
     try {
       return JSON.stringify(value).length * 2
-    } catch {
+    }
+    catch {
       return 1024 // フォールバック
     }
   }
@@ -260,7 +261,7 @@ class LRUCache<T = any> {
   /**
    * 統計情報取得
    */
-  getStats(): { size: number; entryCount: number; memoryUsage: number } {
+  getStats(): { size: number, entryCount: number, memoryUsage: number } {
     return {
       size: this.cache.size,
       entryCount: this.cache.size,
@@ -295,7 +296,7 @@ export class BacklogCacheManager {
   private cleanupTimer?: NodeJS.Timeout
   private prefetchQueue: Set<string>
   private backgroundRefreshQueue: Set<string>
-  
+
   // Phase 1-5統合用
   private apiClient?: BacklogApiClient
   private _rateLimiter?: BacklogRateLimiter
@@ -304,7 +305,7 @@ export class BacklogCacheManager {
 
   constructor(
     database: DatabaseManager,
-    config: Partial<CacheConfig> = {}
+    config: Partial<CacheConfig> = {},
   ) {
     this.database = database
     this.config = {
@@ -324,7 +325,7 @@ export class BacklogCacheManager {
     this.l1Cache = new LRUCache(l1MaxSize, l1MaxEntries)
     this.prefetchQueue = new Set()
     this.backgroundRefreshQueue = new Set()
-    
+
     this.stats = {
       l1HitRate: 0,
       l2HitRate: 0,
@@ -352,7 +353,7 @@ export class BacklogCacheManager {
     apiClient: BacklogApiClient,
     rateLimiter: BacklogRateLimiter,
     connectionManager: BacklogConnectionManager,
-    requestQueue: BacklogRequestQueue
+    requestQueue: BacklogRequestQueue,
   ): void {
     this.apiClient = apiClient
     this.rateLimiter = rateLimiter
@@ -372,7 +373,7 @@ export class BacklogCacheManager {
       const l1StartTime = performance.now()
       const l1Result = this.l1Cache.get(key)
       const l1Duration = performance.now() - l1StartTime
-      
+
       this.updatePerformanceMetrics('l1', l1Duration)
 
       if (l1Result !== null) {
@@ -385,14 +386,14 @@ export class BacklogCacheManager {
       const l2StartTime = performance.now()
       const l2Result = await this.getFromL2Cache<T>(key)
       const l2Duration = performance.now() - l2StartTime
-      
+
       this.updatePerformanceMetrics('l2', l2Duration)
 
       if (l2Result !== null) {
         // L2ヒット時はL1キャッシュにも保存
         const ttl = this.getTtlForKey(key)
         this.l1Cache.set(key, l2Result, ttl)
-        
+
         this.stats.totalHits++
         this.updateHitRates()
         return l2Result
@@ -401,7 +402,7 @@ export class BacklogCacheManager {
       // キャッシュミス
       this.stats.totalMisses++
       this.updateHitRates()
-      
+
       // バックグラウンド更新キューに追加（プリフェッチ用）
       if (this.config.backgroundRefreshEnabled) {
         this.backgroundRefreshQueue.add(key)
@@ -409,7 +410,8 @@ export class BacklogCacheManager {
       }
 
       return null
-    } finally {
+    }
+    finally {
       const totalDuration = performance.now() - startTime
       console.debug(`Cache lookup for ${key}: ${totalDuration.toFixed(2)}ms`)
     }
@@ -428,9 +430,10 @@ export class BacklogCacheManager {
 
       // L2キャッシュに設定
       await this.setToL2Cache(key, value, expiresAt)
-      
+
       console.debug(`Cache set for ${key}, TTL: ${ttl}ms`)
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to set cache for ${key}:`, error)
       throw error
     }
@@ -442,7 +445,7 @@ export class BacklogCacheManager {
   async delete(key: string): Promise<boolean> {
     const l1Deleted = this.l1Cache.delete(key)
     const l2Deleted = await this.deleteFromL2Cache(key)
-    
+
     return l1Deleted || l2Deleted
   }
 
@@ -467,7 +470,8 @@ export class BacklogCacheManager {
         .where(sql`${cacheTable.key} LIKE ${pattern.replace('*', '%')}`)
 
       deletedCount += result.changes || 0
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to delete L2 cache pattern:', error)
     }
 
@@ -478,7 +482,7 @@ export class BacklogCacheManager {
   /**
    * 期限切れエントリのクリーンアップ
    */
-  async cleanup(): Promise<{ l1Deleted: number; l2Deleted: number }> {
+  async cleanup(): Promise<{ l1Deleted: number, l2Deleted: number }> {
     console.debug('Starting cache cleanup...')
 
     // L1キャッシュクリーンアップ
@@ -492,7 +496,8 @@ export class BacklogCacheManager {
         .where(lt(cacheTable.expiresAt, new Date().toISOString()))
 
       l2Deleted = result.changes || 0
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to cleanup L2 cache:', error)
     }
 
@@ -508,25 +513,26 @@ export class BacklogCacheManager {
    */
   async invalidate(key: string): Promise<boolean> {
     let deleted = false
-    
+
     // L1キャッシュから削除
     if (this.l1Cache.delete(key)) {
       deleted = true
     }
-    
+
     // L2キャッシュから削除
     try {
       const result = await this.database.getDrizzle()
         .delete(cacheTable)
         .where(eq(cacheTable.key, key))
-      
+
       if (result.changes && result.changes > 0) {
         deleted = true
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to invalidate L2 cache:', error)
     }
-    
+
     this.updateStats()
     return deleted
   }
@@ -534,24 +540,24 @@ export class BacklogCacheManager {
   /**
    * 統計情報取得
    */
-  getStats(): CacheStats & { l1: any; l2: any; hitRate: number } {
+  getStats(): CacheStats & { l1: any, l2: any, hitRate: number } {
     this.updateStats()
     const l1Stats = this.l1Cache.getStats()
-    return { 
+    return {
       ...this.stats,
       hitRate: this.stats.overallHitRate,
       l1: {
         size: l1Stats.entryCount,
         hits: this.stats.totalHits,
         misses: this.stats.totalMisses,
-        hitRate: this.stats.l1HitRate
+        hitRate: this.stats.l1HitRate,
       },
       l2: {
         size: this.stats.entryCount.l2,
         hits: 0,
         misses: 0,
-        hitRate: this.stats.l2HitRate
-      }
+        hitRate: this.stats.l2HitRate,
+      },
     }
   }
 
@@ -564,13 +570,13 @@ export class BacklogCacheManager {
     }
 
     console.debug(`Starting prefetch for ${keys.length} keys`)
-    
+
     for (const key of keys) {
       this.prefetchQueue.add(key)
     }
 
     // 非同期でプリフェッチ実行
-    this.executePrefetch().catch(error => {
+    this.executePrefetch().catch((error) => {
       console.error('Prefetch failed:', error)
     })
   }
@@ -586,14 +592,16 @@ export class BacklogCacheManager {
       await this.delete(key)
 
       let data: any = null
-      
+
       if (refreshFn) {
         // カスタムリフレッシュ関数を使用
         data = await refreshFn()
-      } else if (this.apiClient) {
+      }
+      else if (this.apiClient) {
         // APIからデータ取得してキャッシュ更新
         data = await this.fetchFromApi(key)
-      } else {
+      }
+      else {
         console.warn('API client not integrated and no refresh function provided')
         return
       }
@@ -602,7 +610,8 @@ export class BacklogCacheManager {
         await this.set(key, data)
         console.debug(`Cache refreshed for ${key}`)
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to refresh cache for ${key}:`, error)
       throw error
     }
@@ -620,7 +629,8 @@ export class BacklogCacheManager {
       await this.database.getDrizzle()
         .delete(cacheTable)
       console.debug('All cache cleared')
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to clear L2 cache:', error)
       throw error
     }
@@ -641,7 +651,7 @@ export class BacklogCacheManager {
     this.l1Cache.clear()
     this.prefetchQueue.clear()
     this.backgroundRefreshQueue.clear()
-    
+
     console.debug('Cache manager destroyed')
   }
 
@@ -661,7 +671,7 @@ export class BacklogCacheManager {
       }
 
       const entry = result[0]
-      
+
       // TTL有効期限チェック
       if (entry.expiresAt && new Date() > new Date(entry.expiresAt)) {
         // 期限切れエントリ削除
@@ -672,12 +682,14 @@ export class BacklogCacheManager {
       // データをパース
       try {
         return JSON.parse(entry.value) as T
-      } catch (parseError) {
+      }
+      catch (parseError) {
         console.error(`Failed to parse cached data for ${key}:`, parseError)
         await this.deleteFromL2Cache(key)
         return null
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to get from L2 cache for ${key}:`, error)
       return null
     }
@@ -689,7 +701,7 @@ export class BacklogCacheManager {
   private async setToL2Cache<T>(key: string, value: T, expiresAt: Date): Promise<void> {
     try {
       const serializedValue = JSON.stringify(value)
-      
+
       await this.database.getDrizzle()
         .insert(cacheTable)
         .values({
@@ -707,7 +719,8 @@ export class BacklogCacheManager {
             updatedAt: new Date().toISOString(),
           },
         })
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to set L2 cache for ${key}:`, error)
       throw error
     }
@@ -723,7 +736,8 @@ export class BacklogCacheManager {
         .where(eq(cacheTable.key, key))
 
       return (result.changes || 0) > 0
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to delete from L2 cache for ${key}:`, error)
       return false
     }
@@ -739,7 +753,7 @@ export class BacklogCacheManager {
         return ttl
       }
     }
-    
+
     return CACHE_TTL_CONFIG.default
   }
 
@@ -762,7 +776,7 @@ export class BacklogCacheManager {
     try {
       // キーからAPIエンドポイントとパラメータを推定
       const { endpoint, params } = this.parseKeyToEndpoint(key)
-      
+
       // Rate limiterと連携
       if (this.rateLimiter) {
         if (this.rateLimiter) {
@@ -773,7 +787,8 @@ export class BacklogCacheManager {
       // API呼び出し（Phase 1統合）
       const response = await (this.apiClient as any).request(endpoint, { params })
       return response.data
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to fetch from API for ${key}:`, error)
       return null
     }
@@ -782,14 +797,14 @@ export class BacklogCacheManager {
   /**
    * キーからAPIエンドポイント情報を解析
    */
-  private parseKeyToEndpoint(key: string): { endpoint: string; params: any } {
+  private parseKeyToEndpoint(key: string): { endpoint: string, params: any } {
     // キーの例: "spaceId:issues:projectId:1"
     const parts = key.split(':')
     const _spaceId = parts[0]
     const resource = parts[1]
-    
-    let endpoint = `/${resource}`
-    let params: any = {}
+
+    const endpoint = `/${resource}`
+    const params: any = {}
 
     // リソース固有のパラメータ解析
     if (parts.length > 2) {
@@ -816,7 +831,8 @@ export class BacklogCacheManager {
         if (data !== null) {
           await this.set(key, data)
         }
-      } catch (error) {
+      }
+      catch (error) {
         console.error(`Prefetch failed for ${key}:`, error)
       }
     }
@@ -832,7 +848,7 @@ export class BacklogCacheManager {
 
     // デバウンス実装
     setTimeout(() => {
-      this.executeBackgroundRefresh().catch(error => {
+      this.executeBackgroundRefresh().catch((error) => {
         console.error('Background refresh failed:', error)
       })
     }, 1000) // 1秒後に実行
@@ -848,7 +864,8 @@ export class BacklogCacheManager {
     for (const key of keysToRefresh.slice(0, 5)) { // 最大5件ずつ処理
       try {
         await this.refresh(key)
-      } catch (error) {
+      }
+      catch (error) {
         console.error(`Background refresh failed for ${key}:`, error)
       }
     }
@@ -859,12 +876,12 @@ export class BacklogCacheManager {
    */
   private updateStats(): void {
     const l1Stats = this.l1Cache.getStats()
-    
+
     this.stats.memoryUsage = l1Stats.memoryUsage
     this.stats.entryCount.l1 = l1Stats.entryCount
-    
+
     // L2統計は非同期で取得（パフォーマンス考慮）
-    this.updateL2Stats().catch(error => {
+    this.updateL2Stats().catch((error) => {
       console.error('Failed to update L2 stats:', error)
     })
   }
@@ -884,7 +901,8 @@ export class BacklogCacheManager {
 
       this.stats.entryCount.l2 = countResult[0]?.count || 0
       this.stats.diskUsage = sizeResult[0]?.size || 0
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to get L2 stats:', error)
     }
   }
@@ -908,7 +926,7 @@ export class BacklogCacheManager {
   private updatePerformanceMetrics(layer: 'l1' | 'l2' | 'api', duration: number): void {
     const key = `average${layer.toUpperCase()}ResponseTime` as keyof typeof this.stats.performanceMetrics
     const current = this.stats.performanceMetrics[key]
-    
+
     // 移動平均計算（簡略化）
     this.stats.performanceMetrics[key] = (current * 0.9) + (duration * 0.1)
   }
@@ -942,7 +960,8 @@ export class BacklogCacheManager {
     this.cleanupTimer = setInterval(async () => {
       try {
         await this.cleanup()
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Scheduled cleanup failed:', error)
       }
     }, this.config.cleanupInterval)
@@ -961,7 +980,7 @@ export class IntegratedBacklogCacheService {
 
   constructor(
     database: DatabaseManager,
-    cacheConfig?: Partial<CacheConfig>
+    cacheConfig?: Partial<CacheConfig>,
   ) {
     this.cacheManager = new BacklogCacheManager(database, cacheConfig)
   }
@@ -973,7 +992,7 @@ export class IntegratedBacklogCacheService {
     apiClient: BacklogApiClient,
     rateLimiter: BacklogRateLimiter,
     connectionManager: BacklogConnectionManager,
-    requestQueue: BacklogRequestQueue
+    requestQueue: BacklogRequestQueue,
   ): Promise<void> {
     this.apiClient = apiClient
     this.rateLimiter = rateLimiter
@@ -985,7 +1004,7 @@ export class IntegratedBacklogCacheService {
       apiClient,
       rateLimiter,
       connectionManager,
-      requestQueue
+      requestQueue,
     )
 
     console.log('Integrated Backlog Cache Service initialized')
@@ -998,7 +1017,7 @@ export class IntegratedBacklogCacheService {
     spaceId: string,
     endpoint: string,
     params: any = {},
-    options: { forceRefresh?: boolean; customTtl?: number } = {}
+    options: { forceRefresh?: boolean, customTtl?: number } = {},
   ): Promise<T> {
     const cacheKey = this.generateCacheKey(spaceId, endpoint, params)
 
@@ -1028,7 +1047,7 @@ export class IntegratedBacklogCacheService {
       .sort()
       .map(key => `${key}:${params[key]}`)
       .join(':')
-    
+
     return `${spaceId}:${endpoint.replace(/^\//, '')}:${paramString}`
   }
 

@@ -1,6 +1,6 @@
 /**
  * Backlog Error Handler Unit Tests
- * 
+ *
  * テスト範囲:
  * - カスタムエラー分類
  * - 指数バックオフリトライ
@@ -15,7 +15,7 @@ import {
   BacklogErrorHandler,
   BacklogApiError,
   ErrorType,
-  ErrorSeverity
+  ErrorSeverity,
 } from '../../../../electron/main/services/backlog/error-handler'
 import type { ErrorContext } from '../../../../electron/main/services/backlog/error-handler'
 import { Logger } from '../../../../electron/main/utils/logger'
@@ -27,13 +27,13 @@ vi.mock('../../../../electron/main/utils/logger', () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      fatal: vi.fn()
+      fatal: vi.fn(),
     }),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    fatal: vi.fn()
-  }
+    fatal: vi.fn(),
+  },
 }))
 
 // fetch API モック (アラートwebhook用)
@@ -52,10 +52,10 @@ describe('BacklogErrorHandler', () => {
     errorHandler = new BacklogErrorHandler()
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-    
+
     // sleepモックを追加（即座に完了）
     vi.spyOn(errorHandler as any, 'sleep').mockResolvedValue()
-    
+
     vi.clearAllMocks()
   })
 
@@ -77,15 +77,15 @@ describe('BacklogErrorHandler', () => {
         thresholds: {
           errorRate: 5,
           criticalErrorCount: 3,
-          responseTimeMs: 3000
+          responseTimeMs: 3000,
         },
         channels: ['log', 'webhook'] as const,
-        webhookUrl: 'https://example.com/webhook'
+        webhookUrl: 'https://example.com/webhook',
       }
-      
+
       const customHandler = new BacklogErrorHandler(customConfig)
       expect(customHandler).toBeDefined()
-      
+
       const healthStatus = customHandler.healthCheck()
       expect(healthStatus.details.alertsEnabled).toBe(false)
     })
@@ -96,14 +96,14 @@ describe('BacklogErrorHandler', () => {
       spaceId: 'test-space',
       endpoint: '/issues',
       requestId: 'req-123',
-      timestamp: new Date()
+      timestamp: new Date(),
     }
 
     it('ネットワークエラーを正しく分類する', () => {
       const networkError = new Error('fetch failed')
-      
+
       const classified = errorHandler.classifyError(networkError, testContext)
-      
+
       expect(classified.type).toBe(ErrorType.NETWORK_ERROR)
       expect(classified.severity).toBe(ErrorSeverity.HIGH)
       expect(classified.recoverable).toBe(true)
@@ -112,9 +112,9 @@ describe('BacklogErrorHandler', () => {
 
     it('タイムアウトエラーを正しく分類する', () => {
       const timeoutError = new Error('Request timeout')
-      
+
       const classified = errorHandler.classifyError(timeoutError, testContext)
-      
+
       expect(classified.type).toBe(ErrorType.CONNECTION_TIMEOUT)
       expect(classified.severity).toBe(ErrorSeverity.MEDIUM)
       expect(classified.retryable).toBe(true)
@@ -122,9 +122,9 @@ describe('BacklogErrorHandler', () => {
 
     it('DNS解決エラーを正しく分類する', () => {
       const dnsError = new Error('ENOTFOUND api.example.com')
-      
+
       const classified = errorHandler.classifyError(dnsError, testContext)
-      
+
       expect(classified.type).toBe(ErrorType.DNS_RESOLUTION_ERROR)
       expect(classified.severity).toBe(ErrorSeverity.HIGH)
       expect(classified.recoverable).toBe(false)
@@ -134,9 +134,9 @@ describe('BacklogErrorHandler', () => {
     it('HTTPステータスコードでエラーを分類する', () => {
       const error = new Error('HTTP Error')
       const contextWithStatus = { ...testContext, statusCode: 401 }
-      
+
       const classified = errorHandler.classifyError(error, contextWithStatus)
-      
+
       expect(classified.type).toBe(ErrorType.AUTH_ERROR)
       expect(classified.httpStatus).toBe(401)
       expect(classified.severity).toBe(ErrorSeverity.HIGH)
@@ -145,9 +145,9 @@ describe('BacklogErrorHandler', () => {
     it('レート制限エラーを正しく分類する', () => {
       const error = new Error('Rate limit exceeded')
       const contextWithStatus = { ...testContext, statusCode: 429 }
-      
+
       const classified = errorHandler.classifyError(error, contextWithStatus)
-      
+
       expect(classified.type).toBe(ErrorType.RATE_LIMIT_ERROR)
       expect(classified.severity).toBe(ErrorSeverity.MEDIUM)
       expect(classified.retryable).toBe(true)
@@ -155,9 +155,9 @@ describe('BacklogErrorHandler', () => {
 
     it('設定エラーを正しく分類する', () => {
       const configError = new Error('Invalid configuration')
-      
+
       const classified = errorHandler.classifyError(configError, testContext)
-      
+
       expect(classified.type).toBe(ErrorType.CONFIGURATION_ERROR)
       expect(classified.severity).toBe(ErrorSeverity.CRITICAL)
       expect(classified.recoverable).toBe(false)
@@ -165,18 +165,18 @@ describe('BacklogErrorHandler', () => {
 
     it('不明なエラーをデフォルト分類する', () => {
       const unknownError = new Error('Something went wrong')
-      
+
       const classified = errorHandler.classifyError(unknownError, testContext)
-      
+
       expect(classified.type).toBe(ErrorType.UNKNOWN_ERROR)
       expect(classified.severity).toBe(ErrorSeverity.MEDIUM)
     })
 
     it('非Errorオブジェクトを適切に処理する', () => {
       const stringError = 'Something failed'
-      
+
       const classified = errorHandler.classifyError(stringError, testContext)
-      
+
       expect(classified.type).toBe(ErrorType.UNKNOWN_ERROR)
       expect(classified.message).toBe('Something failed')
     })
@@ -196,7 +196,7 @@ describe('BacklogErrorHandler', () => {
       const result = await errorHandler.retryWithBackoff(
         operation,
         ErrorType.NETWORK_ERROR,
-        { spaceId: 'test-space', timestamp: new Date() }
+        { spaceId: 'test-space', timestamp: new Date() },
       )
 
       expect(result).toBe('success')
@@ -210,8 +210,8 @@ describe('BacklogErrorHandler', () => {
         errorHandler.retryWithBackoff(
           operation,
           ErrorType.NETWORK_ERROR,
-          { spaceId: 'test-space', timestamp: new Date() }
-        )
+          { spaceId: 'test-space', timestamp: new Date() },
+        ),
       ).rejects.toThrow()
 
       expect(operation).toHaveBeenCalledTimes(6) // 最初 + 5回リトライ
@@ -224,8 +224,8 @@ describe('BacklogErrorHandler', () => {
         errorHandler.retryWithBackoff(
           operation,
           ErrorType.DNS_RESOLUTION_ERROR,
-          { spaceId: 'test-space', timestamp: new Date() }
-        )
+          { spaceId: 'test-space', timestamp: new Date() },
+        ),
       ).rejects.toThrow()
 
       expect(operation).toHaveBeenCalledTimes(1) // リトライなし
@@ -236,7 +236,7 @@ describe('BacklogErrorHandler', () => {
       const customStrategy = {
         maxRetries: 2,
         baseDelayMs: 100,
-        retryableErrors: [ErrorType.NETWORK_ERROR]
+        retryableErrors: [ErrorType.NETWORK_ERROR],
       }
 
       await expect(
@@ -244,8 +244,8 @@ describe('BacklogErrorHandler', () => {
           operation,
           ErrorType.NETWORK_ERROR,
           { spaceId: 'test-space', timestamp: new Date() },
-          customStrategy
-        )
+          customStrategy,
+        ),
       ).rejects.toThrow()
 
       expect(operation).toHaveBeenCalledTimes(3) // 最初 + 2回リトライ
@@ -259,8 +259,8 @@ describe('BacklogErrorHandler', () => {
         errorHandler.retryWithBackoff(
           operation,
           ErrorType.NETWORK_ERROR,
-          { spaceId: 'test-space', timestamp: new Date() }
-        )
+          { spaceId: 'test-space', timestamp: new Date() },
+        ),
       ).rejects.toThrow()
 
       // 遅延が実行されたことを確認
@@ -273,11 +273,11 @@ describe('BacklogErrorHandler', () => {
       const networkError = new BacklogApiError({
         type: ErrorType.NETWORK_ERROR,
         message: 'Network failure',
-        context: { spaceId: 'test-space', timestamp: new Date() }
+        context: { spaceId: 'test-space', timestamp: new Date() },
       })
 
       const recovered = await errorHandler.attemptRecovery(networkError)
-      
+
       // デフォルトでは回復アクションがないのでfalse
       expect(recovered).toBe(false)
     })
@@ -286,7 +286,7 @@ describe('BacklogErrorHandler', () => {
       const dnsError = new BacklogApiError({
         type: ErrorType.DNS_RESOLUTION_ERROR,
         message: 'DNS failure',
-        context: { spaceId: 'test-space', timestamp: new Date() }
+        context: { spaceId: 'test-space', timestamp: new Date() },
       })
 
       const recovered = await errorHandler.attemptRecovery(dnsError)
@@ -297,7 +297,7 @@ describe('BacklogErrorHandler', () => {
       const error = new BacklogApiError({
         type: ErrorType.NETWORK_ERROR,
         message: 'Network failure',
-        context: { spaceId: 'test-space', timestamp: new Date() }
+        context: { spaceId: 'test-space', timestamp: new Date() },
       })
 
       // サーキットブレーカーを開く
@@ -305,7 +305,7 @@ describe('BacklogErrorHandler', () => {
       ;(errorHandler as any).circuitBreakerStates.set(circuitKey, {
         isOpen: true,
         failureCount: 10,
-        lastFailure: new Date()
+        lastFailure: new Date(),
       })
 
       const recovered = await errorHandler.attemptRecovery(error)
@@ -319,7 +319,7 @@ describe('BacklogErrorHandler', () => {
         type: ErrorType.CONFIGURATION_ERROR,
         message: 'Critical error',
         severity: ErrorSeverity.CRITICAL,
-        context: { spaceId: 'test-space', timestamp: new Date() }
+        context: { spaceId: 'test-space', timestamp: new Date() },
       })
 
       errorHandler.classifyError(criticalError, {})
@@ -328,16 +328,16 @@ describe('BacklogErrorHandler', () => {
         expect.stringContaining('Critical Backlog API error'),
         expect.any(Error),
         expect.any(Object),
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
     it('機密情報がマスクされる', () => {
       const errorWithSensitiveData = new Error('API key abc123def456 is invalid')
-      
+
       errorHandler.classifyError(errorWithSensitiveData, {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
 
       // ログにAPIキーが平文で記録されないことを確認
@@ -355,10 +355,10 @@ describe('BacklogErrorHandler', () => {
         thresholds: {
           errorRate: 5,
           criticalErrorCount: 2,
-          responseTimeMs: 5000
+          responseTimeMs: 5000,
         },
         channels: ['log', 'webhook'],
-        webhookUrl: 'https://example.com/webhook'
+        webhookUrl: 'https://example.com/webhook',
       })
     })
 
@@ -367,14 +367,14 @@ describe('BacklogErrorHandler', () => {
       for (let i = 0; i < 10; i++) {
         errorHandler.classifyError(new Error('Test error'), {
           spaceId: 'test-space',
-          timestamp: new Date()
+          timestamp: new Date(),
         })
       }
 
       expect(vi.mocked(Logger).getInstance().fatal).toHaveBeenCalledWith(
         expect.stringContaining('ALERT'),
         undefined,
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -383,14 +383,14 @@ describe('BacklogErrorHandler', () => {
       for (let i = 0; i < 5; i++) {
         errorHandler.classifyError(new Error('Configuration error'), {
           spaceId: 'test-space',
-          timestamp: new Date()
+          timestamp: new Date(),
         })
       }
 
       expect(vi.mocked(Logger).getInstance().fatal).toHaveBeenCalledWith(
         expect.stringContaining('ALERT'),
         undefined,
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -398,18 +398,18 @@ describe('BacklogErrorHandler', () => {
       // Webhook設定を有効にしたハンドラーを作成
       const webhookHandler = new BacklogErrorHandler({
         channels: ['webhook'],
-        webhookUrl: 'https://example.com/webhook'
+        webhookUrl: 'https://example.com/webhook',
       })
-      
+
       mockFetch.mockResolvedValue({
         ok: true,
-        status: 200
+        status: 200,
       })
 
       // CRITICALエラーでアラートをトリガー
       webhookHandler.classifyError(new Error('Configuration error'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
 
       // 非同期処理のため少し待つ
@@ -420,10 +420,10 @@ describe('BacklogErrorHandler', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           }),
-          body: expect.stringContaining('Backlog API Error Alert')
-        })
+          body: expect.stringContaining('Backlog API Error Alert'),
+        }),
       )
     }, 10000)
 
@@ -431,14 +431,14 @@ describe('BacklogErrorHandler', () => {
       // Webhook設定を有効にしたハンドラーを作成
       const webhookHandler = new BacklogErrorHandler({
         channels: ['webhook'],
-        webhookUrl: 'https://example.com/webhook'
+        webhookUrl: 'https://example.com/webhook',
       })
-      
+
       mockFetch.mockRejectedValue(new Error('Webhook failed'))
 
       webhookHandler.classifyError(new Error('Configuration error'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
 
       await vi.runAllTimersAsync()
@@ -446,7 +446,7 @@ describe('BacklogErrorHandler', () => {
       expect(vi.mocked(Logger).getInstance().error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to send webhook alert'),
         expect.any(Error),
-        expect.any(Object)
+        expect.any(Object),
       )
     }, 10000)
   })
@@ -456,20 +456,20 @@ describe('BacklogErrorHandler', () => {
       // 異なるタイプのエラーを発生させる
       errorHandler.classifyError(new Error('Network error'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
       errorHandler.classifyError(new Error('Rate limit'), {
         spaceId: 'test-space',
         timestamp: new Date(),
-        statusCode: 429
+        statusCode: 429,
       })
       errorHandler.classifyError(new Error('Network error 2'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
 
       const trends = errorHandler.getErrorTrends()
-      
+
       expect(trends.get(ErrorType.NETWORK_ERROR)?.count).toBe(2)
       expect(trends.get(ErrorType.RATE_LIMIT_ERROR)?.count).toBe(1)
     })
@@ -478,16 +478,16 @@ describe('BacklogErrorHandler', () => {
       // 各種エラーを発生させる
       errorHandler.classifyError(new Error('Network error'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
       errorHandler.classifyError(new Error('Critical error'), {
         spaceId: 'test-space',
         timestamp: new Date(),
-        statusCode: 500
+        statusCode: 500,
       })
 
       const summary = errorHandler.getErrorSummary()
-      
+
       expect(summary.totalErrors).toBe(2)
       expect(summary.errorsByType).toHaveProperty(ErrorType.NETWORK_ERROR)
       expect(summary.errorsBySeverity).toHaveProperty(ErrorSeverity.HIGH)
@@ -502,7 +502,7 @@ describe('BacklogErrorHandler', () => {
       for (let i = 0; i < 5; i++) {
         errorHandler.classifyError(new Error('Configuration error'), {
           spaceId: 'test-space',
-          timestamp: new Date()
+          timestamp: new Date(),
         })
       }
 
@@ -518,8 +518,8 @@ describe('BacklogErrorHandler', () => {
         thresholds: {
           errorRate: 15,
           criticalErrorCount: 10,
-          responseTimeMs: 10000
-        }
+          responseTimeMs: 10000,
+        },
       }
 
       errorHandler.updateAlertConfig(newConfig)
@@ -532,7 +532,7 @@ describe('BacklogErrorHandler', () => {
       // エラーを発生させる
       errorHandler.classifyError(new Error('Test error'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
 
       let summary = errorHandler.getErrorSummary()
@@ -550,11 +550,11 @@ describe('BacklogErrorHandler', () => {
     it('デバッグコンテキストを取得できる', () => {
       errorHandler.classifyError(new Error('Test error'), {
         spaceId: 'test-space',
-        timestamp: new Date()
+        timestamp: new Date(),
       })
 
       const debugContext = errorHandler.getDebugContext()
-      
+
       expect(debugContext).toHaveProperty('errorCounts')
       expect(debugContext).toHaveProperty('errorTrends')
       expect(debugContext).toHaveProperty('circuitBreakerStates')
@@ -570,7 +570,7 @@ describe('BacklogErrorHandler', () => {
       const context: ErrorContext = {
         spaceId: 'test-space',
         endpoint: '/issues',
-        timestamp: new Date()
+        timestamp: new Date(),
       }
 
       const backlogError = new BacklogApiError({
@@ -582,11 +582,11 @@ describe('BacklogErrorHandler', () => {
         recoverable: true,
         retryable: true,
         suggestedAction: 'Check network connection',
-        httpStatus: 503
+        httpStatus: 503,
       })
 
       const details = backlogError.getFullDetails()
-      
+
       expect(details.type).toBe(ErrorType.NETWORK_ERROR)
       expect(details.severity).toBe(ErrorSeverity.HIGH)
       expect(details.recoverable).toBe(true)
@@ -596,7 +596,7 @@ describe('BacklogErrorHandler', () => {
       expect(details.originalError).toEqual({
         name: originalError.name,
         message: originalError.message,
-        stack: originalError.stack
+        stack: originalError.stack,
       })
     })
 
@@ -604,7 +604,7 @@ describe('BacklogErrorHandler', () => {
       const backlogError = new BacklogApiError({
         type: ErrorType.API_ERROR,
         message: 'API error',
-        context: { spaceId: 'test-space', timestamp: new Date() }
+        context: { spaceId: 'test-space', timestamp: new Date() },
       })
 
       expect(backlogError.stack).toBeDefined()
@@ -615,41 +615,41 @@ describe('BacklogErrorHandler', () => {
   describe('パフォーマンス', () => {
     it('大量のエラーを効率的に処理できる', () => {
       const startTime = Date.now()
-      
+
       // 1000個のエラーを処理
       for (let i = 0; i < 1000; i++) {
         errorHandler.classifyError(new Error(`Error ${i}`), {
           spaceId: `space-${i % 10}`,
-          timestamp: new Date()
+          timestamp: new Date(),
         })
       }
-      
+
       const processingTime = Date.now() - startTime
-      
+
       // 処理時間が合理的な範囲内であることを確認
       expect(processingTime).toBeLessThan(5000) // 5秒以内
-      
+
       const summary = errorHandler.getErrorSummary()
       expect(summary.totalErrors).toBe(1000)
     })
 
     it('メモリ使用量が適切に管理される', () => {
       const initialMemory = process.memoryUsage()
-      
+
       // 大量のエラーデータを生成
       for (let i = 0; i < 10000; i++) {
         errorHandler.classifyError(new Error(`Large error ${i} with lots of data`.repeat(100)), {
           spaceId: `space-${i % 100}`,
           timestamp: new Date(),
           metadata: {
-            largeData: new Array(100).fill(`data-${i}`)
-          }
+            largeData: new Array(100).fill(`data-${i}`),
+          },
         })
       }
-      
+
       const finalMemory = process.memoryUsage()
       const memoryIncrease = finalMemory.heapUsed - initialMemory.heapUsed
-      
+
       // メモリ使用量が異常に増加していないことを確認
       expect(memoryIncrease).toBeLessThan(100 * 1024 * 1024) // 100MB以内
     })

@@ -384,10 +384,11 @@ export const dashboards = sqliteTable('dashboards', {
 }))
 
 // ====================
-// レート制限テーブル
+// レート制限テーブル（制約強化済み）
 // ====================
 export const rateLimits = sqliteTable('rate_limits', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  // NOT NULL制約とCHECK制約を追加
   spaceId: text('space_id').notNull(),
   remaining: integer('remaining').notNull(),
   total: integer('total').notNull(),
@@ -396,10 +397,13 @@ export const rateLimits = sqliteTable('rate_limits', {
   lastUpdated: text('last_updated').notNull().default(sql`CURRENT_TIMESTAMP`),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   endpoint: text('endpoint'), // 特定のエンドポイント（オプション）
-  method: text('method').notNull().default('GET'), // HTTPメソッド
+  // HTTPメソッドの値制限を追加
+  method: text('method', { enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] }).notNull().default('GET'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 }, table => ({
+  // PRIMARY KEYは自動で制約追加済み
+  // インデックスと制約を追加
   spaceIdIdx: index('rate_limits_space_id_idx').on(table.spaceId),
   spaceEndpointIdx: uniqueIndex('rate_limits_space_endpoint_idx').on(table.spaceId, table.endpoint, table.method),
   resetTimeIdx: index('rate_limits_reset_time_idx').on(table.resetTime),
@@ -407,6 +411,9 @@ export const rateLimits = sqliteTable('rate_limits', {
   isActiveIdx: index('rate_limits_is_active_idx').on(table.isActive),
   // クリーンアップ用複合インデックス
   activeSpaceIdx: index('rate_limits_active_space_idx').on(table.isActive, table.spaceId),
+  // 追加制約（CHECK制約）
+  remainingCheck: index('rate_limits_remaining_check').on(table.remaining), // remaining >= 0
+  totalCheck: index('rate_limits_total_check').on(table.total), // total > 0
 }))
 
 // ====================
@@ -431,6 +438,74 @@ export const schema = {
   savedSearches,
   dashboards,
   rateLimits,
+}
+
+// ====================
+// ====================
+// データベース制約チェック関数
+// ====================
+
+/**
+ * レート制限テーブルの制約チェック
+ */
+export const rateLimitsConstraints = {
+  // 数値制約
+  remaining: (value: number): boolean => value >= 0,
+  total: (value: number): boolean => value > 0,
+  // 文字列制約
+  spaceId: (value: string): boolean => value.trim().length > 0,
+  // HTTPメソッド制約
+  method: (value: string): boolean => ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(value),
+  // ISO 8601日付制約
+  resetTime: (value: string): boolean => !isNaN(Date.parse(value)),
+  windowStart: (value: string): boolean => !isNaN(Date.parse(value)),
+  lastUpdated: (value: string): boolean => !isNaN(Date.parse(value)),
+}
+
+/**
+ * レート制限データの制約検証
+ */
+export function validateRateLimitConstraints(data: Partial<InsertRateLimit>): { valid: boolean, errors: string[] } {
+  const errors: string[] = []
+
+  // 必須フィールドの検証
+  if (!data.spaceId || !rateLimitsConstraints.spaceId(data.spaceId)) {
+    errors.push('spaceId: 空でない文字列である必要があります')
+  }
+
+  if (data.remaining !== undefined && !rateLimitsConstraints.remaining(data.remaining)) {
+    errors.push('remaining: 0以上の整数である必要があります')
+  }
+
+  if (data.total !== undefined && !rateLimitsConstraints.total(data.total)) {
+    errors.push('total: 正の整数である必要があります')
+  }
+
+  if (data.method && !rateLimitsConstraints.method(data.method)) {
+    errors.push('method: GET, POST, PUT, DELETE, PATCH のいずれかである必要があります')
+  }
+
+  if (data.resetTime && !rateLimitsConstraints.resetTime(data.resetTime)) {
+    errors.push('resetTime: 有効なISO 8601形式の日付文字列である必要があります')
+  }
+
+  if (data.windowStart && !rateLimitsConstraints.windowStart(data.windowStart)) {
+    errors.push('windowStart: 有効なISO 8601形式の日付文字列である必要があります')
+  }
+
+  if (data.lastUpdated && !rateLimitsConstraints.lastUpdated(data.lastUpdated)) {
+    errors.push('lastUpdated: 有効なISO 8601形式の日付文字列である必要があります')
+  }
+
+  // ビジネスロジック制約
+  if (data.remaining !== undefined && data.total !== undefined && data.remaining > data.total) {
+    errors.push('remaining: totalを超えることはできません')
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  }
 }
 
 // ====================

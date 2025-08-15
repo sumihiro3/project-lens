@@ -1,6 +1,6 @@
 /**
  * Backlog API Client Unit Tests
- * 
+ *
  * テスト範囲:
  * - HTTP通信とフェッチAPI
  * - 認証ヘッダー処理
@@ -38,7 +38,7 @@ function createMockResponse(data: any, options: {
     status = 200,
     statusText = 'OK',
     headers = {},
-    ok = status >= 200 && status < 300
+    ok = status >= 200 && status < 300,
   } = options
 
   return {
@@ -47,7 +47,7 @@ function createMockResponse(data: any, options: {
     statusText,
     headers: new Map(Object.entries(headers)),
     json: vi.fn().mockResolvedValue(data),
-    text: vi.fn().mockResolvedValue(JSON.stringify(data))
+    text: vi.fn().mockResolvedValue(JSON.stringify(data)),
   }
 }
 
@@ -59,7 +59,7 @@ describe('BacklogApiClient', () => {
     config = {
       spaceId: 'test-space',
       apiKey: 'test-api-key',
-      host: 'backlog.jp'
+      host: 'backlog.jp',
     }
     client = new BacklogApiClient(config)
     vi.clearAllMocks()
@@ -79,7 +79,7 @@ describe('BacklogApiClient', () => {
     it('デフォルトホストを使用する', () => {
       const configWithoutHost = {
         spaceId: 'test-space',
-        apiKey: 'test-api-key'
+        apiKey: 'test-api-key',
       }
       const clientWithoutHost = new BacklogApiClient(configWithoutHost)
       expect(clientWithoutHost.getConfig().host).toBeUndefined()
@@ -98,9 +98,9 @@ describe('BacklogApiClient', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json'
-          })
-        })
+            'Content-Type': 'application/json',
+          }),
+        }),
       )
     })
   })
@@ -114,7 +114,7 @@ describe('BacklogApiClient', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringMatching(/\?.*projectId%5B0%5D=1.*projectId%5B1%5D=2.*keyword=test/),
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -122,10 +122,10 @@ describe('BacklogApiClient', () => {
       const mockResponse = createMockResponse([{ id: 1 }])
       mockFetch.mockResolvedValueOnce(mockResponse)
 
-      await client.getIssues({ 
-        projectId: [1], 
-        keyword: undefined, 
-        statusId: null as any 
+      await client.getIssues({
+        projectId: [1],
+        keyword: undefined,
+        statusId: null as any,
       })
 
       const fetchCall = mockFetch.mock.calls[0][0] as string
@@ -155,15 +155,15 @@ describe('BacklogApiClient', () => {
       const testData = { summary: 'Test Issue', description: 'Test Description' }
       await client['makeRequest']('/issues', {
         method: 'POST',
-        body: testData
+        body: testData,
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify(testData)
-        })
+          body: JSON.stringify(testData),
+        }),
       )
     })
 
@@ -177,8 +177,8 @@ describe('BacklogApiClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          signal: expect.any(Object)
-        })
+          signal: expect.any(Object),
+        }),
       )
     })
   })
@@ -191,9 +191,9 @@ describe('BacklogApiClient', () => {
           headers: {
             'X-RateLimit-Remaining': '100',
             'X-RateLimit-Reset': '1640995200',
-            'X-RateLimit-Limit': '150'
-          }
-        }
+            'X-RateLimit-Limit': '150',
+          },
+        },
       )
       mockFetch.mockResolvedValueOnce(mockResponse)
 
@@ -203,14 +203,14 @@ describe('BacklogApiClient', () => {
       expect(rateLimitInfo).toEqual({
         remaining: 100,
         resetTime: 1640995200000,
-        limit: 150
+        limit: 150,
       })
     })
 
     it('レート制限ヘッダーが不完全な場合nullを返す', async () => {
       const mockResponse = createMockResponse(
         { id: 1 },
-        { headers: { 'X-RateLimit-Remaining': '100' } }
+        { headers: { 'X-RateLimit-Remaining': '100' } },
       )
       mockFetch.mockResolvedValueOnce(mockResponse)
 
@@ -226,7 +226,7 @@ describe('BacklogApiClient', () => {
       // message フィールドを持たないレスポンスでHTTPステータスコードベースのメッセージをテスト
       const mockResponse = createMockResponse(
         { errors: [{ code: 'invalid_api_key' }] },
-        { status: 401, statusText: 'Unauthorized', ok: false }
+        { status: 401, statusText: 'Unauthorized', ok: false },
       )
       mockFetch.mockResolvedValueOnce(mockResponse)
 
@@ -262,7 +262,7 @@ describe('BacklogApiClient', () => {
         status: 200,
         statusText: 'OK',
         headers: new Map(),
-        json: vi.fn().mockRejectedValue(new Error('Invalid JSON'))
+        json: vi.fn().mockRejectedValue(new Error('Invalid JSON')),
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
 
@@ -283,7 +283,7 @@ describe('BacklogApiClient', () => {
       await client.getSpace()
       expect(mockFetch).toHaveBeenCalledWith(
         'https://test-space.backlog.jp/api/v2/space',
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -291,7 +291,7 @@ describe('BacklogApiClient', () => {
       await client.getCurrentUser()
       expect(mockFetch).toHaveBeenCalledWith(
         'https://test-space.backlog.jp/api/v2/users/myself',
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -299,7 +299,7 @@ describe('BacklogApiClient', () => {
       await client.getProjects()
       expect(mockFetch).toHaveBeenCalledWith(
         'https://test-space.backlog.jp/api/v2/projects',
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -307,7 +307,7 @@ describe('BacklogApiClient', () => {
       await client.getProject(123)
       expect(mockFetch).toHaveBeenCalledWith(
         'https://test-space.backlog.jp/api/v2/projects/123',
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -315,7 +315,7 @@ describe('BacklogApiClient', () => {
       await client.getIssues({ projectId: [1], count: 20 })
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('https://test-space.backlog.jp/api/v2/issues'),
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -323,7 +323,7 @@ describe('BacklogApiClient', () => {
       await client.getIssue('TEST-123')
       expect(mockFetch).toHaveBeenCalledWith(
         'https://test-space.backlog.jp/api/v2/issues/TEST-123',
-        expect.any(Object)
+        expect.any(Object),
       )
     })
   })
@@ -332,7 +332,7 @@ describe('BacklogApiClient', () => {
     it('正常な接続テストが成功する', async () => {
       const spaceData = { id: 1, name: 'Test Space' }
       const userData = { id: 1, name: 'Test User' }
-      
+
       mockFetch
         .mockResolvedValueOnce(createMockResponse(spaceData))
         .mockResolvedValueOnce(createMockResponse(userData))
@@ -349,7 +349,7 @@ describe('BacklogApiClient', () => {
       mockFetch
         .mockResolvedValueOnce(createMockResponse(
           { message: 'Unauthorized' },
-          { status: 401, ok: false }
+          { status: 401, ok: false },
         ))
 
       const result = await client.testConnection()
@@ -363,10 +363,10 @@ describe('BacklogApiClient', () => {
     it('正常なヘルスチェックを実行する', async () => {
       const spaceData = { id: 1, name: 'Test Space' }
       const userData = { id: 1, name: 'Test User' }
-      
+
       // レスポンス時間測定のためにreal timersを一時的に使用
       vi.useRealTimers()
-      
+
       mockFetch
         .mockResolvedValueOnce(createMockResponse(spaceData))
         .mockResolvedValueOnce(createMockResponse(userData))
@@ -377,7 +377,7 @@ describe('BacklogApiClient', () => {
       expect(result.checks.connection).toBe(true)
       expect(result.checks.authentication).toBe(true)
       expect(result.responseTime).toBeGreaterThanOrEqual(0)
-      
+
       // fake timersに戻す
       vi.useFakeTimers()
     })
@@ -400,9 +400,9 @@ describe('BacklogApiClient', () => {
           headers: {
             'X-RateLimit-Remaining': '0',
             'X-RateLimit-Reset': '1640995200',
-            'X-RateLimit-Limit': '150'
-          }
-        }
+            'X-RateLimit-Limit': '150',
+          },
+        },
       )
       mockFetch.mockResolvedValueOnce(mockResponse)
 
@@ -428,7 +428,7 @@ describe('BacklogApiClient', () => {
       expect(config).toEqual({
         spaceId: 'test-space',
         apiKey: 'test-api-key',
-        host: 'backlog.jp'
+        host: 'backlog.jp',
       })
 
       // 設定の変更を試みる（読み取り専用なので失敗するはず）
@@ -447,14 +447,14 @@ describe('BacklogApiClient', () => {
       { status: 429, expected: 'APIリクエスト制限に達しました' },
       { status: 500, expected: 'Backlogサーバーで内部エラーが発生しました' },
       { status: 503, expected: 'Backlogサービスが一時的に利用できません' },
-      { status: 999, expected: '未知のエラーが発生しました' }
+      { status: 999, expected: '未知のエラーが発生しました' },
     ]
 
     errorCases.forEach(({ status, expected }) => {
       it(`HTTPステータス${status}に対して適切な日本語エラーメッセージを返す`, async () => {
         const mockResponse = createMockResponse(
           {},
-          { status, statusText: 'Error', ok: false }
+          { status, statusText: 'Error', ok: false },
         )
         mockFetch.mockResolvedValueOnce(mockResponse)
 

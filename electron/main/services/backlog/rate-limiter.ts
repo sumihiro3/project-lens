@@ -1,13 +1,13 @@
 /**
  * Backlog APIレート制限監視機能
- * 
+ *
  * X-RateLimit-*ヘッダーの解析とパース、レート制限状態の追跡、
  * 動的並列数調整ロジック（150req/min × 複数スペース対応）を提供します。
  * Drizzle ORMを使用したデータ永続化とリアルタイム監視機能を実装。
  */
 
 import { eq, and, lt } from 'drizzle-orm'
-import Database from '../../database/connection'
+import type Database from '../../database/connection'
 import { rateLimits } from '../../database/schema'
 import type {
   SelectRateLimit,
@@ -81,12 +81,12 @@ export interface RateLimitStats {
 
 /**
  * Backlog APIレート制限監視サービス
- * 
+ *
  * スペース毎の個別レート制限管理、動的並列数調整、
  * 予測的リクエスト制御、リアルタイム監視機能を提供します。
  */
 export class BacklogRateLimiter {
-  private readonly db: DatabaseManager
+  private readonly db: Database
   private readonly config: ConcurrencyConfig
   private readonly eventListeners: Array<(event: RateLimitEvent) => void> = []
   private readonly activeSpaces = new Map<string, RateLimitStatus>()
@@ -105,14 +105,14 @@ export class BacklogRateLimiter {
 
   /**
    * コンストラクター
-   * 
+   *
    * @param db - データベース接続インスタンス
    * @param config - 動的並列数調整設定（オプション）
    */
-  constructor(db: DatabaseManager, config: Partial<ConcurrencyConfig> = {}) {
+  constructor(db: Database, config: Partial<ConcurrencyConfig> = {}) {
     this.db = db
     this.config = { ...BacklogRateLimiter.DEFAULT_CONFIG, ...config }
-    
+
     console.log('Backlog レートリミッターを初期化しました', {
       baseRate: this.config.baseRate,
       maxConcurrency: this.config.maxConcurrency,
@@ -125,7 +125,7 @@ export class BacklogRateLimiter {
 
   /**
    * X-RateLimit-*ヘッダーの解析とパース
-   * 
+   *
    * @param headers - HTTPレスポンスヘッダー
    * @returns パースされたレート制限情報
    */
@@ -151,10 +151,10 @@ export class BacklogRateLimiter {
       const limitNum = limit ? parseInt(limit, 10) : undefined
 
       // 数値の妥当性をチェック
-      if (isNaN(remainingNum) || isNaN(totalNum) || isNaN(resetNum) || 
-          (limitNum !== undefined && isNaN(limitNum))) {
+      if (isNaN(remainingNum) || isNaN(totalNum) || isNaN(resetNum)
+        || (limitNum !== undefined && isNaN(limitNum))) {
         console.warn('レート制限ヘッダーに無効な数値が含まれています', {
-          remaining, total, reset, limit
+          remaining, total, reset, limit,
         })
         return null
       }
@@ -168,7 +168,8 @@ export class BacklogRateLimiter {
 
       console.log('レート制限ヘッダーを解析しました', parsedHeaders)
       return parsedHeaders
-    } catch (error) {
+    }
+    catch (error) {
       console.error('レート制限ヘッダーの解析に失敗しました', {
         error: error instanceof Error ? error.message : String(error),
         headers: { remaining, total, reset, limit },
@@ -179,7 +180,7 @@ export class BacklogRateLimiter {
 
   /**
    * レート制限状態を更新
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param headers - レート制限ヘッダー情報
    * @param endpoint - APIエンドポイント（オプション）
@@ -189,12 +190,12 @@ export class BacklogRateLimiter {
     spaceId: string,
     headers: RateLimitHeaders,
     endpoint?: string,
-    method: string = 'GET'
+    method: string = 'GET',
   ): Promise<void> {
     try {
       const now = new Date()
       const resetTime = new Date(headers.reset * 1000)
-      
+
       // ウィンドウ開始時間を計算（通常は1分間のウィンドウ）
       const windowDurationMs = 60 * 1000 // 1分
       const windowStart = new Date(resetTime.getTime() - windowDurationMs)
@@ -248,8 +249,8 @@ export class BacklogRateLimiter {
           spaceId,
           status,
           timestamp: now,
-          metadata: { 
-            endpoint, 
+          metadata: {
+            endpoint,
             method,
             threshold: this.config.warningThreshold,
           },
@@ -276,7 +277,8 @@ export class BacklogRateLimiter {
         utilizationPercent: status.utilizationPercent,
         timeToReset: status.timeToReset,
       })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('レート制限状態の更新に失敗しました', {
         spaceId,
         endpoint,
@@ -289,7 +291,7 @@ export class BacklogRateLimiter {
 
   /**
    * スペースのレート制限状態を取得
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param endpoint - APIエンドポイント（オプション）
    * @param method - HTTPメソッド
@@ -298,13 +300,13 @@ export class BacklogRateLimiter {
   public async getRateLimitStatus(
     spaceId: string,
     endpoint?: string,
-    method: string = 'GET'
+    method: string = 'GET',
   ): Promise<RateLimitStatus | null> {
     try {
       // メモリキャッシュから確認
       const cacheKey = this.getSpaceKey(spaceId, endpoint, method)
       const cachedStatus = this.activeSpaces.get(cacheKey)
-      
+
       if (cachedStatus && this.isStatusValid(cachedStatus)) {
         return cachedStatus
       }
@@ -315,12 +317,12 @@ export class BacklogRateLimiter {
             eq(rateLimits.spaceId, spaceId),
             eq(rateLimits.endpoint, endpoint),
             eq(rateLimits.method, method),
-            eq(rateLimits.isActive, true)
+            eq(rateLimits.isActive, true),
           )
         : and(
             eq(rateLimits.spaceId, spaceId),
             eq(rateLimits.method, method),
-            eq(rateLimits.isActive, true)
+            eq(rateLimits.isActive, true),
           )
 
       const results = await this.db.getDrizzle()
@@ -343,7 +345,8 @@ export class BacklogRateLimiter {
       this.activeSpaces.set(cacheKey, status)
 
       return status
-    } catch (error) {
+    }
+    catch (error) {
       console.error('レート制限状態の取得に失敗しました', {
         spaceId,
         endpoint,
@@ -356,7 +359,7 @@ export class BacklogRateLimiter {
 
   /**
    * 動的並列数調整ロジック
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param endpoint - APIエンドポイント（オプション）
    * @param method - HTTPメソッド
@@ -365,11 +368,11 @@ export class BacklogRateLimiter {
   public async calculateOptimalConcurrency(
     spaceId: string,
     endpoint?: string,
-    method: string = 'GET'
+    method: string = 'GET',
   ): Promise<number> {
     try {
       const status = await this.getRateLimitStatus(spaceId, endpoint, method)
-      
+
       if (!status) {
         console.log('レート制限情報がないため、最小並列数を返します', { spaceId })
         return this.config.minConcurrency
@@ -405,7 +408,8 @@ export class BacklogRateLimiter {
       })
 
       return recommendedConcurrency
-    } catch (error) {
+    }
+    catch (error) {
       console.error('動的並列数の計算に失敗しました', {
         spaceId,
         endpoint,
@@ -419,7 +423,7 @@ export class BacklogRateLimiter {
   /**
    * 予測的リクエスト制御
    * リクエスト実行前に制限チェックを行い、推奨遅延時間を計算
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param endpoint - APIエンドポイント（オプション）
    * @param method - HTTPメソッド
@@ -428,11 +432,11 @@ export class BacklogRateLimiter {
   public async checkRequestPermission(
     spaceId: string,
     endpoint?: string,
-    method: string = 'GET'
+    method: string = 'GET',
   ): Promise<number> {
     try {
       const status = await this.getRateLimitStatus(spaceId, endpoint, method)
-      
+
       if (!status) {
         console.log('レート制限情報がないため、即座に実行可能とします', { spaceId })
         return 0
@@ -464,7 +468,8 @@ export class BacklogRateLimiter {
 
       // 通常の場合は即座に実行可能
       return 0
-    } catch (error) {
+    }
+    catch (error) {
       console.error('リクエスト許可チェックに失敗しました', {
         spaceId,
         endpoint,
@@ -477,7 +482,7 @@ export class BacklogRateLimiter {
 
   /**
    * リアルタイム監視イベントリスナーを追加
-   * 
+   *
    * @param listener - イベントリスナー関数
    */
   public addEventListener(listener: (event: RateLimitEvent) => void): void {
@@ -489,7 +494,7 @@ export class BacklogRateLimiter {
 
   /**
    * イベントリスナーを削除
-   * 
+   *
    * @param listener - 削除するイベントリスナー関数
    */
   public removeEventListener(listener: (event: RateLimitEvent) => void): void {
@@ -504,7 +509,7 @@ export class BacklogRateLimiter {
 
   /**
    * レート制限統計情報を取得
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @returns 統計情報
    */
@@ -515,7 +520,7 @@ export class BacklogRateLimiter {
         .from(rateLimits)
         .where(and(
           eq(rateLimits.spaceId, spaceId),
-          eq(rateLimits.isActive, true)
+          eq(rateLimits.isActive, true),
         ))
         .orderBy(rateLimits.lastUpdated)
 
@@ -533,7 +538,7 @@ export class BacklogRateLimiter {
       const remainingRequests = latest.remaining
       const utilizationPercent = ((totalRequests - remainingRequests) / totalRequests) * 100
       const timeToReset = Math.max(0, resetTime.getTime() - now.getTime())
-      
+
       // 平均リクエスト数を計算
       const _windowDuration = resetTime.getTime() - windowStart.getTime()
       const elapsedTime = now.getTime() - windowStart.getTime()
@@ -561,7 +566,8 @@ export class BacklogRateLimiter {
       })
 
       return stats
-    } catch (error) {
+    }
+    catch (error) {
       console.error('レート制限統計情報の取得に失敗しました', {
         spaceId,
         error: error instanceof Error ? error.message : String(error),
@@ -576,14 +582,14 @@ export class BacklogRateLimiter {
   public async cleanup(): Promise<void> {
     try {
       const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000) // 24時間前
-      
+
       const deletedCount = await this.db.getDrizzle()
         .delete(rateLimits)
         .where(
           and(
             lt(rateLimits.resetTime, cutoffTime.toISOString()),
-            eq(rateLimits.isActive, false)
-          )
+            eq(rateLimits.isActive, false),
+          ),
         )
 
       // メモリキャッシュからも古いデータを削除
@@ -607,7 +613,8 @@ export class BacklogRateLimiter {
         timestamp: now,
         metadata: { deletedRecords: deletedCount },
       })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('レート制限データのクリーンアップに失敗しました', {
         error: error instanceof Error ? error.message : String(error),
       })
@@ -647,15 +654,16 @@ export class BacklogRateLimiter {
     const resetTime = new Date(data.resetTime)
     const windowStart = new Date(data.windowStart)
     const lastUpdated = new Date(data.lastUpdated)
-    
+
     const utilizationPercent = ((data.total - data.remaining) / data.total) * 100
     const timeToReset = Math.max(0, resetTime.getTime() - now.getTime())
-    
+
     // 推奨遅延時間を計算
     let recommendedDelay = 0
     if (data.remaining <= 0) {
       recommendedDelay = timeToReset
-    } else if (utilizationPercent >= ((1 - this.config.warningThreshold) * 100)) {
+    }
+    else if (utilizationPercent >= ((1 - this.config.warningThreshold) * 100)) {
       recommendedDelay = Math.min(5000, timeToReset / data.remaining)
     }
 
@@ -700,7 +708,8 @@ export class BacklogRateLimiter {
     for (const listener of this.eventListeners) {
       try {
         listener(event)
-      } catch (error) {
+      }
+      catch (error) {
         console.error('レート制限イベントリスナーでエラーが発生しました', {
           eventType: event.type,
           spaceId: event.spaceId,
@@ -716,7 +725,7 @@ export class BacklogRateLimiter {
   private startCleanupScheduler(): void {
     // 1時間毎にクリーンアップを実行
     this.cleanupInterval = setInterval(() => {
-      this.cleanup().catch(error => {
+      this.cleanup().catch((error) => {
         console.error('定期クリーンアップでエラーが発生しました', {
           error: error instanceof Error ? error.message : String(error),
         })
@@ -749,14 +758,14 @@ export class BacklogRateLimiter {
 
 /**
  * レートリミッターファクトリー関数
- * 
+ *
  * @param db - データベース接続
  * @param config - 設定（オプション）
  * @returns BacklogRateLimiterインスタンス
  */
 export function createBacklogRateLimiter(
   db: Database,
-  config: Partial<ConcurrencyConfig> = {}
+  config: Partial<ConcurrencyConfig> = {},
 ): BacklogRateLimiter {
   return new BacklogRateLimiter(db, config)
 }

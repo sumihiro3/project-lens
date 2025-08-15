@@ -1,6 +1,6 @@
 /**
  * Backlog Service Integration Tests
- * 
+ *
  * テスト範囲:
  * - 基本的な統合動作テスト
  * - 必要最小限のコンポーネント連携
@@ -20,57 +20,57 @@ const mockFetch = vi.fn()
 global.fetch = mockFetch
 
 // Mock Electron safeStorage
-vi.mock('electron', () => ({ 
+vi.mock('electron', () => ({
   safeStorage: {
     isEncryptionAvailable: vi.fn().mockReturnValue(true),
     encryptString: vi.fn().mockImplementation((str: string) => Buffer.from(`encrypted_${str}`)),
-    decryptString: vi.fn().mockImplementation((buffer: Buffer) => 
-      buffer.toString().replace('encrypted_', ''))
-  }
+    decryptString: vi.fn().mockImplementation((buffer: Buffer) =>
+      buffer.toString().replace('encrypted_', '')),
+  },
 }))
 
 // Mock database
 const mockDatabase = {
   insert: vi.fn().mockReturnValue({
     values: vi.fn().mockReturnValue({
-      onConflictDoUpdate: vi.fn().mockResolvedValue({})
-    })
+      onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+    }),
   }),
   select: vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
       where: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([])
-        })
-      })
-    })
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    }),
   }),
   delete: vi.fn().mockReturnValue({
     where: vi.fn().mockReturnValue({
-      run: vi.fn().mockResolvedValue({ changes: 0 })
-    })
+      run: vi.fn().mockResolvedValue({ changes: 0 }),
+    }),
   }),
   getDrizzle: vi.fn().mockReturnValue({
     insert: vi.fn().mockReturnValue({
       values: vi.fn().mockReturnValue({
-        onConflictDoUpdate: vi.fn().mockResolvedValue({})
-      })
+        onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+      }),
     }),
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           orderBy: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
+            limit: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      }),
     }),
     delete: vi.fn().mockReturnValue({
       where: vi.fn().mockReturnValue({
-        run: vi.fn().mockResolvedValue({ changes: 0 })
-      })
-    })
-  })
+        run: vi.fn().mockResolvedValue({ changes: 0 }),
+      }),
+    }),
+  }),
 } as unknown as DatabaseManager
 
 vi.useFakeTimers()
@@ -91,7 +91,7 @@ describe('Backlog Service Integration Tests', () => {
     apiClient = new BacklogApiClient({
       spaceId: 'test-space',
       apiKey: 'test-api-key',
-      host: 'test.backlog.jp'
+      host: 'test.backlog.jp',
     })
 
     rateLimiter = new BacklogRateLimiter(mockDatabase)
@@ -100,7 +100,7 @@ describe('Backlog Service Integration Tests', () => {
     errorHandler = new BacklogErrorHandler()
     cacheService = new IntegratedBacklogCacheService({
       l1: { maxSize: 100, ttl: 60000 },
-      l2: { enabled: true }
+      l2: { enabled: true },
     })
 
     // Setup basic space configuration
@@ -109,7 +109,7 @@ describe('Backlog Service Integration Tests', () => {
       name: 'Test Space',
       apiKey: 'test-api-key-12345',
       isActive: true,
-      priority: 1
+      priority: 1,
     })
   })
 
@@ -127,16 +127,16 @@ describe('Backlog Service Integration Tests', () => {
         ok: true,
         status: 200,
         headers: new Headers({
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         }),
         json: vi.fn().mockResolvedValue({
           id: 1,
-          name: 'Test Space'
-        })
+          name: 'Test Space',
+        }),
       })
 
       const result = await apiClient.getSpace()
-      
+
       expect(result.success).toBe(true)
       expect(result.data).toBeDefined()
       expect(result.data.id).toBe(1)
@@ -147,7 +147,7 @@ describe('Backlog Service Integration Tests', () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
       const result = await apiClient.getSpace()
-      
+
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
     })
@@ -161,11 +161,11 @@ describe('Backlog Service Integration Tests', () => {
     it('Basic request queue functionality', async () => {
       const requestId = await requestQueue.enqueueHighPriority(
         'test-space',
-        '/space'
+        '/space',
       )
-      
+
       expect(requestId).toBeDefined()
-      
+
       const stats = requestQueue.getStats()
       expect(stats.totalQueued).toBe(1)
     })
@@ -177,7 +177,7 @@ describe('Backlog Service Integration Tests', () => {
         ok: true,
         status: 200,
         headers: new Headers({ 'Content-Type': 'application/json' }),
-        json: vi.fn().mockResolvedValue({ id: 1, name: 'Test Space' })
+        json: vi.fn().mockResolvedValue({ id: 1, name: 'Test Space' }),
       })
 
       const healthStatus = await apiClient.healthCheck()

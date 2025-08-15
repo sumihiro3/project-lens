@@ -1,9 +1,9 @@
 /**
  * Backlog Direct API接続管理サービス Phase 5 - 高度なエラーハンドラー
- * 
+ *
  * カスタムエラー分類、指数バックオフリトライ機構、Pinoログ統合、
  * 高度なエラー回復機能、運用サポート機能を提供します。
- * 
+ *
  * Features:
  * - 12種類以上のエラー分類と自動回復戦略
  * - 指数バックオフによる段階的リトライ機構
@@ -26,35 +26,35 @@ export enum ErrorType {
   CONNECTION_TIMEOUT = 'CONNECTION_TIMEOUT',
   DNS_RESOLUTION_ERROR = 'DNS_RESOLUTION_ERROR',
   SSL_CERTIFICATE_ERROR = 'SSL_CERTIFICATE_ERROR',
-  
+
   // API関連エラー
   API_ERROR = 'API_ERROR',
   API_VERSION_MISMATCH = 'API_VERSION_MISMATCH',
   MALFORMED_RESPONSE = 'MALFORMED_RESPONSE',
-  
+
   // 認証関連エラー
   AUTH_ERROR = 'AUTH_ERROR',
   AUTH_TOKEN_EXPIRED = 'AUTH_TOKEN_EXPIRED',
   AUTH_INSUFFICIENT_PERMISSIONS = 'AUTH_INSUFFICIENT_PERMISSIONS',
-  
+
   // レート制限エラー
   RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
   QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
-  
+
   // データ関連エラー
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   SERIALIZATION_ERROR = 'SERIALIZATION_ERROR',
-  
+
   // システム関連エラー
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
   RESOURCE_EXHAUSTED = 'RESOURCE_EXHAUSTED',
-  
+
   // 外部依存エラー
   THIRD_PARTY_SERVICE_ERROR = 'THIRD_PARTY_SERVICE_ERROR',
-  
+
   // 不明なエラー
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
 /**
@@ -64,7 +64,7 @@ export enum ErrorSeverity {
   LOW = 'low',
   MEDIUM = 'medium',
   HIGH = 'high',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 /**
@@ -162,7 +162,7 @@ export class BacklogApiError extends Error {
     retryable = false,
     suggestedAction,
     errorCode,
-    httpStatus
+    httpStatus,
   }: {
     type: ErrorType
     message: string
@@ -207,12 +207,14 @@ export class BacklogApiError extends Error {
       suggestedAction: this.suggestedAction,
       errorCode: this.errorCode,
       httpStatus: this.httpStatus,
-      originalError: this.originalError ? {
-        name: this.originalError.name,
-        message: this.originalError.message,
-        stack: this.originalError.stack
-      } : null,
-      stack: this.stack
+      originalError: this.originalError
+        ? {
+            name: this.originalError.name,
+            message: this.originalError.message,
+            stack: this.originalError.stack,
+          }
+        : null,
+      stack: this.stack,
     }
   }
 }
@@ -237,7 +239,7 @@ export class BacklogErrorHandler {
       maxDelayMs: 30000,
       backoffMultiplier: 2,
       jitterMs: 500,
-      retryableErrors: [ErrorType.NETWORK_ERROR, ErrorType.CONNECTION_TIMEOUT]
+      retryableErrors: [ErrorType.NETWORK_ERROR, ErrorType.CONNECTION_TIMEOUT],
     }],
     [ErrorType.CONNECTION_TIMEOUT, {
       maxRetries: 3,
@@ -245,7 +247,7 @@ export class BacklogErrorHandler {
       maxDelayMs: 16000,
       backoffMultiplier: 2,
       jitterMs: 1000,
-      retryableErrors: [ErrorType.CONNECTION_TIMEOUT]
+      retryableErrors: [ErrorType.CONNECTION_TIMEOUT],
     }],
     [ErrorType.RATE_LIMIT_ERROR, {
       maxRetries: 10,
@@ -253,7 +255,7 @@ export class BacklogErrorHandler {
       maxDelayMs: 300000, // 5分
       backoffMultiplier: 1.5,
       jitterMs: 2000,
-      retryableErrors: [ErrorType.RATE_LIMIT_ERROR]
+      retryableErrors: [ErrorType.RATE_LIMIT_ERROR],
     }],
     [ErrorType.API_ERROR, {
       maxRetries: 2,
@@ -261,7 +263,7 @@ export class BacklogErrorHandler {
       maxDelayMs: 8000,
       backoffMultiplier: 2,
       jitterMs: 500,
-      retryableErrors: [ErrorType.API_ERROR]
+      retryableErrors: [ErrorType.API_ERROR],
     }],
     [ErrorType.AUTH_TOKEN_EXPIRED, {
       maxRetries: 1,
@@ -269,7 +271,7 @@ export class BacklogErrorHandler {
       maxDelayMs: 2000,
       backoffMultiplier: 1,
       jitterMs: 0,
-      retryableErrors: [ErrorType.AUTH_TOKEN_EXPIRED]
+      retryableErrors: [ErrorType.AUTH_TOKEN_EXPIRED],
     }],
     [ErrorType.DNS_RESOLUTION_ERROR, {
       maxRetries: 0, // DNS エラーはリトライしない
@@ -277,8 +279,8 @@ export class BacklogErrorHandler {
       maxDelayMs: 1000,
       backoffMultiplier: 1,
       jitterMs: 0,
-      retryableErrors: []
-    }]
+      retryableErrors: [],
+    }],
   ])
 
   // デフォルト回復戦略設定
@@ -288,22 +290,22 @@ export class BacklogErrorHandler {
       healthCheckInterval: 30000, // 30秒
       fallbackActions: [],
       circuitBreakerThreshold: 5,
-      recoveryActions: []
+      recoveryActions: [],
     }],
     [ErrorType.AUTH_ERROR, {
       autoRecover: true,
       healthCheckInterval: 60000, // 1分
       fallbackActions: [],
       circuitBreakerThreshold: 3,
-      recoveryActions: []
+      recoveryActions: [],
     }],
     [ErrorType.RATE_LIMIT_ERROR, {
       autoRecover: true,
       healthCheckInterval: 60000,
       fallbackActions: [],
       circuitBreakerThreshold: 10,
-      recoveryActions: []
-    }]
+      recoveryActions: [],
+    }],
   ])
 
   constructor(alertConfig?: Partial<AlertConfig>) {
@@ -313,17 +315,17 @@ export class BacklogErrorHandler {
       thresholds: {
         errorRate: 10, // 10%
         criticalErrorCount: 5,
-        responseTimeMs: 5000
+        responseTimeMs: 5000,
       },
       channels: ['log'],
-      ...alertConfig
+      ...alertConfig,
     }
 
     // 初期化ログ
     this.logger.info('BacklogErrorHandler initialized', {
       alertsEnabled: this.alertConfig.enabled,
       retryStrategies: Array.from(this.defaultRetryStrategies.keys()),
-      recoveryStrategies: Array.from(this.defaultRecoveryStrategies.keys())
+      recoveryStrategies: Array.from(this.defaultRecoveryStrategies.keys()),
     })
   }
 
@@ -334,7 +336,7 @@ export class BacklogErrorHandler {
     const fullContext: ErrorContext = {
       timestamp: new Date(),
       requestId: this.generateRequestId(),
-      ...context
+      ...context,
     }
 
     // 既にBacklogApiErrorの場合は、トレンド情報などを更新して返す
@@ -358,8 +360,8 @@ export class BacklogErrorHandler {
       const errorName = error.name.toLowerCase()
 
       // ネットワーク関連エラー
-      if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorName.includes('fetch') || 
-          errorMessage.includes('failure') || errorMessage.includes('connection error')) {
+      if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorName.includes('fetch')
+        || errorMessage.includes('failure') || errorMessage.includes('connection error')) {
         errorType = ErrorType.NETWORK_ERROR
         severity = ErrorSeverity.HIGH
         recoverable = true
@@ -499,7 +501,7 @@ export class BacklogErrorHandler {
       recoverable,
       retryable,
       suggestedAction,
-      httpStatus
+      httpStatus,
     })
 
     // エラーログ記録とトレンド分析
@@ -517,12 +519,12 @@ export class BacklogErrorHandler {
     operation: () => Promise<T>,
     errorType: ErrorType,
     context: Partial<ErrorContext> = {},
-    customStrategy?: Partial<RetryStrategy>
+    customStrategy?: Partial<RetryStrategy>,
   ): Promise<T> {
     const defaultStrategy = this.defaultRetryStrategies.get(errorType)
-    
+
     // カスタム戦略が提供された場合は、デフォルト戦略をベースにマージ
-    const strategy: RetryStrategy = defaultStrategy 
+    const strategy: RetryStrategy = defaultStrategy
       ? { ...defaultStrategy, ...customStrategy }
       : {
           maxRetries: customStrategy?.maxRetries ?? 3,
@@ -531,7 +533,7 @@ export class BacklogErrorHandler {
           backoffMultiplier: customStrategy?.backoffMultiplier ?? 2,
           jitterMs: customStrategy?.jitterMs ?? 500,
           retryableErrors: customStrategy?.retryableErrors ?? [errorType],
-          retryCondition: customStrategy?.retryCondition
+          retryCondition: customStrategy?.retryCondition,
         }
 
     let lastError: BacklogApiError | undefined
@@ -541,62 +543,62 @@ export class BacklogErrorHandler {
       try {
         const startTime = Date.now()
         const result = await operation()
-        
+
         // 成功時のログ
         if (attempt > 0) {
           this.logger.info('Operation succeeded after retry', {
             operation: context.operation || 'unknown',
             attemptCount: attempt,
             totalDuration: Date.now() - startTime,
-            errorType
+            errorType,
           })
         }
-        
+
         return result
       }
       catch (error) {
         const classifiedError = this.classifyError(error, {
           ...context,
-          retryAttempt: attempt
+          retryAttempt: attempt,
         })
-        
+
         lastError = classifiedError
-        
+
         // リトライ可能かチェック
-        if (!strategy.retryableErrors.includes(classifiedError.type) || 
-            (strategy.retryCondition && !strategy.retryCondition(classifiedError, attempt))) {
+        if (!strategy.retryableErrors.includes(classifiedError.type)
+          || (strategy.retryCondition && !strategy.retryCondition(classifiedError, attempt))) {
           this.logger.error('Operation failed - not retryable', classifiedError.originalError, {
             errorType: classifiedError.type,
             severity: classifiedError.severity,
-            context: classifiedError.context
+            context: classifiedError.context,
           })
           throw classifiedError
         }
-        
+
         // 最大リトライ回数に達した場合
         if (attempt >= strategy.maxRetries) {
           this.logger.error('Operation failed - max retries exceeded', classifiedError.originalError, {
             errorType: classifiedError.type,
             maxRetries: strategy.maxRetries,
             totalAttempts: attempt + 1,
-            context: classifiedError.context
+            context: classifiedError.context,
           })
           throw classifiedError
         }
-        
+
         // バックオフ計算
         const baseDelay = strategy.baseDelayMs * Math.pow(strategy.backoffMultiplier, attempt)
         const jitter = Math.random() * strategy.jitterMs
         const delay = Math.min(baseDelay + jitter, strategy.maxDelayMs)
-        
+
         this.logger.warn('Operation failed - retrying', undefined, {
           errorType: classifiedError.type,
           attempt: attempt + 1,
           maxRetries: strategy.maxRetries,
           delayMs: delay,
-          context: classifiedError.context
+          context: classifiedError.context,
         })
-        
+
         // 遅延実行
         await this.sleep(delay)
         attempt++
@@ -607,7 +609,7 @@ export class BacklogErrorHandler {
     throw lastError || new BacklogApiError({
       type: ErrorType.UNKNOWN_ERROR,
       message: 'Unexpected error in retry logic',
-      context: { timestamp: new Date(), ...context }
+      context: { timestamp: new Date(), ...context },
     })
   }
 
@@ -623,20 +625,20 @@ export class BacklogErrorHandler {
     this.logger.info('Attempting error recovery', {
       errorType: error.type,
       strategy: strategy,
-      context: error.context
+      context: error.context,
     })
 
     // サーキットブレーカーチェック
     const circuitKey = `${error.type}-${error.context.spaceId || 'global'}`
     const circuitState = this.circuitBreakerStates.get(circuitKey)
-    
+
     if (circuitState?.isOpen) {
       const timeSinceLastFailure = Date.now() - circuitState.lastFailure.getTime()
       if (timeSinceLastFailure < 60000) { // 1分間は回復を試行しない
         this.logger.warn('Circuit breaker is open - skipping recovery', {
           errorType: error.type,
           circuitKey,
-          timeSinceLastFailure
+          timeSinceLastFailure,
         })
         return false
       }
@@ -649,28 +651,28 @@ export class BacklogErrorHandler {
         if (recovered) {
           this.logger.info('Recovery successful', {
             errorType: error.type,
-            context: error.context
+            context: error.context,
           })
-          
+
           // サーキットブレーカーをリセット
           this.circuitBreakerStates.delete(circuitKey)
           return true
         }
       }
-      
+
       // フォールバックアクションの実行
       for (const fallbackAction of strategy.fallbackActions) {
         await fallbackAction()
       }
-      
+
       return false
     }
     catch (recoveryError) {
       this.logger.error('Recovery attempt failed', recoveryError as Error, {
         originalError: error.type,
-        context: error.context
+        context: error.context,
       })
-      
+
       // サーキットブレーカーの更新
       this.updateCircuitBreaker(circuitKey, strategy.circuitBreakerThreshold)
       return false
@@ -695,14 +697,14 @@ export class BacklogErrorHandler {
         endpoint: error.context.endpoint,
         operation: error.context.operation,
         retryAttempt: error.context.retryAttempt,
-        totalDuration: error.context.totalDuration
-      }
+        totalDuration: error.context.totalDuration,
+      },
     }
 
     const logData = {
       errorDetails: error.getFullDetails(),
       suggestedAction: error.suggestedAction,
-      context: error.context
+      context: error.context,
     }
 
     switch (error.severity) {
@@ -711,7 +713,7 @@ export class BacklogErrorHandler {
           `Critical Backlog API error: ${error.message}`,
           error.originalError || error,
           logData,
-          logContext
+          logContext,
         )
         break
       case ErrorSeverity.HIGH:
@@ -719,21 +721,21 @@ export class BacklogErrorHandler {
           `High severity Backlog API error: ${error.message}`,
           error.originalError || error,
           logData,
-          logContext
+          logContext,
         )
         break
       case ErrorSeverity.MEDIUM:
         this.logger.warn(
           `Medium severity Backlog API error: ${error.message}`,
           logData,
-          logContext
+          logContext,
         )
         break
       case ErrorSeverity.LOW:
         this.logger.info(
           `Low severity Backlog API error: ${error.message}`,
           logData,
-          logContext
+          logContext,
         )
         break
     }
@@ -745,35 +747,36 @@ export class BacklogErrorHandler {
   private updateErrorTrends(error: BacklogApiError): void {
     const errorType = error.type
     const now = new Date()
-    
+
     // エラーカウント更新
     const currentCount = this.errorCounts.get(errorType) || 0
     this.errorCounts.set(errorType, currentCount + 1)
-    
+
     // 重要度別カウント更新
     const currentSeverityCount = this.errorSeverityCounts.get(error.severity) || 0
     this.errorSeverityCounts.set(error.severity, currentSeverityCount + 1)
-    
+
     // トレンドデータ更新
     const existingTrend = this.errorTrends.get(errorType)
     if (existingTrend) {
       const timeDiff = now.getTime() - existingTrend.lastOccurrence.getTime()
       const newAverageInterval = (existingTrend.averageInterval * existingTrend.count + timeDiff) / (existingTrend.count + 1)
-      
+
       this.errorTrends.set(errorType, {
         ...existingTrend,
         count: existingTrend.count + 1,
         lastOccurrence: now,
         averageInterval: newAverageInterval,
-        severity: this.getMaxSeverity(existingTrend.severity, error.severity)
+        severity: this.getMaxSeverity(existingTrend.severity, error.severity),
       })
-    } else {
+    }
+    else {
       this.errorTrends.set(errorType, {
         errorType,
         count: 1,
         lastOccurrence: now,
         averageInterval: 0,
-        severity: error.severity
+        severity: error.severity,
       })
     }
   }
@@ -794,17 +797,17 @@ export class BacklogErrorHandler {
     const criticalErrors = this.errorSeverityCounts.get(ErrorSeverity.CRITICAL) || 0
 
     // アラート条件判定
-    const shouldAlert = 
-      errorRate > this.alertConfig.thresholds.errorRate ||
-      criticalErrors >= this.alertConfig.thresholds.criticalErrorCount ||
-      error.severity === ErrorSeverity.CRITICAL
+    const shouldAlert
+      = errorRate > this.alertConfig.thresholds.errorRate
+        || criticalErrors >= this.alertConfig.thresholds.criticalErrorCount
+        || error.severity === ErrorSeverity.CRITICAL
 
     if (shouldAlert) {
       this.triggerAlert(error, {
         errorRate,
         criticalErrors,
         totalErrors,
-        uptime
+        uptime,
       })
     }
   }
@@ -823,7 +826,7 @@ export class BacklogErrorHandler {
       error: error.getFullDetails(),
       metrics,
       trends: Object.fromEntries(this.errorTrends),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
 
     // ログアラート
@@ -833,18 +836,18 @@ export class BacklogErrorHandler {
 
     // Webhookアラート（実装例）
     if (this.alertConfig.channels.includes('webhook') && this.alertConfig.webhookUrl) {
-      this.sendWebhookAlert(alertMessage, alertData).catch(webhookError => {
+      this.sendWebhookAlert(alertMessage, alertData).catch((webhookError) => {
         this.logger.error('Failed to send webhook alert', webhookError as Error, {
-          originalAlert: alertMessage
+          originalAlert: alertMessage,
         })
       })
     }
 
     // Emailアラート（実装例）
     if (this.alertConfig.channels.includes('email') && this.alertConfig.emailRecipients) {
-      this.sendEmailAlert(alertMessage, alertData).catch(emailError => {
+      this.sendEmailAlert(alertMessage, alertData).catch((emailError) => {
         this.logger.error('Failed to send email alert', emailError as Error, {
-          originalAlert: alertMessage
+          originalAlert: alertMessage,
         })
       })
     }
@@ -861,20 +864,21 @@ export class BacklogErrorHandler {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'ProjectLens-BacklogErrorHandler/1.0'
+          'User-Agent': 'ProjectLens-BacklogErrorHandler/1.0',
         },
         body: JSON.stringify({
           message,
           data,
           timestamp: new Date().toISOString(),
-          source: 'ProjectLens-BacklogAPI'
-        })
+          source: 'ProjectLens-BacklogAPI',
+        }),
       })
 
       if (!response.ok) {
         throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`)
       }
-    } catch (error) {
+    }
+    catch (error) {
       throw new Error(`Failed to send webhook alert: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -887,7 +891,7 @@ export class BacklogErrorHandler {
     this.logger.info('Email alert would be sent', {
       message,
       recipients: this.alertConfig.emailRecipients,
-      data
+      data,
     })
   }
 
@@ -898,7 +902,7 @@ export class BacklogErrorHandler {
     const currentState = this.circuitBreakerStates.get(circuitKey) || {
       isOpen: false,
       failureCount: 0,
-      lastFailure: new Date()
+      lastFailure: new Date(),
     }
 
     currentState.failureCount++
@@ -909,7 +913,7 @@ export class BacklogErrorHandler {
       this.logger.warn('Circuit breaker opened', {
         circuitKey,
         failureCount: currentState.failureCount,
-        threshold
+        threshold,
       })
     }
 
@@ -952,7 +956,7 @@ export class BacklogErrorHandler {
       errorsByType,
       errorsBySeverity,
       uptime,
-      errorRate
+      errorRate,
     }
   }
 
@@ -968,7 +972,7 @@ export class BacklogErrorHandler {
       retryStrategies: Object.fromEntries(this.defaultRetryStrategies),
       recoveryStrategies: Object.fromEntries(this.defaultRecoveryStrategies),
       startTime: this.startTime.toISOString(),
-      uptime: Date.now() - this.startTime.getTime()
+      uptime: Date.now() - this.startTime.getTime(),
     }
   }
 
@@ -1003,9 +1007,11 @@ export class BacklogErrorHandler {
     let status: 'healthy' | 'degraded' | 'unhealthy'
     if (criticalErrors >= this.alertConfig.thresholds.criticalErrorCount) {
       status = 'unhealthy'
-    } else if (summary.errorRate > this.alertConfig.thresholds.errorRate) {
+    }
+    else if (summary.errorRate > this.alertConfig.thresholds.errorRate) {
       status = 'degraded'
-    } else {
+    }
+    else {
       status = 'healthy'
     }
 
@@ -1016,8 +1022,8 @@ export class BacklogErrorHandler {
         criticalErrors,
         circuitBreakersOpen: Array.from(this.circuitBreakerStates.values())
           .filter(state => state.isOpen).length,
-        alertsEnabled: this.alertConfig.enabled
-      }
+        alertsEnabled: this.alertConfig.enabled,
+      },
     }
   }
 
@@ -1035,7 +1041,7 @@ export class BacklogErrorHandler {
       [ErrorSeverity.LOW]: 1,
       [ErrorSeverity.MEDIUM]: 2,
       [ErrorSeverity.HIGH]: 3,
-      [ErrorSeverity.CRITICAL]: 4
+      [ErrorSeverity.CRITICAL]: 4,
     }
     return severityOrder[a] >= severityOrder[b] ? a : b
   }
@@ -1047,19 +1053,19 @@ export default BacklogErrorHandler
 // 便利な関数エクスポート
 const errorHandler = new BacklogErrorHandler()
 
-export const classifyError = (error: Error | unknown, context?: Partial<ErrorContext>): BacklogApiError => 
+export const classifyError = (error: Error | unknown, context?: Partial<ErrorContext>): BacklogApiError =>
   errorHandler.classifyError(error, context)
 
 export const retryWithBackoff = <T>(
   operation: () => Promise<T>,
   errorType: ErrorType,
-  context?: Partial<ErrorContext>
+  context?: Partial<ErrorContext>,
 ): Promise<T> => errorHandler.retryWithBackoff(operation, errorType, context)
 
-export const attemptRecovery = (error: BacklogApiError): Promise<boolean> => 
+export const attemptRecovery = (error: BacklogApiError): Promise<boolean> =>
   errorHandler.attemptRecovery(error)
 
-export const getErrorTrends = (): Map<ErrorType, ErrorTrendData> => 
+export const getErrorTrends = (): Map<ErrorType, ErrorTrendData> =>
   errorHandler.getErrorTrends()
 
 export const getErrorSummary = () => errorHandler.getErrorSummary()

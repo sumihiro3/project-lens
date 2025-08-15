@@ -1,9 +1,9 @@
 /**
  * Backlog Direct API接続管理サービス Phase 4
- * 
+ *
  * 3段階優先度キューシステム、差分更新機能、スマートキューイング、
  * Phase 2,3との完全統合によるリクエストキュー管理を提供します。
- * 
+ *
  * Features:
  * - HIGH/MEDIUM/LOW 3段階優先度キューシステム
  * - SQLiteベースの差分更新（updatedSince統合）
@@ -15,11 +15,11 @@
  */
 
 import { eq, and } from 'drizzle-orm'
-import { DatabaseManager } from '../../database/connection'
+import type { DatabaseManager } from '../../database/connection'
 import { syncLogs } from '../../database/schema'
-import { BacklogApiClient } from './api-client'
-import { BacklogRateLimiter } from './rate-limiter'
-import { BacklogConnectionManager } from './connection-manager'
+import type { BacklogApiClient } from './api-client'
+import type { BacklogRateLimiter } from './rate-limiter'
+import type { BacklogConnectionManager } from './connection-manager'
 import type {
   // BacklogIssue,
   // BacklogProject,
@@ -32,9 +32,9 @@ import type {
  * リクエスト優先度（3段階）
  */
 export enum RequestPriority {
-  HIGH = 'HIGH',     // Stage 1: 高優先度（5-10リクエスト即座実行）
+  HIGH = 'HIGH', // Stage 1: 高優先度（5-10リクエスト即座実行）
   MEDIUM = 'MEDIUM', // Stage 2: 中優先度（バックグラウンド更新）
-  LOW = 'LOW'        // Stage 3: 低優先度（アイドル時履歴データ取得）
+  LOW = 'LOW', // Stage 3: 低優先度（アイドル時履歴データ取得）
 }
 
 /**
@@ -121,7 +121,7 @@ interface ConcurrencyLimits {
 
 /**
  * Backlog API リクエストキュー管理サービス
- * 
+ *
  * Phase 1-3の機能と完全統合し、効率的な優先度ベース
  * リクエスト処理とSQLiteベースの差分更新を提供します。
  */
@@ -139,9 +139,9 @@ export class BacklogRequestQueue {
 
   // 設定
   private readonly concurrencyLimits: ConcurrencyLimits = {
-    [RequestPriority.HIGH]: 5,   // 高優先度: 最大5並列
+    [RequestPriority.HIGH]: 5, // 高優先度: 最大5並列
     [RequestPriority.MEDIUM]: 3, // 中優先度: 最大3並列
-    [RequestPriority.LOW]: 1,    // 低優先度: 最大1並列
+    [RequestPriority.LOW]: 1, // 低優先度: 最大1並列
   }
 
   private readonly differentialConfig: DifferentialUpdateConfig = {
@@ -160,7 +160,7 @@ export class BacklogRequestQueue {
 
   /**
    * コンストラクター
-   * 
+   *
    * @param db - データベース接続インスタンス
    * @param rateLimiter - レート制限管理インスタンス
    * @param connectionManager - 接続管理インスタンス
@@ -168,7 +168,7 @@ export class BacklogRequestQueue {
   constructor(
     db: DatabaseManager,
     rateLimiter: BacklogRateLimiter,
-    connectionManager: BacklogConnectionManager
+    connectionManager: BacklogConnectionManager,
   ) {
     this.db = db
     this.rateLimiter = rateLimiter
@@ -207,7 +207,7 @@ export class BacklogRequestQueue {
 
   /**
    * リクエストをキューに追加
-   * 
+   *
    * @param request - キューに追加するリクエスト
    * @returns 追加されたリクエストID
    */
@@ -279,7 +279,8 @@ export class BacklogRequestQueue {
       })
 
       return requestId
-    } catch (error) {
+    }
+    catch (error) {
       console.error('リクエストのキュー追加に失敗しました', {
         endpoint: request.endpoint,
         spaceId: request.spaceId,
@@ -292,7 +293,7 @@ export class BacklogRequestQueue {
 
   /**
    * 高優先度リクエストを即座に追加（Stage 1用）
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param endpoint - APIエンドポイント
    * @param params - リクエストパラメータ
@@ -303,7 +304,7 @@ export class BacklogRequestQueue {
     spaceId: string,
     endpoint: string,
     params: any = {},
-    requestFn?: () => Promise<any>
+    requestFn?: () => Promise<any>,
   ): Promise<string> {
     return this.enqueue({
       spaceId,
@@ -323,7 +324,7 @@ export class BacklogRequestQueue {
 
   /**
    * 中優先度バックグラウンドリクエストを追加（Stage 2用）
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param endpoint - APIエンドポイント
    * @param params - リクエストパラメータ
@@ -334,7 +335,7 @@ export class BacklogRequestQueue {
     spaceId: string,
     endpoint: string,
     params: any = {},
-    requestFn?: () => Promise<any>
+    requestFn?: () => Promise<any>,
   ): Promise<string> {
     return this.enqueue({
       spaceId,
@@ -353,7 +354,7 @@ export class BacklogRequestQueue {
 
   /**
    * 低優先度アイドル時リクエストを追加（Stage 3用）
-   * 
+   *
    * @param spaceId - BacklogスペースID
    * @param endpoint - APIエンドポイント
    * @param params - リクエストパラメータ
@@ -364,7 +365,7 @@ export class BacklogRequestQueue {
     spaceId: string,
     endpoint: string,
     params: any = {},
-    requestFn?: () => Promise<any>
+    requestFn?: () => Promise<any>,
   ): Promise<string> {
     return this.enqueue({
       spaceId,
@@ -383,7 +384,7 @@ export class BacklogRequestQueue {
 
   /**
    * リクエストをキューから削除
-   * 
+   *
    * @param requestId - 削除するリクエストID
    * @returns 削除に成功したかどうか
    */
@@ -403,19 +404,20 @@ export class BacklogRequestQueue {
           queue.splice(index, 1)
           this.stats.totalQueued--
           this.stats.priorityBreakdown[priority]--
-          
+
           console.log('リクエストをキューから削除しました', {
             requestId,
             priority,
             remainingInQueue: queue.length,
           })
-          
+
           return true
         }
       }
 
       return false
-    } catch (error) {
+    }
+    catch (error) {
       console.error('リクエストの削除に失敗しました', {
         requestId,
         error: error instanceof Error ? error.message : String(error),
@@ -426,7 +428,7 @@ export class BacklogRequestQueue {
 
   /**
    * 特定スペースの全リクエストをクリア
-   * 
+   *
    * @param spaceId - 対象のスペースID
    * @returns 削除されたリクエスト数
    */
@@ -448,7 +450,7 @@ export class BacklogRequestQueue {
         const initialLength = queue.length
         const filteredQueue = queue.filter(req => req.spaceId !== spaceId)
         const removed = initialLength - filteredQueue.length
-        
+
         this.requestQueues.set(priority, filteredQueue)
         this.stats.totalQueued -= removed
         this.stats.priorityBreakdown[priority] -= removed
@@ -462,7 +464,8 @@ export class BacklogRequestQueue {
       })
 
       return removedCount
-    } catch (error) {
+    }
+    catch (error) {
       console.error('スペースリクエストのクリアに失敗しました', {
         spaceId,
         error: error instanceof Error ? error.message : String(error),
@@ -473,7 +476,7 @@ export class BacklogRequestQueue {
 
   /**
    * キュー統計情報を取得
-   * 
+   *
    * @returns 現在のキュー統計
    */
   public getStats(): QueueStats {
@@ -484,7 +487,7 @@ export class BacklogRequestQueue {
 
   /**
    * 特定優先度のキュー状態を取得
-   * 
+   *
    * @param priority - 優先度
    * @returns キューに登録されているリクエスト一覧
    */
@@ -504,7 +507,7 @@ export class BacklogRequestQueue {
 
   /**
    * 処理中のリクエスト一覧を取得
-   * 
+   *
    * @returns 現在処理中のリクエスト一覧
    */
   public getProcessingRequests(): QueuedRequest[] {
@@ -513,7 +516,7 @@ export class BacklogRequestQueue {
 
   /**
    * イベントリスナーを追加
-   * 
+   *
    * @param listener - イベントリスナー関数
    */
   public addEventListener(listener: (event: QueueEvent) => void): void {
@@ -525,7 +528,7 @@ export class BacklogRequestQueue {
 
   /**
    * イベントリスナーを削除
-   * 
+   *
    * @param listener - 削除するイベントリスナー関数
    */
   public removeEventListener(listener: (event: QueueEvent) => void): void {
@@ -573,7 +576,8 @@ export class BacklogRequestQueue {
         processingRequestsAtShutdown: this.processingRequests.size,
         waitTime: Date.now() - startTime,
       })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('リクエストキューサービスの終了時にエラーが発生しました', {
         error: error instanceof Error ? error.message : String(error),
       })
@@ -586,7 +590,7 @@ export class BacklogRequestQueue {
 
   /**
    * 優先度を正規化（数値からenumへの変換をサポート）
-   * 
+   *
    * @param priority - 優先度（数値またはenum）
    * @returns 正規化された優先度
    */
@@ -633,7 +637,8 @@ export class BacklogRequestQueue {
 
       try {
         await this.processQueue()
-      } catch (error) {
+      }
+      catch (error) {
         console.error('キュー処理でエラーが発生しました', {
           error: error instanceof Error ? error.message : String(error),
         })
@@ -657,7 +662,7 @@ export class BacklogRequestQueue {
 
   /**
    * 特定優先度のキューを処理
-   * 
+   *
    * @param priority - 処理する優先度
    */
   private async processPriorityQueue(priority: RequestPriority): Promise<void> {
@@ -678,7 +683,7 @@ export class BacklogRequestQueue {
 
     for (const request of requestsToProcess) {
       // 非同期で処理開始
-      this.processRequest(request).catch(error => {
+      this.processRequest(request).catch((error) => {
         console.error('リクエスト処理でエラーが発生しました', {
           requestId: request.id,
           error: error instanceof Error ? error.message : String(error),
@@ -689,7 +694,7 @@ export class BacklogRequestQueue {
 
   /**
    * 個別リクエストを処理
-   * 
+   *
    * @param request - 処理するリクエスト
    */
   private async processRequest(request: QueuedRequest): Promise<void> {
@@ -744,7 +749,8 @@ export class BacklogRequestQueue {
       let result: any
       if (request.requestFn) {
         result = await request.requestFn()
-      } else {
+      }
+      else {
         result = await this.executeApiRequest(apiClient, request)
       }
 
@@ -777,9 +783,11 @@ export class BacklogRequestQueue {
           resultSize: result && typeof result === 'object' ? Object.keys(result).length : 'unknown',
         },
       })
-    } catch (error) {
+    }
+    catch (error) {
       await this.handleRequestError(request, error)
-    } finally {
+    }
+    finally {
       // 処理中リストから削除
       this.processingRequests.delete(request.id)
       this.stats.processing--
@@ -788,7 +796,7 @@ export class BacklogRequestQueue {
 
   /**
    * APIリクエストを実行
-   * 
+   *
    * @param apiClient - APIクライアント
    * @param request - リクエスト情報
    * @returns API実行結果
@@ -820,7 +828,7 @@ export class BacklogRequestQueue {
 
   /**
    * リクエストエラーを処理
-   * 
+   *
    * @param request - エラーが発生したリクエスト
    * @param error - エラー情報
    */
@@ -843,7 +851,7 @@ export class BacklogRequestQueue {
       // 指数バックオフで再キューイング
       const backoffDelay = Math.min(1000 * Math.pow(2, request.retryCount), 30000) // 最大30秒
       request.scheduledAt = new Date(Date.now() + backoffDelay)
-      
+
       // 元のキューに戻す
       const queue = this.requestQueues.get(request.priority)
       if (queue) {
@@ -857,10 +865,11 @@ export class BacklogRequestQueue {
         backoffDelay,
         scheduledAt: request.scheduledAt,
       })
-    } else {
+    }
+    else {
       // 最大リトライ回数に達した場合
       this.stats.failed++
-      
+
       console.error('リクエストが最大リトライ回数に達しました', {
         requestId: request.id,
         spaceId: request.spaceId,
@@ -887,7 +896,7 @@ export class BacklogRequestQueue {
 
   /**
    * 差分更新を使用すべきかチェック
-   * 
+   *
    * @param endpoint - APIエンドポイント
    * @returns 差分更新使用可否
    */
@@ -898,13 +907,13 @@ export class BacklogRequestQueue {
       '/projects',
       '/users',
     ]
-    
+
     return supportedEndpoints.some(supported => endpoint.startsWith(supported))
   }
 
   /**
    * 最後の同期時間を取得
-   * 
+   *
    * @param spaceId - スペースID
    * @param endpoint - エンドポイント
    * @returns 最後の同期時間（ISO文字列）
@@ -917,8 +926,8 @@ export class BacklogRequestQueue {
         .where(
           and(
             eq(syncLogs.connectionId, spaceId),
-            eq(syncLogs.status, 'completed')
-          )
+            eq(syncLogs.status, 'completed'),
+          ),
         )
         .orderBy(syncLogs.completedAt)
         .limit(1)
@@ -939,7 +948,8 @@ export class BacklogRequestQueue {
       })
 
       return lastSync
-    } catch (error) {
+    }
+    catch (error) {
       console.error('最後の同期時間の取得に失敗しました', {
         spaceId,
         endpoint,
@@ -951,14 +961,14 @@ export class BacklogRequestQueue {
 
   /**
    * 最後の同期時間を更新
-   * 
+   *
    * @param spaceId - スペースID
    * @param endpoint - エンドポイント
    */
   private async updateLastSyncTime(spaceId: string, endpoint: string): Promise<void> {
     try {
       const now = new Date().toISOString()
-      
+
       await this.db.getDrizzle()
         .insert(syncLogs)
         .values({
@@ -985,7 +995,8 @@ export class BacklogRequestQueue {
         endpoint,
         syncTime: now,
       })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('同期時間の更新に失敗しました', {
         spaceId,
         endpoint,
@@ -1031,14 +1042,15 @@ export class BacklogRequestQueue {
 
   /**
    * イベントを発火
-   * 
+   *
    * @param event - 発火するイベント
    */
   private async emitEvent(event: QueueEvent): Promise<void> {
     for (const listener of this.eventListeners) {
       try {
         listener(event)
-      } catch (error) {
+      }
+      catch (error) {
         console.error('キューイベントリスナーでエラーが発生しました', {
           eventType: event.type,
           requestId: event.requestId,
@@ -1055,7 +1067,7 @@ export class BacklogRequestQueue {
   private startCleanup(): void {
     // 5分毎にクリーンアップを実行
     this.cleanupInterval = setInterval(() => {
-      this.performCleanup().catch(error => {
+      this.performCleanup().catch((error) => {
         console.error('クリーンアップでエラーが発生しました', {
           error: error instanceof Error ? error.message : String(error),
         })
@@ -1077,11 +1089,11 @@ export class BacklogRequestQueue {
       // 古いリクエストを削除
       for (const [priority, queue] of this.requestQueues) {
         const initialLength = queue.length
-        const filteredQueue = queue.filter(req => {
+        const filteredQueue = queue.filter((req) => {
           const age = now - req.createdAt.getTime()
           return age < maxAge
         })
-        
+
         const removed = initialLength - filteredQueue.length
         if (removed > 0) {
           this.requestQueues.set(priority, filteredQueue)
@@ -1097,7 +1109,8 @@ export class BacklogRequestQueue {
           remainingQueued: this.stats.totalQueued,
         })
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('クリーンアップ処理でエラーが発生しました', {
         error: error instanceof Error ? error.message : String(error),
       })
@@ -1107,7 +1120,7 @@ export class BacklogRequestQueue {
 
 /**
  * リクエストキューファクトリー関数
- * 
+ *
  * @param db - データベース接続
  * @param rateLimiter - レート制限管理インスタンス
  * @param connectionManager - 接続管理インスタンス
@@ -1116,26 +1129,27 @@ export class BacklogRequestQueue {
 export function createBacklogRequestQueue(
   db: Database,
   rateLimiter: BacklogRateLimiter,
-  connectionManager: BacklogConnectionManager
+  connectionManager: BacklogConnectionManager,
 ): BacklogRequestQueue {
   return new BacklogRequestQueue(db, rateLimiter, connectionManager)
 }
 
 /**
  * キュー統計サマリー生成
- * 
+ *
  * @param stats - キュー統計情報
  * @returns フォーマットされた統計サマリー
  */
 export function formatQueueStatsSummary(stats: QueueStats): string {
-  const utilizationLevel = stats.processing >= 5 ? 'high' : 
-                          stats.processing >= 2 ? 'medium' : 'low'
-  
-  return `リクエストキュー: ${stats.totalQueued} 待機中, ` +
-         `${stats.processing} 処理中 (${utilizationLevel}), ` +
-         `完了: ${stats.completed}, 失敗: ${stats.failed}, ` +
-         `スループット: ${stats.throughput.toFixed(2)} req/sec, ` +
-         `優先度内訳: H:${stats.priorityBreakdown.HIGH}, M:${stats.priorityBreakdown.MEDIUM}, L:${stats.priorityBreakdown.LOW}`
+  const utilizationLevel = stats.processing >= 5
+    ? 'high'
+    : stats.processing >= 2 ? 'medium' : 'low'
+
+  return `リクエストキュー: ${stats.totalQueued} 待機中, `
+    + `${stats.processing} 処理中 (${utilizationLevel}), `
+    + `完了: ${stats.completed}, 失敗: ${stats.failed}, `
+    + `スループット: ${stats.throughput.toFixed(2)} req/sec, `
+    + `優先度内訳: H:${stats.priorityBreakdown.HIGH}, M:${stats.priorityBreakdown.MEDIUM}, L:${stats.priorityBreakdown.LOW}`
 }
 
 /**

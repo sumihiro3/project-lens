@@ -1,9 +1,9 @@
 /**
  * Backlog Direct API接続管理サービス - 統合インターフェース
- * 
+ *
  * Phase 1-6の全コンポーネントを統合したメインエントリーポイント。
  * 複雑な内部実装を隠蔽し、シンプルで使いやすいAPIを提供します。
- * 
+ *
  * Features:
  * - 単一のエントリーポイントによる統一API
  * - 依存性注入による柔軟な設定管理
@@ -11,7 +11,7 @@
  * - 自動ヘルスモニタリングと状態管理
  * - 統合されたエラーハンドリング
  * - パフォーマンス統計とメトリクス
- * 
+ *
  * @example
  * ```typescript
  * const service = new BacklogService(database)
@@ -20,22 +20,22 @@
  *   enableCache: true,
  *   enableQueue: true
  * })
- * 
+ *
  * // スペース追加
  * const spaceId = await service.addSpace({
  *   name: 'My Project',
  *   apiKey: 'your-api-key',
  *   host: 'mycompany.backlog.jp'
  * })
- * 
+ *
  * // データ取得（キャッシュ統合）
  * const projects = await service.getProjects(spaceId)
  * const issues = await service.getIssues(spaceId, { projectId: [123] })
- * 
+ *
  * // ヘルスチェック
  * const health = await service.getHealthStatus()
  * console.log(`Status: ${health.status}, Uptime: ${health.uptime}`)
- * 
+ *
  * // クリーンアップ
  * await service.dispose()
  * ```
@@ -202,14 +202,14 @@ export interface PerformanceStats {
 
 /**
  * Backlog統合サービス
- * 
+ *
  * Phase 1-6の全コンポーネントを統合し、シンプルなAPIを提供する
  * メインサービスクラス。
  */
 export class BacklogService {
   private readonly database: Database
   private readonly config: Required<BacklogServiceConfig>
-  
+
   // Phase 1-6 コンポーネント
   private apiClient: BacklogApiClient | null = null
   private rateLimiter: BacklogRateLimiter | null = null
@@ -217,14 +217,14 @@ export class BacklogService {
   private requestQueue: BacklogRequestQueue | null = null
   private errorHandler: BacklogErrorHandler | null = null
   private cacheService: IntegratedBacklogCacheService | null = null
-  
+
   // 状態管理
   private isInitialized = false
   private isDisposed = false
   private startTime = Date.now()
   private healthCheckTimer: NodeJS.Timeout | null = null
   private lastHealthCheck: Date = new Date()
-  
+
   constructor(database: Database) {
     this.database = database
     this.config = {
@@ -240,7 +240,7 @@ export class BacklogService {
 
   /**
    * サービスを初期化します
-   * 
+   *
    * @param config 設定オプション
    */
   async initialize(config: BacklogServiceConfig = {}): Promise<void> {
@@ -267,7 +267,7 @@ export class BacklogService {
       // Phase 3: Connection Manager
       this.connectionManager = new BacklogConnectionManager(
         this.database,
-        this.rateLimiter || undefined
+        this.rateLimiter || undefined,
       )
       await this.connectionManager.initialize({
         maxConcurrentConnections: this.config.maxSpaces * 2,
@@ -282,7 +282,7 @@ export class BacklogService {
           this.database,
           this.apiClient,
           this.rateLimiter || undefined,
-          this.connectionManager
+          this.connectionManager,
         )
         await this.requestQueue.initialize({
           maxConcurrentRequests: 10,
@@ -304,7 +304,7 @@ export class BacklogService {
           this.apiClient,
           this.rateLimiter || undefined,
           this.connectionManager,
-          this.requestQueue || undefined
+          this.requestQueue || undefined,
         )
         await this.cacheService.initialize({
           l1MaxSize: 100,
@@ -320,14 +320,15 @@ export class BacklogService {
       this.startHealthCheck()
 
       this.isInitialized = true
-      
+
       if (this.config.debug) {
         console.log('[BacklogService] Initialized successfully', {
           config: this.config,
           timestamp: new Date().toISOString(),
         })
       }
-    } catch (error) {
+    }
+    catch (error) {
       // 初期化失敗時のクリーンアップ
       await this.cleanup()
       throw new Error(`Failed to initialize BacklogService: ${error instanceof Error ? error.message : String(error)}`)
@@ -336,7 +337,7 @@ export class BacklogService {
 
   /**
    * 新しいスペースを追加します
-   * 
+   *
    * @param config スペース設定
    * @returns スペースID
    */
@@ -369,7 +370,8 @@ export class BacklogService {
       }
 
       return spaceId
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'addSpace',
@@ -382,7 +384,7 @@ export class BacklogService {
 
   /**
    * スペースを削除します
-   * 
+   *
    * @param spaceId スペースID
    */
   async removeSpace(spaceId: string): Promise<void> {
@@ -406,7 +408,8 @@ export class BacklogService {
           timestamp: new Date().toISOString(),
         })
       }
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'removeSpace',
@@ -419,7 +422,7 @@ export class BacklogService {
 
   /**
    * プロジェクト一覧を取得します（キャッシュ統合）
-   * 
+   *
    * @param spaceId スペースID
    * @returns プロジェクト一覧
    */
@@ -441,7 +444,7 @@ export class BacklogService {
       const response = await this.apiClient.request<BacklogProject[]>(
         connection.config,
         'projects',
-        { method: 'GET' }
+        { method: 'GET' },
       )
 
       if (!response.success) {
@@ -449,7 +452,8 @@ export class BacklogService {
       }
 
       return response.data || []
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'getProjects',
@@ -462,7 +466,7 @@ export class BacklogService {
 
   /**
    * イシュー一覧を取得します（キャッシュ統合）
-   * 
+   *
    * @param spaceId スペースID
    * @param params 検索パラメータ
    * @returns イシュー一覧
@@ -501,7 +505,7 @@ export class BacklogService {
       const response = await this.apiClient.request<BacklogIssue[]>(
         connection.config,
         'issues',
-        { method: 'GET', params: backlogParams as any }
+        { method: 'GET', params: backlogParams as any },
       )
 
       if (!response.success) {
@@ -509,7 +513,8 @@ export class BacklogService {
       }
 
       return response.data || []
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'getIssues',
@@ -523,7 +528,7 @@ export class BacklogService {
 
   /**
    * ユーザー一覧を取得します
-   * 
+   *
    * @param spaceId スペースID
    * @returns ユーザー一覧
    */
@@ -543,7 +548,7 @@ export class BacklogService {
       const response = await this.apiClient.request<BacklogUser[]>(
         connection.config,
         'users',
-        { method: 'GET' }
+        { method: 'GET' },
       )
 
       if (!response.success) {
@@ -551,7 +556,8 @@ export class BacklogService {
       }
 
       return response.data || []
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'getUsers',
@@ -564,7 +570,7 @@ export class BacklogService {
 
   /**
    * スペース情報を取得します
-   * 
+   *
    * @param spaceId スペースID
    * @returns スペース情報
    */
@@ -580,7 +586,7 @@ export class BacklogService {
       const response = await this.apiClient.request<BacklogSpace>(
         connection.config,
         'space',
-        { method: 'GET' }
+        { method: 'GET' },
       )
 
       if (!response.success) {
@@ -592,7 +598,8 @@ export class BacklogService {
       }
 
       return response.data
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'getSpace',
@@ -605,7 +612,7 @@ export class BacklogService {
 
   /**
    * ヘルス状態を取得します
-   * 
+   *
    * @returns ヘルス状態
    */
   async getHealthStatus(): Promise<HealthStatus> {
@@ -626,8 +633,9 @@ export class BacklogService {
         for (const spaceId of Object.keys(stats.spaceStats || {})) {
           const spaceStats = stats.spaceStats[spaceId]
           spaceHealth[spaceId] = {
-            status: spaceStats.errorCount > 5 ? 'error' : 
-                    spaceStats.lastConnected ? 'online' : 'offline',
+            status: spaceStats.errorCount > 5
+              ? 'error'
+              : spaceStats.lastConnected ? 'online' : 'offline',
             lastConnected: spaceStats.lastConnected,
             errorCount: spaceStats.errorCount,
             responseTime: spaceStats.averageResponseTime,
@@ -636,7 +644,7 @@ export class BacklogService {
       }
 
       // システムメトリクスを取得
-      let metrics = {
+      const metrics = {
         totalRequests: 0,
         successRate: 1.0,
         averageResponseTime: 0,
@@ -665,7 +673,8 @@ export class BacklogService {
         const errorRate = errorSpaces / totalSpaces
         if (errorRate > 0.5) {
           status = 'unhealthy'
-        } else if (errorRate > 0.2) {
+        }
+        else if (errorRate > 0.2) {
           status = 'degraded'
         }
       }
@@ -680,7 +689,8 @@ export class BacklogService {
         metrics,
         lastCheck: now,
       }
-    } catch (error) {
+    }
+    catch (error) {
       if (this.errorHandler) {
         await this.errorHandler.handleError(error as Error, {
           operation: 'getHealthStatus',
@@ -707,7 +717,7 @@ export class BacklogService {
 
   /**
    * パフォーマンス統計を取得します
-   * 
+   *
    * @returns パフォーマンス統計
    */
   getPerformanceStats(): PerformanceStats {
@@ -779,7 +789,8 @@ export class BacklogService {
           timestamp: new Date().toISOString(),
         })
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('[BacklogService] Error during disposal:', error)
       throw error
     }
@@ -808,7 +819,8 @@ export class BacklogService {
     this.healthCheckTimer = setInterval(async () => {
       try {
         await this.getHealthStatus()
-      } catch (error) {
+      }
+      catch (error) {
         if (this.config.debug) {
           console.error('[BacklogService] Health check failed:', error)
         }
