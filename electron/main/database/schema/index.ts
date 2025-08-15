@@ -384,6 +384,32 @@ export const dashboards = sqliteTable('dashboards', {
 }))
 
 // ====================
+// レート制限テーブル
+// ====================
+export const rateLimits = sqliteTable('rate_limits', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  spaceId: text('space_id').notNull(),
+  remaining: integer('remaining').notNull(),
+  total: integer('total').notNull(),
+  resetTime: text('reset_time').notNull(), // ISO 8601形式
+  windowStart: text('window_start').notNull(), // ISO 8601形式
+  lastUpdated: text('last_updated').notNull().default(sql`CURRENT_TIMESTAMP`),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  endpoint: text('endpoint'), // 特定のエンドポイント（オプション）
+  method: text('method').notNull().default('GET'), // HTTPメソッド
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => ({
+  spaceIdIdx: index('rate_limits_space_id_idx').on(table.spaceId),
+  spaceEndpointIdx: uniqueIndex('rate_limits_space_endpoint_idx').on(table.spaceId, table.endpoint, table.method),
+  resetTimeIdx: index('rate_limits_reset_time_idx').on(table.resetTime),
+  lastUpdatedIdx: index('rate_limits_last_updated_idx').on(table.lastUpdated),
+  isActiveIdx: index('rate_limits_is_active_idx').on(table.isActive),
+  // クリーンアップ用複合インデックス
+  activeSpaceIdx: index('rate_limits_active_space_idx').on(table.isActive, table.spaceId),
+}))
+
+// ====================
 // スキーマエクスポート
 // ====================
 export const schema = {
@@ -404,6 +430,7 @@ export const schema = {
   searchHistory,
   savedSearches,
   dashboards,
+  rateLimits,
 }
 
 // ====================
@@ -473,5 +500,9 @@ export type UpdateSavedSearch = Partial<InsertSavedSearch>
 export type SelectDashboard = typeof dashboards.$inferSelect
 export type InsertDashboard = typeof dashboards.$inferInsert
 export type UpdateDashboard = Partial<InsertDashboard>
+
+export type SelectRateLimit = typeof rateLimits.$inferSelect
+export type InsertRateLimit = typeof rateLimits.$inferInsert
+export type UpdateRateLimit = Partial<InsertRateLimit>
 
 export default schema
