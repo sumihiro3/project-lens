@@ -6,7 +6,78 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 
 ### Important
 
-- When the task is complete, run `afplay /System/Library/Sounds/Hero.aiff` to play the notification sound.
+- When the task is complete, run:
+  - `afplay /System/Library/Sounds/Hero.aiff` to play the notification sound
+  - `osascript -e 'display dialog "作業が完了しました" buttons {"OK"} with title "Claude Code"'` to show system notification (fallback: display dialog if notifications disabled)
+- When asking for user input or requiring user response, use appropriate dialog based on operation risk:
+
+### Dialog Levels
+
+#### Level 1: Information Dialog (Low Risk)
+- **Use for**: File reading, status checks, harmless operations
+- **Sound**: `afplay /System/Library/Sounds/Ping.aiff`
+- **Dialog**: 
+  ```bash
+  osascript -e 'display dialog "操作を実行します: [OPERATION]" buttons {"続行"} default button "続行" with title "Claude Code - 情報"'
+  ```
+
+#### Level 2: Confirmation Dialog (Medium Risk)
+- **Use for**: File editing, test execution, configuration changes
+- **Sound**: `afplay /System/Library/Sounds/Submarine.aiff`
+- **Dialog**:
+  ```bash
+  osascript -e 'display dialog "実行確認\n\n操作: [OPERATION]\n内容: [DETAILS]" buttons {"実行", "キャンセル"} default button "実行" with title "Claude Code - 確認"'
+  ```
+
+#### Level 3: Critical Confirmation Dialog (High Risk)
+- **Use for**: Git operations, PR creation, deletions, deployments
+- **Sound**: `afplay /System/Library/Sounds/Sosumi.aiff`
+- **Dialog**:
+  ```bash
+  osascript -e 'display dialog "⚠️ 重要な操作\n\nコマンド: [COMMAND]\n影響範囲: [SCOPE]\n説明: [DESCRIPTION]\n\n続行しますか？" buttons {"実行", "詳細確認", "キャンセル"} default button "キャンセル" with title "Claude Code - 重要確認"'
+  ```
+
+### Dialog Usage Rules
+1. **Always** include specific operation details in [OPERATION], [COMMAND], etc.
+2. **Replace placeholders** with actual command and impact information
+3. **Handle "キャンセル"** responses by stopping execution and explaining next steps
+4. **Handle "詳細確認"** by showing more detailed information before asking again
+
+### Implementation Examples
+
+#### Git Commit Example (Level 3)
+```bash
+# Sound
+afplay /System/Library/Sounds/Sosumi.aiff
+
+# Dialog with actual details
+osascript -e 'display dialog "⚠️ 重要な操作\n\nコマンド: git commit -m \"feat: add user dashboard\"\n影響範囲: ローカルリポジトリ (3ファイル変更)\n説明: ユーザーダッシュボード機能を追加\n変更ファイル:\n- src/components/Dashboard.tsx\n- src/types/user.ts\n- tests/dashboard.test.ts\n\n続行しますか？" buttons {"実行", "詳細確認", "キャンセル"} default button "キャンセル" with title "Claude Code - 重要確認"'
+
+# Handle response
+if [ "$response" = "詳細確認" ]; then
+  # Show detailed git diff summary
+  git diff --stat
+  # Ask again with more info
+fi
+```
+
+#### File Edit Example (Level 2)  
+```bash
+# Sound
+afplay /System/Library/Sounds/Submarine.aiff
+
+# Dialog
+osascript -e 'display dialog "実行確認\n\n操作: TypeScript設定ファイル更新\n内容: tsconfig.jsonにstrict:trueを追加\n影響: 型チェックが厳格になります" buttons {"実行", "キャンセル"} default button "実行" with title "Claude Code - 確認"'
+```
+
+#### Status Check Example (Level 1)
+```bash
+# Sound  
+afplay /System/Library/Sounds/Ping.aiff
+
+# Dialog
+osascript -e 'display dialog "操作を実行します: プロジェクト状態確認" buttons {"続行"} default button "続行" with title "Claude Code - 情報"'
+```
 
 ### Paths
 

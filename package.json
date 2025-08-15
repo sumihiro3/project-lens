@@ -10,7 +10,7 @@
     "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 -t 20000 && npm run compile:electron && electron .\" --kill-others-on-fail --names \"nuxt,electron\" --prefix-colors \"blue,yellow\"",
     "dev:fast": "concurrently \"npm run dev\" \"wait-on tcp:3000 -t 15000 && npm run compile:electron:quick && electron .\" --kill-others-on-fail --names \"nuxt,electron\" --prefix-colors \"blue,yellow\"",
     "dev:watch": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 -t 20000 -i 1000 && npm run compile:electron:watch\" --kill-others-on-fail --names \"nuxt,electron\" --prefix-colors \"blue,yellow\"",
-    "compile:electron": "npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && mv dist-electron/main/index.js dist-electron/main/index.cjs && mv dist-electron/preload/index.js dist-electron/preload/index.cjs",
+    "compile:electron": "rm -rf dist-electron && npx tsc --project electron/tsconfig.electron.json && find dist-electron -name '*.js' -type f | while read file; do mv \"$file\" \"${file%.js}.cjs\"; done && node scripts/fix-cjs-imports.cjs",
     "compile:electron:quick": "npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --tsBuildInfoFile .tsbuildinfo-main && npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --tsBuildInfoFile .tsbuildinfo-preload && mv dist-electron/main/index.js dist-electron/main/index.cjs 2>/dev/null || true && mv dist-electron/preload/index.js dist-electron/preload/index.cjs 2>/dev/null || true",
     "compile:electron:watch": "concurrently \"npx tsc electron/main/index.ts --outDir dist-electron/main --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --watch\" \"npx tsc electron/preload/index.ts --outDir dist-electron/preload --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --watch\" --names \"main,preload\" --prefix-colors \"green,cyan\" && electron .",
     "build": "nuxt build",
@@ -48,8 +48,12 @@
     "@nuxtjs/i18n": "^10.0.4",
     "@pinia/nuxt": "^0.11.2",
     "@vueuse/core": "^13.6.0",
+    "better-sqlite3": "^12.2.0",
+    "drizzle-orm": "^0.44.4",
     "nuxt": "^3.18.1",
     "pinia": "^3.0.3",
+    "pino": "^8.21.0",
+    "pino-pretty": "^10.3.1",
     "pug": "^3.0.3",
     "sass": "^1.80.0",
     "vite-plugin-vuetify": "^2.0.4",
@@ -59,6 +63,7 @@
   "devDependencies": {
     "@nuxt/devtools": "latest",
     "@nuxt/test-utils": "^3.16.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.9.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
@@ -67,6 +72,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.0",
     "cssnano": "^7.0.6",
+    "drizzle-kit": "^0.31.4",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^4.0.0",
@@ -76,6 +82,7 @@
     "happy-dom": "^16.3.0",
     "playwright-core": "^1.49.0",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.4",
     "typescript": "^5.7.2",
     "vitest": "^3.2.0",
     "vue-tsc": "^3.0.5",
@@ -113,7 +120,9 @@
       {
         "from": "resources",
         "to": "resources",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "compression": "maximum",
@@ -127,11 +136,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "category": "public.app-category.productivity",
@@ -175,11 +190,16 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "ia32"]
+          "arch": [
+            "x64",
+            "ia32"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "${productName}-${version}-win-${arch}.${ext}",
@@ -206,19 +226,27 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "rpm",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "tar.gz",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icons/",

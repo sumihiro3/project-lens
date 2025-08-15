@@ -52,9 +52,6 @@ import { useI18n } from 'vue-i18n'
 // 言語切り替えコンポーネントで使用
 // テンプレート内のv-model="locale"で参照
 const { locale } = useI18n()
-
-// テンプレートでの使用をTypeScriptに認識させる
-export { locale }
 const platformInfo = ref<string>('Unknown')
 const electronVersion = ref<string>('N/A')
 
@@ -72,10 +69,9 @@ onMounted(() => {
 // - locale: テンプレート内のv-model="locale"で使用され、言語切り替えコンポーネントで参照
 
 // TypeScript用のダミー参照（テンプレートでの使用を認識させる）
-/* eslint-disable @typescript-eslint/no-unused-vars */
+
 if (process.env.NODE_ENV === 'development') {
   // テンプレートで使用されている変数を参照
   void locale.value
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 </script>

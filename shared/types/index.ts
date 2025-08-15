@@ -20,12 +20,16 @@ export type * from './ai'
 // Electron関連型
 export type * from './electron'
 
+// ログ関連型
+export type * from './logging'
+
 // 再エクスポート（個別インポート用）
 // 注意: common.tsとdatabase.tsの両方にNotification型があるため、別名でエクスポート
 export * from './backlog'
 export * from './settings'
 export * from './ai'
 export * from './electron'
+export * from './logging'
 
 // 競合しない型を個別エクスポート
 export type {

@@ -387,7 +387,7 @@ if (require.main === module) {
   try {
     require('gzip-size')
   }
-  catch (_error) {
+  catch {
     console.log('📊 gzip-sizeパッケージが見つかりません。シンプルモードで実行します...')
 
     // シンプルなフォールバック実装
