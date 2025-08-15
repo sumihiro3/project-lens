@@ -18,14 +18,13 @@ jobs:
     
     runs-on: ubuntu-latest
     
-    # Minimal permissions - Claude Code App will handle the rest
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     
     steps:
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v0
         # No additional configuration needed when using Claude Code subscription
         # The action will authenticate using the installed GitHub App
