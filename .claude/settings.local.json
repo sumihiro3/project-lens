@@ -19,7 +19,8 @@
       "Bash(npm run lint:*)",
       "Bash(npx tsc:*)",
       "Bash(npm test:*)",
-      "Bash(osascript:*)"
+      "Bash(osascript:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }
