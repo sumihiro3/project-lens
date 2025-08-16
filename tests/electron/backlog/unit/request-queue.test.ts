@@ -18,8 +18,8 @@ import {
 import type { BacklogRateLimiter } from '../../../../electron/main/services/backlog/rate-limiter'
 import type { BacklogConnectionManager } from '../../../../electron/main/services/backlog/connection-manager'
 import type { DatabaseManager } from '../../../../electron/main/database/connection'
-import type { QueuedRequest } from '../../../../electron/main/services/backlog/request-queue'
-import { syncLogs } from '../../../../electron/main/database/schema'
+// import type { QueuedRequest } from '../../../../electron/main/services/backlog/request-queue'
+// import { syncLogs } from '../../../../electron/main/database/schema'
 
 // データベースモック
 const mockDatabase = {
@@ -177,7 +177,7 @@ describe('BacklogRequestQueue', () => {
 
   describe('優先度別キュー追加メソッド', () => {
     it('高優先度リクエストを追加できる', async () => {
-      const requestId = await requestQueue.enqueueHighPriority(
+      const _requestId = await requestQueue.enqueueHighPriority(
         'test-space',
         '/issues',
         { projectId: [1] },
@@ -190,7 +190,7 @@ describe('BacklogRequestQueue', () => {
     })
 
     it('中優先度リクエストを追加できる', async () => {
-      const requestId = await requestQueue.enqueueMediumPriority(
+      const _requestId = await requestQueue.enqueueMediumPriority(
         'test-space',
         '/projects',
         {},
@@ -203,7 +203,7 @@ describe('BacklogRequestQueue', () => {
     })
 
     it('低優先度リクエストを追加できる', async () => {
-      const requestId = await requestQueue.enqueueLowPriority(
+      const _requestId = await requestQueue.enqueueLowPriority(
         'test-space',
         '/users',
         {},

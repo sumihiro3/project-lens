@@ -1,6 +1,6 @@
 /**
  * Vitest グローバルセットアップ
- * 
+ *
  * Electron のテスト環境とモック設定を提供します。
  */
 
@@ -84,7 +84,7 @@ vi.mock('better-sqlite3', () => {
     close: vi.fn(),
     pragma: vi.fn(() => []),
   }
-  
+
   return {
     default: vi.fn(() => mockDb),
   }
@@ -94,13 +94,13 @@ vi.mock('better-sqlite3', () => {
 global.testUtils = {
   // テスト用ヘルパー関数
   waitFor: (ms: number) => new Promise(resolve => setTimeout(resolve, ms)),
-  
+
   // モックスペースID生成
   generateMockSpaceId: () => `test-space-${Date.now()}`,
-  
+
   // モック実行ID生成
   generateMockExecutionId: () => `exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  
+
   // テスト環境の確認
   isTestEnvironment: () => process.env.NODE_ENV === 'test' || process.env.VITEST === 'true',
 }
@@ -135,15 +135,15 @@ beforeAll(() => {
 
   // Mock process.env
   process.env.NODE_ENV = 'test'
-  
+
   // テスト環境でのコンソール設定
   if (global.testUtils.isTestEnvironment()) {
     // テスト実行中は一部のコンソールログを無効化
     const originalConsole = { ...console }
-    
+
     console.log = vi.fn()
     console.debug = vi.fn()
-    
+
     // エラーと警告は表示
     console.error = originalConsole.error
     console.warn = originalConsole.warn
@@ -154,7 +154,7 @@ beforeAll(() => {
 afterEach(() => {
   const currentMemory = process.memoryUsage()
   const memoryDelta = currentMemory.heapUsed - performanceMetrics.memoryBaseline.heapUsed
-  
+
   // 警告：1テストで50MB以上メモリ使用量が増加した場合
   if (memoryDelta > 50 * 1024 * 1024) {
     console.warn(`⚠️ High memory usage detected: ${Math.round(memoryDelta / 1024 / 1024)}MB`)

@@ -13,25 +13,28 @@
  * - 統計収集とメトリクス
  */
 
-import { eq, and, desc, gte, lt, isNull } from 'drizzle-orm'
+import { eq, and, desc, lt, isNull } from 'drizzle-orm'
 import type { drizzle } from 'drizzle-orm/better-sqlite3'
-import { 
-  syncLogs, 
-  projects, 
-  issues, 
-  users, 
-  type SelectSyncLog, 
-  type InsertSyncLog, 
+import {
+  syncLogs,
+  projects,
+  type SelectSyncLog,
+  type InsertSyncLog,
   type UpdateSyncLog,
-  type SelectProject,
-  type SelectIssue,
-  type SelectUser
 } from '../../database/schema'
+// 将来の実装のためコメントアウト
+// import {
+//   issues,
+//   users,
+//   type SelectProject,
+//   type SelectIssue,
+//   type SelectUser,
+// } from '../../database/schema'
 import type {
   BacklogProject,
   BacklogIssue,
   BacklogUser,
-  BacklogIssueSearchParams
+  BacklogIssueSearchParams,
 } from '../../../../shared/types/backlog'
 
 /**
@@ -41,7 +44,7 @@ export interface IncrementalSyncParams {
   /** 対象スペースID */
   spaceId: string
   /** 対象プロジェクトID（省略時は全プロジェクト） */
-  projectId?: number
+  projectId?: number | undefined
   /** 同期タイプ */
   syncType: 'incremental' | 'full'
   /** 強制同期（前回同期時刻を無視） */
@@ -114,7 +117,7 @@ export interface SyncHistoryOptions {
 
 /**
  * Backlog増分同期管理サービス
- * 
+ *
  * 効率的な差分同期とデータ整合性管理を提供します。
  */
 export class IncrementalSyncManager {
@@ -124,13 +127,13 @@ export class IncrementalSyncManager {
 
   /**
    * コンストラクター
-   * 
+   *
    * @param database - Drizzle ORMデータベースインスタンス
    * @param options - 同期履歴管理オプション
    */
   constructor(
     database: ReturnType<typeof drizzle>,
-    options: SyncHistoryOptions = {}
+    options: SyncHistoryOptions = {},
   ) {
     this.db = database
     this.options = {
@@ -147,9 +150,9 @@ export class IncrementalSyncManager {
 
   /**
    * updatedSinceパラメーターを取得
-   * 
+   *
    * 前回同期時刻を基に、APIリクエスト用のupdatedSinceパラメーターを生成します。
-   * 
+   *
    * @param params - 同期パラメータ
    * @returns updatedSinceパラメーター（ISO 8601形式）
    */
@@ -180,7 +183,7 @@ export class IncrementalSyncManager {
 
       // 前回同期時刻を取得
       const lastSyncTime = await this.getLastSyncTimestamp(params.spaceId, params.projectId)
-      
+
       if (!lastSyncTime) {
         console.log('前回同期時刻が見つかりません。初回同期として実行します')
         return undefined
@@ -205,15 +208,15 @@ export class IncrementalSyncManager {
 
   /**
    * 同期成功時のタイムスタンプを更新
-   * 
+   *
    * 同期完了後に呼び出し、次回の増分同期のベースとなる時刻を記録します。
-   * 
+   *
    * @param params - 同期パラメータ
    * @param timestamp - 同期完了時刻（省略時は現在時刻）
    */
   async updateSyncTimestamp(
     params: IncrementalSyncParams,
-    timestamp: Date = new Date()
+    timestamp: Date = new Date(),
   ): Promise<void> {
     try {
       console.log('同期タイムスタンプの更新を開始します', {
@@ -254,23 +257,23 @@ export class IncrementalSyncManager {
 
   /**
    * 差分データの計算と識別
-   * 
+   *
    * 取得したデータと既存データを比較し、作成・更新・削除されたアイテムを特定します。
-   * 
+   *
    * @param fetchedData - APIから取得したデータ
    * @param existingData - 既存のデータベースデータ
    * @param compareKey - 比較に使用するキー（デフォルト: 'id'）
    * @param updatedKey - 更新日時のキー（デフォルト: 'updated'）
    * @returns 差分計算結果
    */
-  async calculateDeltaChanges<T extends Record<string, any>>(
+  async calculateDeltaChanges<T extends Record<string, unknown>>(
     fetchedData: T[],
     existingData: T[],
     compareKey: keyof T = 'id',
-    updatedKey: keyof T = 'updated'
+    updatedKey: keyof T = 'updated',
   ): Promise<DeltaChanges<T>> {
     const startTime = Date.now()
-    
+
     try {
       console.log('差分データの計算を開始します', {
         fetchedCount: fetchedData.length,
@@ -280,13 +283,13 @@ export class IncrementalSyncManager {
       })
 
       // 既存データをMapに変換（高速検索用）
-      const existingMap = new Map<any, T>()
+      const existingMap = new Map<T[keyof T], T>()
       for (const item of existingData) {
         existingMap.set(item[compareKey], item)
       }
 
       // 取得データをMapに変換
-      const fetchedMap = new Map<any, T>()
+      const fetchedMap = new Map<T[keyof T], T>()
       for (const item of fetchedData) {
         fetchedMap.set(item[compareKey], item)
       }
@@ -296,9 +299,9 @@ export class IncrementalSyncManager {
       let unchanged = 0
 
       // 新規作成・更新を判定
-      for (const [key, fetchedItem] of fetchedMap) {
+      for (const [key, fetchedItem] of Array.from(fetchedMap.entries())) {
         const existingItem = existingMap.get(key)
-        
+
         if (!existingItem) {
           // 新規作成
           created.push(fetchedItem)
@@ -307,7 +310,7 @@ export class IncrementalSyncManager {
           // 更新日時を比較して更新を判定
           const fetchedUpdated = this.parseDate(fetchedItem[updatedKey])
           const existingUpdated = this.parseDate(existingItem[updatedKey])
-          
+
           if (fetchedUpdated && existingUpdated && fetchedUpdated > existingUpdated) {
             updated.push(fetchedItem)
           }
@@ -319,9 +322,9 @@ export class IncrementalSyncManager {
 
       // 削除を判定（取得データに存在しない既存データ）
       const deleted: number[] = []
-      for (const [key] of existingMap) {
+      for (const key of Array.from(existingMap.keys())) {
         if (!fetchedMap.has(key)) {
-          deleted.push(key)
+          deleted.push(key as number)
         }
       }
 
@@ -359,19 +362,19 @@ export class IncrementalSyncManager {
 
   /**
    * 同期履歴の管理とクリーンアップ
-   * 
+   *
    * 古い同期履歴を削除し、ストレージ使用量を最適化します。
-   * 
+   *
    * @param spaceId - 対象スペースID
    * @param options - クリーンアップオプション
    */
   async manageSyncHistory(
     spaceId: string,
-    options: Partial<SyncHistoryOptions> = {}
+    options: Partial<SyncHistoryOptions> = {},
   ): Promise<void> {
     try {
       const cleanupOptions = { ...this.options, ...options }
-      
+
       console.log('同期履歴の管理を開始します', {
         spaceId,
         maxHistoryCount: cleanupOptions.maxHistoryCount,
@@ -388,13 +391,13 @@ export class IncrementalSyncManager {
       cutoffDate.setDate(cutoffDate.getDate() - cleanupOptions.retentionDays)
 
       // 保持期間を超えた古い履歴を削除
-      const deletedByDate = await this.db
+      await this.db
         .delete(syncLogs)
         .where(
           and(
             eq(syncLogs.connectionId, spaceId),
-            lt(syncLogs.startedAt, cutoffDate.toISOString())
-          )
+            lt(syncLogs.startedAt, cutoffDate.toISOString()),
+          ),
         )
 
       // 保持数を超えた履歴を削除（最新のもの以外）
@@ -416,8 +419,8 @@ export class IncrementalSyncManager {
               and(
                 eq(syncLogs.connectionId, spaceId),
                 // SQLiteではIN句でサブクエリを使用
-                ...idsToDelete.map(id => eq(syncLogs.id, id))
-              )
+                ...idsToDelete.map(id => eq(syncLogs.id, id)),
+              ),
             )
         }
       }
@@ -441,14 +444,14 @@ export class IncrementalSyncManager {
 
   /**
    * 同期セッションを開始
-   * 
+   *
    * @param params - 同期パラメータ
    * @returns セッションID
    */
   async startSyncSession(params: IncrementalSyncParams): Promise<string> {
     try {
       this.currentSessionId = `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      
+
       const syncLogEntry: InsertSyncLog = {
         connectionId: params.spaceId,
         projectId: params.projectId ? await this.getLocalProjectId(params.projectId) : null,
@@ -483,7 +486,7 @@ export class IncrementalSyncManager {
 
   /**
    * 同期セッションを完了
-   * 
+   *
    * @param sessionId - セッションID
    * @param stats - 同期統計
    * @param error - エラー情報（オプション）
@@ -491,7 +494,7 @@ export class IncrementalSyncManager {
   async completeSyncSession(
     sessionId: string,
     stats: SyncStatistics,
-    error?: Error
+    error?: Error,
   ): Promise<void> {
     try {
       const updateData: UpdateSyncLog = {
@@ -542,7 +545,7 @@ export class IncrementalSyncManager {
 
   /**
    * 同期統計を取得
-   * 
+   *
    * @param spaceId - スペースID
    * @param limit - 取得する履歴数（デフォルト: 10）
    * @returns 同期統計の配列
@@ -576,29 +579,29 @@ export class IncrementalSyncManager {
 
   /**
    * プロジェクト用増分同期パラメーターを生成
-   * 
+   *
    * @param spaceId - スペースID
    * @param projectId - プロジェクトID（オプション）
    * @returns Backlog API検索パラメータ
    */
   async generateProjectSearchParams(
     spaceId: string,
-    projectId?: number
+    projectId?: number,
   ): Promise<Partial<BacklogIssueSearchParams>> {
     const params: IncrementalSyncParams = {
       spaceId,
-      projectId,
+      ...(projectId && { projectId }),
       syncType: 'incremental',
     }
 
     const updatedSince = await this.getUpdatedSinceParam(params)
-    
+
     const searchParams: Partial<BacklogIssueSearchParams> = {}
-    
+
     if (projectId) {
       searchParams.projectId = [projectId]
     }
-    
+
     if (updatedSince) {
       searchParams.updatedSince = updatedSince
     }
@@ -635,7 +638,7 @@ export class IncrementalSyncManager {
           .where(eq(projects.backlogProjectId, projectId))
           .limit(1)
 
-        if (projectData.length > 0 && projectData[0].lastSyncAt) {
+        if (projectData.length > 0 && projectData[0]?.lastSyncAt) {
           return new Date(projectData[0].lastSyncAt)
         }
       }
@@ -648,13 +651,13 @@ export class IncrementalSyncManager {
           and(
             eq(syncLogs.connectionId, spaceId),
             eq(syncLogs.status, 'completed'),
-            projectId ? eq(syncLogs.projectId, projectId) : isNull(syncLogs.projectId)
-          )
+            projectId ? eq(syncLogs.projectId, projectId) : isNull(syncLogs.projectId),
+          ),
         )
         .orderBy(desc(syncLogs.completedAt))
         .limit(1)
 
-      if (lastSyncLog.length > 0 && lastSyncLog[0].completedAt) {
+      if (lastSyncLog.length > 0 && lastSyncLog[0]?.completedAt) {
         return new Date(lastSyncLog[0].completedAt)
       }
 
@@ -675,7 +678,7 @@ export class IncrementalSyncManager {
    */
   private async recordSyncCompletion(
     params: IncrementalSyncParams,
-    timestamp: Date
+    timestamp: Date,
   ): Promise<void> {
     if (!this.currentSessionId) {
       // セッションが開始されていない場合は新しく作成
@@ -684,7 +687,7 @@ export class IncrementalSyncManager {
 
     // 統計情報はダミーデータ（実際の同期処理で更新される）
     const dummyStats: SyncStatistics = {
-      sessionId: this.currentSessionId!,
+      sessionId: this.currentSessionId || '',
       startedAt: new Date(),
       completedAt: timestamp,
       dataStats: {
@@ -694,7 +697,9 @@ export class IncrementalSyncManager {
       },
     }
 
-    await this.completeSyncSession(this.currentSessionId!, dummyStats)
+    if (this.currentSessionId) {
+      await this.completeSyncSession(this.currentSessionId, dummyStats)
+    }
   }
 
   /**
@@ -708,7 +713,7 @@ export class IncrementalSyncManager {
         .where(eq(projects.backlogProjectId, backlogProjectId))
         .limit(1)
 
-      return project.length > 0 ? project[0].id : null
+      return project.length > 0 ? project[0]?.id || null : null
     }
     catch (error) {
       console.warn('ローカルプロジェクトIDの取得に失敗しました', {
@@ -722,11 +727,11 @@ export class IncrementalSyncManager {
   /**
    * 日時文字列をDateオブジェクトに変換
    */
-  private parseDate(dateValue: any): Date | null {
+  private parseDate(dateValue: unknown): Date | null {
     if (!dateValue) return null
-    
+
     try {
-      const date = new Date(dateValue)
+      const date = new Date(dateValue as string | number | Date)
       return isNaN(date.getTime()) ? null : date
     }
     catch {
@@ -737,37 +742,37 @@ export class IncrementalSyncManager {
 
 /**
  * 増分同期管理サービスファクトリー関数
- * 
+ *
  * @param database - Drizzle ORMデータベースインスタンス
  * @param options - 同期履歴管理オプション
  * @returns IncrementalSyncManagerインスタンス
  */
 export function createIncrementalSyncManager(
   database: ReturnType<typeof drizzle>,
-  options?: SyncHistoryOptions
+  options?: SyncHistoryOptions,
 ): IncrementalSyncManager {
   return new IncrementalSyncManager(database, options)
 }
 
 /**
  * 差分統計のサマリー生成
- * 
+ *
  * @param deltaChanges - 差分計算結果
  * @returns 統計サマリー文字列
  */
 export function formatDeltaChangesSummary<T>(deltaChanges: DeltaChanges<T>): string {
   const { stats } = deltaChanges
-  return `処理済み: ${stats.totalProcessed}, ` +
-    `新規: ${stats.createdCount}, ` +
-    `更新: ${stats.updatedCount}, ` +
-    `削除: ${stats.deletedCount}, ` +
-    `変更なし: ${stats.unchangedCount}, ` +
-    `処理時間: ${stats.processingTime}ms`
+  return `処理済み: ${stats.totalProcessed}, `
+    + `新規: ${stats.createdCount}, `
+    + `更新: ${stats.updatedCount}, `
+    + `削除: ${stats.deletedCount}, `
+    + `変更なし: ${stats.unchangedCount}, `
+    + `処理時間: ${stats.processingTime}ms`
 }
 
 /**
  * 同期パフォーマンスメトリクスの計算
- * 
+ *
  * @param stats - 同期統計
  * @returns パフォーマンスメトリクス
  */
@@ -776,16 +781,16 @@ export function calculateSyncPerformanceMetrics(stats: SyncStatistics): {
   averageProcessingTime: number // ms per item
   dataEfficiency: number // percentage of actual changes
 } {
-  const totalItems = stats.dataStats.projects.totalProcessed + 
-    stats.dataStats.issues.totalProcessed + 
-    stats.dataStats.users.totalProcessed
+  const totalItems = stats.dataStats.projects.totalProcessed
+    + stats.dataStats.issues.totalProcessed
+    + stats.dataStats.users.totalProcessed
 
-  const totalChanges = stats.dataStats.projects.createdCount + 
-    stats.dataStats.projects.updatedCount +
-    stats.dataStats.issues.createdCount + 
-    stats.dataStats.issues.updatedCount +
-    stats.dataStats.users.createdCount + 
-    stats.dataStats.users.updatedCount
+  const totalChanges = stats.dataStats.projects.createdCount
+    + stats.dataStats.projects.updatedCount
+    + stats.dataStats.issues.createdCount
+    + stats.dataStats.issues.updatedCount
+    + stats.dataStats.users.createdCount
+    + stats.dataStats.users.updatedCount
 
   const processingTime = stats.processingTime || 1
   const throughput = totalItems / (processingTime / 1000)

@@ -17,22 +17,23 @@ expect.extend({
    * StageResultが成功しているかチェック
    */
   toBeSuccessfulStageResult(received: StageResult) {
-    const pass = received.successfulRequests > 0 && 
-                 received.failedRequests === 0 && 
-                 received.errors.length === 0
+    const pass = received.successfulRequests > 0
+      && received.failedRequests === 0
+      && received.errors.length === 0
 
     if (pass) {
       return {
         message: () => `expected stage result not to be successful`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
-        message: () => 
-          `expected stage result to be successful, but got: ` +
-          `successful=${received.successfulRequests}, ` +
-          `failed=${received.failedRequests}, ` +
-          `errors=${received.errors.length}`,
+        message: () =>
+          `expected stage result to be successful, but got: `
+          + `successful=${received.successfulRequests}, `
+          + `failed=${received.failedRequests}, `
+          + `errors=${received.errors.length}`,
         pass: false,
       }
     }
@@ -47,13 +48,14 @@ expect.extend({
 
     if (pass) {
       return {
-        message: () => 
+        message: () =>
           `expected stage result not to have acceptable performance (${actualDuration}ms <= ${expectedMaxDuration}ms)`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
-        message: () => 
+        message: () =>
           `expected stage result to complete within ${expectedMaxDuration}ms, but took ${actualDuration}ms`,
         pass: false,
       }
@@ -64,22 +66,23 @@ expect.extend({
    * StageResultのデータ取得数が期待範囲内かチェック
    */
   toHaveDataInRange(received: StageResult, minData: number, maxData?: number) {
-    const totalData = received.dataSummary.projects + 
-                     received.dataSummary.issues + 
-                     received.dataSummary.users + 
-                     received.dataSummary.other
+    const totalData = received.dataSummary.projects
+      + received.dataSummary.issues
+      + received.dataSummary.users
+      + received.dataSummary.other
 
     const pass = totalData >= minData && (maxData === undefined || totalData <= maxData)
 
     if (pass) {
       return {
-        message: () => 
+        message: () =>
           `expected stage result not to have data in range ${minData}-${maxData || '∞'}, but got ${totalData}`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
-        message: () => 
+        message: () =>
           `expected stage result to have data in range ${minData}-${maxData || '∞'}, but got ${totalData}`,
         pass: false,
       }
@@ -102,7 +105,8 @@ expect.extend({
         message: () => `expected utilization analysis not to be high risk, but got ${received.riskLevel}`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
         message: () => `expected utilization analysis to be high risk, but got ${received.riskLevel}`,
         pass: false,
@@ -118,13 +122,14 @@ expect.extend({
 
     if (pass) {
       return {
-        message: () => 
+        message: () =>
           `expected utilization ${received.currentUtilization} not to exceed threshold ${threshold}`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
-        message: () => 
+        message: () =>
           `expected utilization ${received.currentUtilization} to exceed threshold ${threshold}`,
         pass: false,
       }
@@ -147,11 +152,12 @@ expect.extend({
         message: () => `expected error recovery not to be successful`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
-        message: () => 
-          `expected error recovery to be successful, but got: ` +
-          `recovered=${received.recovered}, method=${received.recoveryMethod}`,
+        message: () =>
+          `expected error recovery to be successful, but got: `
+          + `recovered=${received.recovered}, method=${received.recoveryMethod}`,
         pass: false,
       }
     }
@@ -165,13 +171,14 @@ expect.extend({
 
     if (pass) {
       return {
-        message: () => 
+        message: () =>
           `expected error recovery not to complete within ${maxDuration}ms, but took ${received.recoveryDuration}ms`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
-        message: () => 
+        message: () =>
           `expected error recovery to complete within ${maxDuration}ms, but took ${received.recoveryDuration}ms`,
         pass: false,
       }
@@ -194,7 +201,8 @@ expect.extend({
         message: () => `expected ${received} not to be one of [${validValues.join(', ')}]`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
         message: () => `expected ${received} to be one of [${validValues.join(', ')}]`,
         pass: false,
@@ -213,7 +221,8 @@ expect.extend({
         message: () => `expected ${received} not to be in range [${min}, ${max}]`,
         pass: true,
       }
-    } else {
+    }
+    else {
       return {
         message: () => `expected ${received} to be in range [${min}, ${max}]`,
         pass: false,
@@ -245,8 +254,9 @@ expect.extend({
         message: () => `expected performance metrics not to meet standards`,
         pass: true,
       }
-    } else {
-      const failures = []
+    }
+    else {
+      const failures: string[] = []
       if (!durationPass) failures.push(`duration: ${received.duration}ms > ${standards.maxDuration}ms`)
       if (!memoryPass) failures.push(`memory: ${memoryMB.toFixed(1)}MB > ${standards.maxMemoryMB}MB`)
       if (!concurrencyPass) failures.push(`concurrency: ${received.concurrency} > ${standards.maxConcurrency}`)
@@ -281,20 +291,20 @@ declare module 'vitest' {
   }
 
   interface AsymmetricMatchersContaining {
-    toBeSuccessfulStageResult(): any
-    toHaveAcceptablePerformance(maxDuration: number): any
-    toHaveDataInRange(minData: number, maxData?: number): any
-    toBeHighRiskUtilization(): any
-    toExceedUtilizationThreshold(threshold: number): any
-    toBeSuccessfulRecovery(): any
-    toRecoverWithinTime(maxDuration: number): any
-    toBeOneOf<T>(validValues: T[]): any
-    toBeInRange(min: number, max: number): any
+    toBeSuccessfulStageResult(): unknown
+    toHaveAcceptablePerformance(maxDuration: number): unknown
+    toHaveDataInRange(minData: number, maxData?: number): unknown
+    toBeHighRiskUtilization(): unknown
+    toExceedUtilizationThreshold(threshold: number): unknown
+    toBeSuccessfulRecovery(): unknown
+    toRecoverWithinTime(maxDuration: number): unknown
+    toBeOneOf<T>(validValues: T[]): unknown
+    toBeInRange(min: number, max: number): unknown
     toMeetPerformanceStandards(standards: {
       maxDuration: number
       maxMemoryMB: number
       maxConcurrency: number
-    }): any
+    }): unknown
   }
 }
 

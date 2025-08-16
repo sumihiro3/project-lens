@@ -16,23 +16,25 @@
  */
 
 import { eq, lt, sql } from 'drizzle-orm'
-import Database from '../../database/connection'
+// import type Database from '../../database/connection' // 将来の使用のため保持
 import { cache as cacheTable } from '../../database/schema'
 import type { BacklogApiClient } from './api-client'
 import type { BacklogRateLimiter } from './rate-limiter'
 import type { BacklogConnectionManager } from './connection-manager'
 import type { BacklogRequestQueue } from './request-queue'
-import type {
-  BacklogIssue,
-  BacklogProject,
-  BacklogUser,
-  BacklogSpace,
-} from '../../../../shared/types/backlog'
+import type { Database } from '../../database/connection'
+// 型定義（将来の型安全性向上のため保持）
+// import type {
+//   BacklogIssue,
+//   BacklogProject,
+//   BacklogUser,
+//   BacklogSpace,
+// } from '../../../../shared/types/backlog'
 
 /**
  * キャッシュエントリ（L1メモリキャッシュ用）
  */
-export interface CacheEntry<T = any> {
+export interface CacheEntry<T = unknown> {
   key: string
   value: T
   expiresAt: number
@@ -112,7 +114,7 @@ const CACHE_TTL_CONFIG = {
 /**
  * LRU（最少使用）キャッシュの実装
  */
-class LRUCache<T = any> {
+class LRUCache<T = unknown> {
   private cache = new Map<string, CacheEntry<T>>()
   private maxSize: number
   private maxEntries: number
@@ -232,7 +234,7 @@ class LRUCache<T = any> {
   /**
    * データサイズ推定
    */
-  private estimateSize(value: any): number {
+  private estimateSize(value: unknown): number {
     if (value === null || value === undefined) {
       return 8
     }
@@ -289,22 +291,22 @@ class LRUCache<T = any> {
  * 2層キャッシュマネージャー
  */
 export class BacklogCacheManager {
-  private database: DatabaseManager
+  private database: Database
   private l1Cache: LRUCache
   private config: CacheConfig
   private stats: CacheStats
-  private cleanupTimer?: NodeJS.Timeout
+  private cleanupTimer: NodeJS.Timeout | null = null
   private prefetchQueue: Set<string>
   private backgroundRefreshQueue: Set<string>
 
   // Phase 1-5統合用
   private apiClient?: BacklogApiClient
-  private _rateLimiter?: BacklogRateLimiter
-  private _connectionManager?: BacklogConnectionManager
-  private _requestQueue?: BacklogRequestQueue
+  private rateLimiter?: BacklogRateLimiter
+  // private connectionManager?: BacklogConnectionManager // 未使用のためコメントアウト
+  // private requestQueue?: BacklogRequestQueue // 未使用のためコメントアウト
 
   constructor(
-    database: DatabaseManager,
+    database: Database,
     config: Partial<CacheConfig> = {},
   ) {
     this.database = database
@@ -320,8 +322,8 @@ export class BacklogCacheManager {
     }
 
     // l1設定が提供されている場合はそれを使用、そうでなければデフォルト設定を使用
-    const l1MaxSize = config.l1?.maxSize ?? this.config.maxMemorySize
-    const l1MaxEntries = config.l1?.maxEntries ?? this.config.maxMemoryEntries
+    const l1MaxSize = (config as any).l1?.maxSize ?? this.config.maxMemorySize
+    const l1MaxEntries = (config as any).l1?.maxEntries ?? this.config.maxMemoryEntries
     this.l1Cache = new LRUCache(l1MaxSize, l1MaxEntries)
     this.prefetchQueue = new Set()
     this.backgroundRefreshQueue = new Set()
@@ -352,19 +354,19 @@ export class BacklogCacheManager {
   integrateDependencies(
     apiClient: BacklogApiClient,
     rateLimiter: BacklogRateLimiter,
-    connectionManager: BacklogConnectionManager,
-    requestQueue: BacklogRequestQueue,
+    _connectionManager: BacklogConnectionManager,
+    _requestQueue: BacklogRequestQueue,
   ): void {
     this.apiClient = apiClient
     this.rateLimiter = rateLimiter
-    this.connectionManager = connectionManager
-    this.requestQueue = requestQueue
+    // this.connectionManager = connectionManager // 未使用のためコメントアウト
+    // this.requestQueue = requestQueue // 未使用のためコメントアウト
   }
 
   /**
    * キャッシュからデータを取得（2層検索）
    */
-  async get<T = any>(key: string): Promise<T | null> {
+  async get<T = unknown>(key: string): Promise<T | null> {
     const startTime = performance.now()
     this.stats.totalRequests++
 
@@ -420,7 +422,7 @@ export class BacklogCacheManager {
   /**
    * キャッシュにデータを設定（2層書き込み）
    */
-  async set<T = any>(key: string, value: T, customTtl?: number): Promise<void> {
+  async set<T = unknown>(key: string, value: T, customTtl?: number): Promise<void> {
     const ttl = customTtl || this.getTtlForKey(key)
     const expiresAt = new Date(Date.now() + ttl)
 
@@ -540,7 +542,7 @@ export class BacklogCacheManager {
   /**
    * 統計情報取得
    */
-  getStats(): CacheStats & { l1: any, l2: any, hitRate: number } {
+  getStats(): CacheStats & { l1: Record<string, unknown>, l2: Record<string, unknown>, hitRate: number } {
     this.updateStats()
     const l1Stats = this.l1Cache.getStats()
     return {
@@ -585,13 +587,13 @@ export class BacklogCacheManager {
    * リフレッシュ（既存キャッシュの更新）
    */
   async refresh(key: string): Promise<void>
-  async refresh(key: string, refreshFn: () => Promise<any>): Promise<void>
-  async refresh(key: string, refreshFn?: () => Promise<any>): Promise<void> {
+  async refresh<T = unknown>(key: string, refreshFn: () => Promise<T>): Promise<void>
+  async refresh<T = unknown>(key: string, refreshFn?: () => Promise<T>): Promise<void> {
     try {
       // 既存キャッシュ削除
       await this.delete(key)
 
-      let data: any = null
+      let data: unknown = null
 
       if (refreshFn) {
         // カスタムリフレッシュ関数を使用
@@ -645,7 +647,7 @@ export class BacklogCacheManager {
   destroy(): void {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer)
-      this.cleanupTimer = undefined
+      this.cleanupTimer = null
     }
 
     this.l1Cache.clear()
@@ -671,6 +673,9 @@ export class BacklogCacheManager {
       }
 
       const entry = result[0]
+      if (!entry) {
+        return null
+      }
 
       // TTL有効期限チェック
       if (entry.expiresAt && new Date() > new Date(entry.expiresAt)) {
@@ -768,7 +773,7 @@ export class BacklogCacheManager {
   /**
    * APIからデータ取得
    */
-  private async fetchFromApi(key: string): Promise<any> {
+  private async fetchFromApi(key: string): Promise<unknown> {
     if (!this.apiClient) {
       return null
     }
@@ -785,7 +790,7 @@ export class BacklogCacheManager {
       }
 
       // API呼び出し（Phase 1統合）
-      const response = await (this.apiClient as any).request(endpoint, { params })
+      const response = await (this.apiClient as BacklogApiClient).request(endpoint, { params: params as Record<string, string | number | boolean | undefined> })
       return response.data
     }
     catch (error) {
@@ -797,20 +802,22 @@ export class BacklogCacheManager {
   /**
    * キーからAPIエンドポイント情報を解析
    */
-  private parseKeyToEndpoint(key: string): { endpoint: string, params: any } {
+  private parseKeyToEndpoint(key: string): { endpoint: string, params: Record<string, unknown> } {
     // キーの例: "spaceId:issues:projectId:1"
     const parts = key.split(':')
-    const _spaceId = parts[0]
+    // const spaceId = parts[0] // 未使用のためコメントアウト
     const resource = parts[1]
 
     const endpoint = `/${resource}`
-    const params: any = {}
+    const params: Record<string, unknown> = {}
 
     // リソース固有のパラメータ解析
     if (parts.length > 2) {
       for (let i = 2; i < parts.length; i += 2) {
-        if (i + 1 < parts.length && parts[i] !== undefined) {
-          params[parts[i]] = parts[i + 1]
+        const key = parts[i]
+        const value = parts[i + 1]
+        if (i + 1 < parts.length && key !== undefined && value !== undefined) {
+          params[key] = value
         }
       }
     }
@@ -979,7 +986,7 @@ export class IntegratedBacklogCacheService {
   private requestQueue!: BacklogRequestQueue
 
   constructor(
-    database: DatabaseManager,
+    database: Database,
     cacheConfig?: Partial<CacheConfig>,
   ) {
     this.cacheManager = new BacklogCacheManager(database, cacheConfig)
@@ -1013,10 +1020,10 @@ export class IntegratedBacklogCacheService {
   /**
    * キャッシュ付きAPIリクエスト
    */
-  async request<T = any>(
+  async request<T = unknown>(
     spaceId: string,
     endpoint: string,
-    params: any = {},
+    params: Record<string, unknown> = {},
     options: { forceRefresh?: boolean, customTtl?: number } = {},
   ): Promise<T> {
     const cacheKey = this.generateCacheKey(spaceId, endpoint, params)
@@ -1030,7 +1037,7 @@ export class IntegratedBacklogCacheService {
     }
 
     // APIリクエスト（Phase 1-5統合）
-    const apiResponse = await (this.apiClient as any).request(endpoint, { params })
+    const apiResponse = await (this.apiClient as BacklogApiClient).request(endpoint, { params: params as Record<string, string | number | boolean | undefined> })
     const data = apiResponse.data as T
 
     // キャッシュに保存
@@ -1042,7 +1049,7 @@ export class IntegratedBacklogCacheService {
   /**
    * キャッシュキー生成
    */
-  private generateCacheKey(spaceId: string, endpoint: string, params: any): string {
+  private generateCacheKey(spaceId: string, endpoint: string, params: Record<string, unknown>): string {
     const paramString = Object.keys(params)
       .sort()
       .map(key => `${key}:${params[key]}`)

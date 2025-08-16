@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">65.1% </span>
+                <span class="strong">64.99% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>347/533</span>
+                <span class='fraction'>349/537</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">82.5% </span>
+                <span class="strong">80.48% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>33/40</span>
+                <span class='fraction'>33/41</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">65.1% </span>
+                <span class="strong">64.99% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>347/533</span>
+                <span class='fraction'>349/537</span>
             </div>
         
             
@@ -959,7 +959,13 @@
 <a name='L894'></a><a href='#L894'>894</a>
 <a name='L895'></a><a href='#L895'>895</a>
 <a name='L896'></a><a href='#L896'>896</a>
-<a name='L897'></a><a href='#L897'>897</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L897'></a><a href='#L897'>897</a>
+<a name='L898'></a><a href='#L898'>898</a>
+<a name='L899'></a><a href='#L899'>899</a>
+<a name='L900'></a><a href='#L900'>900</a>
+<a name='L901'></a><a href='#L901'>901</a>
+<a name='L902'></a><a href='#L902'>902</a>
+<a name='L903'></a><a href='#L903'>903</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -983,6 +989,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1565,16 +1572,18 @@
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -1663,6 +1672,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1706,6 +1716,7 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1855,7 +1866,8 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">/**
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Backlog Stage Error Handler
  *
  * Stage別データ取得プロセスに特化したエラーハンドリングシステム。
@@ -1879,7 +1891,8 @@
 &nbsp;
 import type { Database } from '../../database/connection'
 import { syncLogs } from '../../database/schema'
-import { BacklogErrorHandler, BacklogApiError, ErrorType, ErrorSeverity } from './error-handler'
+import type { BacklogApiError } from './error-handler'
+import { BacklogErrorHandler, ErrorType, ErrorSeverity } from './error-handler'
 import { Logger } from '../../utils/logger'
 &nbsp;
 /**
@@ -2006,7 +2019,7 @@ export class StageErrorHandler {
 &nbsp;
   // Stage別戦略設定
   private readonly stageStrategies: Map&lt;StageType, StageRetryStrategy&gt;
-  
+&nbsp;
   // エラー統計と状態管理
   private readonly errorStats: StageErrorStats
   private readonly activeRetries = new Map&lt;string, {
@@ -2015,7 +2028,7 @@ export class StageErrorHandler {
     startTime: Date
     lastRetryTime: Date
   }&gt;()
-  
+&nbsp;
   // 永続的エラー検出
   private readonly persistentErrorTracker = new Map&lt;string, {
     errorType: ErrorType
@@ -2089,7 +2102,7 @@ export class StageErrorHandler {
     this.backlogErrorHandler = backlogErrorHandler || new BacklogErrorHandler()
     this.logger = Logger.getInstance()
     this.stageStrategies = new Map(StageErrorHandler.DEFAULT_STAGE_STRATEGIES)
-    
+&nbsp;
     // エラー統計の初期化
     this.errorStats = {
       stageErrorCounts: {
@@ -2104,8 +2117,8 @@ export class StageErrorHandler {
           averageRecoveryTime: 0,
           successfulRetries: 0,
           failedRetries: 0,
-        }])
-      ) as Record&lt;ErrorType, any&gt;,
+        }]),
+      ) as any,
       stageSuccessRates: {
         [StageType.STAGE_1_HIGH_PRIORITY]: 1.0,
         [StageType.STAGE_2_BACKGROUND]: 1.0,
@@ -2157,15 +2170,15 @@ export class StageErrorHandler {
       while (attempt &lt;= strategy.maxRetries) {
         try {
           const result = await operation()
-          
+&nbsp;
           // 成功時の処理
           if (attempt &gt; 0) {
             await this.recordSuccessfulRecovery(context, attempt, lastError)
           }
-          
+&nbsp;
           // 永続的エラートラッカーをリセット
           this.resetPersistentErrorTracking(context)
-          
+&nbsp;
           return result
         }
         catch (error) {
@@ -2177,13 +2190,13 @@ export class StageErrorHandler {
           })
 &nbsp;
           lastError = classifiedError
-          
+&nbsp;
           // エラー統計を更新
           this.updateErrorStats(context, classifiedError, attempt)
-          
+&nbsp;
           // 永続的エラーを追跡
           this.trackPersistentError(context, classifiedError)
-          
+&nbsp;
           // リトライ可能性をチェック
           if (!this.shouldRetry(classifiedError, attempt, strategy, context)) {
             await this.recordFinalFailure(context, classifiedError, attempt)
@@ -2192,7 +2205,7 @@ export class StageErrorHandler {
 &nbsp;
           // 遅延計算とリトライ実行
           const delay = this.calculateRetryDelay(strategy, attempt)
-          
+&nbsp;
           this.logger.warn('Stage operation failed, retrying', {
             stage: context.stage,
             spaceId: context.spaceId,
@@ -2206,7 +2219,7 @@ export class StageErrorHandler {
 &nbsp;
           await this.sleep(delay)
           attempt++
-          
+&nbsp;
           // アクティブリトライ情報を更新
           const retryInfo = this.activeRetries.get(executionKey)
           if (retryInfo) {
@@ -2219,12 +2232,12 @@ export class StageErrorHandler {
       // 最大リトライ回数に達した場合
 <span class="cstat-no" title="statement not covered" >      if (lastError) {</span>
 <span class="cstat-no" title="statement not covered" >        await this.recordFinalFailure(context, lastError, attempt)</span>
-        
+&nbsp;
         // エスカレーション判定
 <span class="cstat-no" title="statement not covered" >        if (strategy.enableEscalation &amp;&amp; this.shouldEscalate(context, lastError)) {</span>
 <span class="cstat-no" title="statement not covered" >          await this.escalateError(context, lastError)</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
-        
+&nbsp;
 <span class="cstat-no" title="statement not covered" >        throw lastError</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 &nbsp;
@@ -2249,10 +2262,10 @@ export class StageErrorHandler {
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;ErrorRecoveryResult&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    const startTime = Date.now()</span>
 <span class="cstat-no" title="statement not covered" >    const recoveryLog: string[] = []</span>
-<span class="cstat-no" title="statement not covered" >    let retriesAttempted = 0</span>
+<span class="cstat-no" title="statement not covered" >    const retriesAttempted = 0</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    recoveryLog.push(`Starting error recovery for ${context.stage} at ${new Date().toISOString()}`)</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    try {</span>
       // 1. 基本的なエラー回復を試行
 <span class="cstat-no" title="statement not covered" >      const basicRecovery = await this.backlogErrorHandler.attemptRecovery(error)</span>
@@ -2346,15 +2359,15 @@ export class StageErrorHandler {
    */
 <span class="fstat-no" title="function not covered" >  resetPersistentErrors(spaceId: string, errorType?: ErrorType): void {</span>
 <span class="cstat-no" title="statement not covered" >    const keysToDelete: string[] = []</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    this.persistentErrorTracker.forEach((tracker, key) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      if (key.startsWith(spaceId) &amp;&amp; (!errorType || tracker.errorType === errorType)) {</span>
 <span class="cstat-no" title="statement not covered" >        keysToDelete.push(key)</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    })</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    keysToDelete.forEach(key =&gt; this.persistentErrorTracker.delete(key))</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    this.logger.info('Persistent errors reset', {</span>
 <span class="cstat-no" title="statement not covered" >      spaceId,</span>
 <span class="cstat-no" title="statement not covered" >      errorType,</span>
@@ -2414,7 +2427,7 @@ export class StageErrorHandler {
     const exponentialDelay = strategy.baseDelayMs * Math.pow(strategy.backoffMultiplier, attempt)
     const jitter = Math.random() * strategy.jitterRangeMs
     const totalDelay = exponentialDelay + jitter
-    
+&nbsp;
     return Math.min(totalDelay, strategy.maxDelayMs)
   }
 &nbsp;
@@ -2428,27 +2441,27 @@ export class StageErrorHandler {
   ): void {
     // Stage別エラーカウント
     this.errorStats.stageErrorCounts[context.stage]++
-    
+&nbsp;
     // エラータイプ統計
     const typeStats = this.errorStats.errorTypeStats[error.type]
     if (typeStats) {
       typeStats.count++
       typeStats.lastOccurrence = new Date()
-      
+&nbsp;
       if (attempt &gt; 0) {
         typeStats.failedRetries++
       }
     }
-    
+&nbsp;
     // 時刻パターン分析
     const hour = new Date().getHours()
     const dayOfWeek = new Date().getDay()
-    
-    this.errorStats.errorPatterns.timeOfDayDistribution[hour] = 
-      (this.errorStats.errorPatterns.timeOfDayDistribution[hour] || 0) + 1
-    
-    this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek] = 
-      (this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek] || 0) + 1
+&nbsp;
+    this.errorStats.errorPatterns.timeOfDayDistribution[hour]
+      = (this.errorStats.errorPatterns.timeOfDayDistribution[hour] || 0) + 1
+&nbsp;
+    this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek]
+      = (this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek] || 0) + 1
   }
 &nbsp;
   /**
@@ -2457,11 +2470,12 @@ export class StageErrorHandler {
   private trackPersistentError(context: StageExecutionContext, error: BacklogApiError): void {
     const key = `${context.spaceId}:${error.type}:${context.endpoint}`
     const existing = this.persistentErrorTracker.get(key)
-    
+&nbsp;
     if (existing) {
       existing.consecutiveFailures++
       existing.lastFailure = new Date()
-    } else {
+    }
+    else {
       this.persistentErrorTracker.set(key, {
         errorType: error.type,
         consecutiveFailures: 1,
@@ -2469,9 +2483,10 @@ export class StageErrorHandler {
         lastFailure: new Date(),
       })
     }
-    
+&nbsp;
     // 永続的エラーとして記録
-    const tracker = this.persistentErrorTracker.get(key)!
+    const tracker = this.persistentErrorTracker.get(key)
+    if (!tracker) <span class="branch-0 cbranch-no" title="branch not covered" >return</span>
     if (tracker.consecutiveFailures &gt;= this.alertThresholds.persistentErrorThreshold) {
       this.errorStats.persistentErrors.push({
         errorType: error.type,
@@ -2491,9 +2506,9 @@ export class StageErrorHandler {
   private isPersistentError(context: StageExecutionContext, error: BacklogApiError): boolean {
     const key = `${context.spaceId}:${error.type}:${context.endpoint}`
     const tracker = this.persistentErrorTracker.get(key)
-    
-    return tracker !== undefined &amp;&amp; 
-           tracker.consecutiveFailures &gt;= this.alertThresholds.persistentErrorThreshold
+&nbsp;
+    return tracker !== undefined
+      &amp;&amp; tracker.consecutiveFailures &gt;= this.alertThresholds.persistentErrorThreshold
   }
 &nbsp;
   /**
@@ -2501,13 +2516,13 @@ export class StageErrorHandler {
    */
   private resetPersistentErrorTracking(context: StageExecutionContext): void {
     const keysToDelete: string[] = []
-    
+&nbsp;
     this.persistentErrorTracker.forEach((_, key) =&gt; {
       if (key.startsWith(`${context.spaceId}:`) &amp;&amp; key.includes(`:${context.endpoint}`)) {
         keysToDelete.push(key)
       }
     })
-    
+&nbsp;
     keysToDelete.forEach(key =&gt; this.persistentErrorTracker.delete(key))
   }
 &nbsp;
@@ -2524,8 +2539,8 @@ export class StageErrorHandler {
       const typeStats = this.errorStats.errorTypeStats[lastError.type]
       if (typeStats) {
         typeStats.successfulRetries++
-        typeStats.averageRecoveryTime = 
-          (typeStats.averageRecoveryTime + (Date.now() - context.startTime.getTime())) / 2
+        typeStats.averageRecoveryTime
+          = (typeStats.averageRecoveryTime + (Date.now() - context.startTime.getTime())) / 2
       }
     }
 &nbsp;
@@ -2552,7 +2567,8 @@ export class StageErrorHandler {
             executionId: context.executionId,
           }),
         })
-<span class="branch-0 cbranch-no" title="branch not covered" >    } catch (dbError) {</span>
+<span class="branch-0 cbranch-no" title="branch not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    catch (dbError) {</span>
 <span class="cstat-no" title="statement not covered" >      this.logger.error('Failed to record successful recovery to syncLogs', dbError as Error, {</span>
 <span class="cstat-no" title="statement not covered" >        context,</span>
 <span class="cstat-no" title="statement not covered" >        attempts,</span>
@@ -2571,8 +2587,8 @@ export class StageErrorHandler {
   ): Promise&lt;void&gt; {
     // Stage成功率を更新
     const currentRate = this.errorStats.stageSuccessRates[context.stage]
-    this.errorStats.stageSuccessRates[context.stage] = 
-      Math.max(0, currentRate - 0.01) // 1%減少
+    this.errorStats.stageSuccessRates[context.stage]
+      = Math.max(0, currentRate - 0.01) // 1%減少
 &nbsp;
     // syncLogsテーブルに記録
     try {
@@ -2601,7 +2617,8 @@ export class StageErrorHandler {
             httpStatus: error.httpStatus,
           }),
         })
-<span class="branch-0 cbranch-no" title="branch not covered" >    } catch (dbError) {</span>
+<span class="branch-0 cbranch-no" title="branch not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    catch (dbError) {</span>
 <span class="cstat-no" title="statement not covered" >      this.logger.error('Failed to record final failure to syncLogs', dbError as Error, {</span>
 <span class="cstat-no" title="statement not covered" >        context,</span>
 <span class="cstat-no" title="statement not covered" >        error: error.getFullDetails(),</span>
@@ -2617,18 +2634,18 @@ export class StageErrorHandler {
 <span class="cstat-no" title="statement not covered" >    if (error.severity === ErrorSeverity.CRITICAL) {</span>
 <span class="cstat-no" title="statement not covered" >      return true</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
     // Stage 1の場合は積極的にエスカレーション
 <span class="cstat-no" title="statement not covered" >    if (context.stage === StageType.STAGE_1_HIGH_PRIORITY) {</span>
 <span class="cstat-no" title="statement not covered" >      return true</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
     // 実行時間による判定
 <span class="cstat-no" title="statement not covered" >    const executionDuration = Date.now() - context.startTime.getTime()</span>
 <span class="cstat-no" title="statement not covered" >    if (executionDuration &gt; this.alertThresholds.escalationTimeoutMs) {</span>
 <span class="cstat-no" title="statement not covered" >      return true</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return false</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
@@ -2655,20 +2672,20 @@ export class StageErrorHandler {
    */
   private <span class="fstat-no" title="function not covered" >getEscalationReason(context: StageExecutionContext, error: BacklogApiError): string {</span>
 <span class="cstat-no" title="statement not covered" >    const reasons: string[] = []</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (error.severity === ErrorSeverity.CRITICAL) {</span>
 <span class="cstat-no" title="statement not covered" >      reasons.push('Critical error severity')</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (context.stage === StageType.STAGE_1_HIGH_PRIORITY) {</span>
 <span class="cstat-no" title="statement not covered" >      reasons.push('High priority stage failure')</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    const executionDuration = Date.now() - context.startTime.getTime()</span>
 <span class="cstat-no" title="statement not covered" >    if (executionDuration &gt; this.alertThresholds.escalationTimeoutMs) {</span>
 <span class="cstat-no" title="statement not covered" >      reasons.push(`Execution timeout (${Math.round(executionDuration / 1000)}s)`)</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return reasons.join(', ')</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
@@ -2677,27 +2694,27 @@ export class StageErrorHandler {
    */
 <span class="fstat-no" title="function not covered" >  private async attemptStageSpecificRecovery(</span>
 <span class="cstat-no" title="statement not covered" >    context: StageExecutionContext,</span>
-<span class="cstat-no" title="statement not covered" >    error: BacklogApiError,</span>
+<span class="cstat-no" title="statement not covered" >    _error: BacklogApiError,</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;ErrorRecoveryResult&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    const recoveryLog: string[] = []</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    switch (context.stage) {</span>
 <span class="cstat-no" title="statement not covered" >      case StageType.STAGE_1_HIGH_PRIORITY:</span>
 <span class="cstat-no" title="statement not covered" >        recoveryLog.push('Attempting high-priority stage recovery')</span>
         // 即座の代替エンドポイント試行など
 <span class="cstat-no" title="statement not covered" >        break</span>
-        
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      case StageType.STAGE_2_BACKGROUND:</span>
 <span class="cstat-no" title="statement not covered" >        recoveryLog.push('Attempting background stage recovery')</span>
         // より長い待機時間での再試行など
 <span class="cstat-no" title="statement not covered" >        break</span>
-        
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      case StageType.STAGE_3_IDLE:</span>
 <span class="cstat-no" title="statement not covered" >        recoveryLog.push('Attempting idle stage recovery')</span>
         // 次回実行への延期など
 <span class="cstat-no" title="statement not covered" >        break</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
     // 基本的な実装：常に失敗を返す（具体的な回復ロジックは要件に応じて実装）
 <span class="cstat-no" title="statement not covered" >    return {</span>
 <span class="cstat-no" title="statement not covered" >      recovered: false,</span>
@@ -2712,14 +2729,14 @@ export class StageErrorHandler {
    * フォールバック回復を試行
    */
 <span class="fstat-no" title="function not covered" >  private async attemptFallbackRecovery(</span>
-<span class="cstat-no" title="statement not covered" >    context: StageExecutionContext,</span>
-<span class="cstat-no" title="statement not covered" >    error: BacklogApiError,</span>
+<span class="cstat-no" title="statement not covered" >    _context: StageExecutionContext,</span>
+<span class="cstat-no" title="statement not covered" >    _error: BacklogApiError,</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;ErrorRecoveryResult&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    const recoveryLog: string[] = ['Attempting fallback recovery']</span>
-    
+&nbsp;
     // 基本的な実装：キャッシュからのデータ取得、デフォルト値の使用など
     // 具体的な実装は要件に応じて追加
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return {</span>
 <span class="cstat-no" title="statement not covered" >      recovered: false,</span>
 <span class="cstat-no" title="statement not covered" >      recoveryMethod: 'abort',</span>
@@ -2751,14 +2768,15 @@ export <span class="fstat-no" title="function not covered" >function createStage
 <span class="cstat-no" title="statement not covered" >  return new StageErrorHandler(database, backlogErrorHandler)</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;
-export default StageErrorHandler</pre></td></tr></table></pre>
+export default StageErrorHandler
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-16T03:01:23.870Z
+                at 2025-08-16T07:27:21.081Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

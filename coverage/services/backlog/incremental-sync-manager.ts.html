@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">29.62% </span>
+                <span class="strong">29.5% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>144/486</span>
+                <span class='fraction'>144/488</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">29.62% </span>
+                <span class="strong">29.5% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>144/486</span>
+                <span class='fraction'>144/488</span>
             </div>
         
             
@@ -867,7 +867,13 @@
 <a name='L802'></a><a href='#L802'>802</a>
 <a name='L803'></a><a href='#L803'>803</a>
 <a name='L804'></a><a href='#L804'>804</a>
-<a name='L805'></a><a href='#L805'>805</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L805'></a><a href='#L805'>805</a>
+<a name='L806'></a><a href='#L806'>806</a>
+<a name='L807'></a><a href='#L807'>807</a>
+<a name='L808'></a><a href='#L808'>808</a>
+<a name='L809'></a><a href='#L809'>809</a>
+<a name='L810'></a><a href='#L810'>810</a>
+<a name='L811'></a><a href='#L811'>811</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -885,6 +891,9 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1565,6 +1574,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1671,7 +1682,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">/**
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Backlog増分同期管理サービス
  *
  * Backlog APIからの増分データ同期を管理し、効率的な差分更新を実現します。
@@ -1686,25 +1698,28 @@
  * - 統計収集とメトリクス
  */
 &nbsp;
-import { eq, and, desc, gte, lt, isNull } from 'drizzle-orm'
+import { eq, and, desc, lt, isNull } from 'drizzle-orm'
 import type { drizzle } from 'drizzle-orm/better-sqlite3'
-import { 
-  syncLogs, 
-  projects, 
-  issues, 
-  users, 
-  type SelectSyncLog, 
-  type InsertSyncLog, 
+import {
+  syncLogs,
+  projects,
+  type SelectSyncLog,
+  type InsertSyncLog,
   type UpdateSyncLog,
-  type SelectProject,
-  type SelectIssue,
-  type SelectUser
 } from '../../database/schema'
+// 将来の実装のためコメントアウト
+// import {
+//   issues,
+//   users,
+//   type SelectProject,
+//   type SelectIssue,
+//   type SelectUser,
+// } from '../../database/schema'
 import type {
   BacklogProject,
   BacklogIssue,
   BacklogUser,
-  BacklogIssueSearchParams
+  BacklogIssueSearchParams,
 } from '../../../../shared/types/backlog'
 &nbsp;
 /**
@@ -1714,7 +1729,7 @@ export interface IncrementalSyncParams {
   /** 対象スペースID */
   spaceId: string
   /** 対象プロジェクトID（省略時は全プロジェクト） */
-  projectId?: number
+  projectId?: number | undefined
   /** 同期タイプ */
   syncType: 'incremental' | 'full'
   /** 強制同期（前回同期時刻を無視） */
@@ -1787,7 +1802,7 @@ export interface SyncHistoryOptions {
 &nbsp;
 /**
  * Backlog増分同期管理サービス
- * 
+ *
  * 効率的な差分同期とデータ整合性管理を提供します。
  */
 export class IncrementalSyncManager {
@@ -1797,13 +1812,13 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * コンストラクター
-   * 
+   *
    * @param database - Drizzle ORMデータベースインスタンス
    * @param options - 同期履歴管理オプション
    */
   constructor(
     database: ReturnType&lt;typeof drizzle&gt;,
-    options: SyncHistoryOptions = {}
+    options: SyncHistoryOptions = {},
   ) {
     this.db = database
     this.options = {
@@ -1820,9 +1835,9 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * updatedSinceパラメーターを取得
-   * 
+   *
    * 前回同期時刻を基に、APIリクエスト用のupdatedSinceパラメーターを生成します。
-   * 
+   *
    * @param params - 同期パラメータ
    * @returns updatedSinceパラメーター（ISO 8601形式）
    */
@@ -1853,7 +1868,7 @@ export class IncrementalSyncManager {
 &nbsp;
       // 前回同期時刻を取得
       const lastSyncTime = await this.getLastSyncTimestamp(params.spaceId, params.projectId)
-      
+&nbsp;
       if (!lastSyncTime) {
         console.log('前回同期時刻が見つかりません。初回同期として実行します')
         return undefined
@@ -1878,15 +1893,15 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * 同期成功時のタイムスタンプを更新
-   * 
+   *
    * 同期完了後に呼び出し、次回の増分同期のベースとなる時刻を記録します。
-   * 
+   *
    * @param params - 同期パラメータ
    * @param timestamp - 同期完了時刻（省略時は現在時刻）
    */
 <span class="fstat-no" title="function not covered" >  async updateSyncTimestamp(</span>
 <span class="cstat-no" title="statement not covered" >    params: IncrementalSyncParams,</span>
-<span class="cstat-no" title="statement not covered" >    timestamp: Date = new Date()</span>
+<span class="cstat-no" title="statement not covered" >    timestamp: Date = new Date(),</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;void&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      console.log('同期タイムスタンプの更新を開始します', {</span>
@@ -1927,23 +1942,23 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * 差分データの計算と識別
-   * 
+   *
    * 取得したデータと既存データを比較し、作成・更新・削除されたアイテムを特定します。
-   * 
+   *
    * @param fetchedData - APIから取得したデータ
    * @param existingData - 既存のデータベースデータ
    * @param compareKey - 比較に使用するキー（デフォルト: 'id'）
    * @param updatedKey - 更新日時のキー（デフォルト: 'updated'）
    * @returns 差分計算結果
    */
-  async calculateDeltaChanges&lt;T extends Record&lt;string, any&gt;&gt;(
+  async calculateDeltaChanges&lt;T extends Record&lt;string, unknown&gt;&gt;(
     fetchedData: T[],
     existingData: T[],
     compareKey: keyof T = 'id',
-    updatedKey: keyof T = 'updated'
+    updatedKey: keyof T = 'updated',
   ): Promise&lt;DeltaChanges&lt;T&gt;&gt; {
     const startTime = Date.now()
-    
+&nbsp;
     try {
       console.log('差分データの計算を開始します', {
         fetchedCount: fetchedData.length,
@@ -1953,13 +1968,13 @@ export class IncrementalSyncManager {
       })
 &nbsp;
       // 既存データをMapに変換（高速検索用）
-      const existingMap = new Map&lt;any, T&gt;()
+      const existingMap = new Map&lt;T[keyof T], T&gt;()
       for (const item of existingData) {
         existingMap.set(item[compareKey], item)
       }
 &nbsp;
       // 取得データをMapに変換
-      const fetchedMap = new Map&lt;any, T&gt;()
+      const fetchedMap = new Map&lt;T[keyof T], T&gt;()
       for (const item of fetchedData) {
         fetchedMap.set(item[compareKey], item)
       }
@@ -1969,9 +1984,9 @@ export class IncrementalSyncManager {
       let unchanged = 0
 &nbsp;
       // 新規作成・更新を判定
-      for (const [key, fetchedItem] of fetchedMap) {
+      for (const [key, fetchedItem] of Array.from(fetchedMap.entries())) {
         const existingItem = existingMap.get(key)
-        
+&nbsp;
         if (!existingItem) {
           // 新規作成
           created.push(fetchedItem)
@@ -1980,7 +1995,7 @@ export class IncrementalSyncManager {
           // 更新日時を比較して更新を判定
           const fetchedUpdated = this.parseDate(fetchedItem[updatedKey])
           const existingUpdated = this.parseDate(existingItem[updatedKey])
-          
+&nbsp;
           if (fetchedUpdated &amp;&amp; existingUpdated &amp;&amp; fetchedUpdated &gt; existingUpdated) {
             updated.push(fetchedItem)
 <span class="branch-0 cbranch-no" title="branch not covered" >          }</span>
@@ -1992,9 +2007,9 @@ export class IncrementalSyncManager {
 &nbsp;
       // 削除を判定（取得データに存在しない既存データ）
       const deleted: number[] = []
-      for (const [key] of existingMap) {
+      for (const key of Array.from(existingMap.keys())) {
         if (!fetchedMap.has(key)) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
-<span class="cstat-no" title="statement not covered" >          deleted.push(key)</span>
+<span class="cstat-no" title="statement not covered" >          deleted.push(key as number)</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
       }
 &nbsp;
@@ -2032,19 +2047,19 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * 同期履歴の管理とクリーンアップ
-   * 
+   *
    * 古い同期履歴を削除し、ストレージ使用量を最適化します。
-   * 
+   *
    * @param spaceId - 対象スペースID
    * @param options - クリーンアップオプション
    */
 <span class="fstat-no" title="function not covered" >  async manageSyncHistory(</span>
 <span class="cstat-no" title="statement not covered" >    spaceId: string,</span>
-<span class="cstat-no" title="statement not covered" >    options: Partial&lt;SyncHistoryOptions&gt; = {}</span>
+<span class="cstat-no" title="statement not covered" >    options: Partial&lt;SyncHistoryOptions&gt; = {},</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;void&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      const cleanupOptions = { ...this.options, ...options }</span>
-      
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      console.log('同期履歴の管理を開始します', {</span>
 <span class="cstat-no" title="statement not covered" >        spaceId,</span>
 <span class="cstat-no" title="statement not covered" >        maxHistoryCount: cleanupOptions.maxHistoryCount,</span>
@@ -2061,13 +2076,13 @@ export class IncrementalSyncManager {
 <span class="cstat-no" title="statement not covered" >      cutoffDate.setDate(cutoffDate.getDate() - cleanupOptions.retentionDays)</span>
 &nbsp;
       // 保持期間を超えた古い履歴を削除
-<span class="cstat-no" title="statement not covered" >      const deletedByDate = await this.db</span>
+<span class="cstat-no" title="statement not covered" >      await this.db</span>
 <span class="cstat-no" title="statement not covered" >        .delete(syncLogs)</span>
 <span class="cstat-no" title="statement not covered" >        .where(</span>
 <span class="cstat-no" title="statement not covered" >          and(</span>
 <span class="cstat-no" title="statement not covered" >            eq(syncLogs.connectionId, spaceId),</span>
-<span class="cstat-no" title="statement not covered" >            lt(syncLogs.startedAt, cutoffDate.toISOString())</span>
-<span class="cstat-no" title="statement not covered" >          )</span>
+<span class="cstat-no" title="statement not covered" >            lt(syncLogs.startedAt, cutoffDate.toISOString()),</span>
+<span class="cstat-no" title="statement not covered" >          ),</span>
 <span class="cstat-no" title="statement not covered" >        )</span>
 &nbsp;
       // 保持数を超えた履歴を削除（最新のもの以外）
@@ -2089,8 +2104,8 @@ export class IncrementalSyncManager {
 <span class="cstat-no" title="statement not covered" >              and(</span>
 <span class="cstat-no" title="statement not covered" >                eq(syncLogs.connectionId, spaceId),</span>
                 // SQLiteではIN句でサブクエリを使用
-<span class="cstat-no" title="statement not covered" >                ...idsToDelete.map(id =&gt; eq(syncLogs.id, id))</span>
-<span class="cstat-no" title="statement not covered" >              )</span>
+<span class="cstat-no" title="statement not covered" >                ...idsToDelete.map(id =&gt; eq(syncLogs.id, id)),</span>
+<span class="cstat-no" title="statement not covered" >              ),</span>
 <span class="cstat-no" title="statement not covered" >            )</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
@@ -2114,14 +2129,14 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * 同期セッションを開始
-   * 
+   *
    * @param params - 同期パラメータ
    * @returns セッションID
    */
 <span class="fstat-no" title="function not covered" >  async startSyncSession(params: IncrementalSyncParams): Promise&lt;string&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      this.currentSessionId = `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`</span>
-      
+&nbsp;
 <span class="cstat-no" title="statement not covered" >      const syncLogEntry: InsertSyncLog = {</span>
 <span class="cstat-no" title="statement not covered" >        connectionId: params.spaceId,</span>
 <span class="cstat-no" title="statement not covered" >        projectId: params.projectId ? await this.getLocalProjectId(params.projectId) : null,</span>
@@ -2156,7 +2171,7 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * 同期セッションを完了
-   * 
+   *
    * @param sessionId - セッションID
    * @param stats - 同期統計
    * @param error - エラー情報（オプション）
@@ -2164,7 +2179,7 @@ export class IncrementalSyncManager {
 <span class="fstat-no" title="function not covered" >  async completeSyncSession(</span>
 <span class="cstat-no" title="statement not covered" >    sessionId: string,</span>
 <span class="cstat-no" title="statement not covered" >    stats: SyncStatistics,</span>
-<span class="cstat-no" title="statement not covered" >    error?: Error</span>
+<span class="cstat-no" title="statement not covered" >    error?: Error,</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;void&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      const updateData: UpdateSyncLog = {</span>
@@ -2215,7 +2230,7 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * 同期統計を取得
-   * 
+   *
    * @param spaceId - スペースID
    * @param limit - 取得する履歴数（デフォルト: 10）
    * @returns 同期統計の配列
@@ -2249,29 +2264,29 @@ export class IncrementalSyncManager {
 &nbsp;
   /**
    * プロジェクト用増分同期パラメーターを生成
-   * 
+   *
    * @param spaceId - スペースID
    * @param projectId - プロジェクトID（オプション）
    * @returns Backlog API検索パラメータ
    */
 <span class="fstat-no" title="function not covered" >  async generateProjectSearchParams(</span>
 <span class="cstat-no" title="statement not covered" >    spaceId: string,</span>
-<span class="cstat-no" title="statement not covered" >    projectId?: number</span>
+<span class="cstat-no" title="statement not covered" >    projectId?: number,</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;Partial&lt;BacklogIssueSearchParams&gt;&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    const params: IncrementalSyncParams = {</span>
 <span class="cstat-no" title="statement not covered" >      spaceId,</span>
-<span class="cstat-no" title="statement not covered" >      projectId,</span>
+<span class="cstat-no" title="statement not covered" >      ...(projectId &amp;&amp; { projectId }),</span>
 <span class="cstat-no" title="statement not covered" >      syncType: 'incremental',</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    const updatedSince = await this.getUpdatedSinceParam(params)</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    const searchParams: Partial&lt;BacklogIssueSearchParams&gt; = {}</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (projectId) {</span>
 <span class="cstat-no" title="statement not covered" >      searchParams.projectId = [projectId]</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-    
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    if (updatedSince) {</span>
 <span class="cstat-no" title="statement not covered" >      searchParams.updatedSince = updatedSince</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
@@ -2308,7 +2323,7 @@ export class IncrementalSyncManager {
           .where(eq(projects.backlogProjectId, projectId))
           .limit(1)
 &nbsp;
-        if (projectData.length &gt; <span class="branch-0 cbranch-no" title="branch not covered" >0 &amp;&amp; projectData[0].lastSyncAt) <span class="branch-0 cbranch-no" title="branch not covered" >{</span></span>
+        if (projectData.length &gt; <span class="branch-0 cbranch-no" title="branch not covered" >0 &amp;&amp; projectData[0]?.lastSyncAt) <span class="branch-0 cbranch-no" title="branch not covered" >{</span></span>
 <span class="cstat-no" title="statement not covered" >          return new Date(projectData[0].lastSyncAt)</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
       }
@@ -2321,13 +2336,13 @@ export class IncrementalSyncManager {
           and(
             eq(syncLogs.connectionId, spaceId),
             eq(syncLogs.status, 'completed'),
-            projectId ? eq(syncLogs.projectId, projectId<span class="branch-0 cbranch-no" title="branch not covered" >) : isNull(syncLogs.projectId)</span>
-          )
+            projectId ? eq(syncLogs.projectId, projectId<span class="branch-0 cbranch-no" title="branch not covered" >) : isNull(syncLogs.projectId),</span>
+          ),
         )
         .orderBy(desc(syncLogs.completedAt))
         .limit(1)
 &nbsp;
-      if (lastSyncLog.length &gt; <span class="branch-0 cbranch-no" title="branch not covered" >0 &amp;&amp; lastSyncLog[0].completedAt) <span class="branch-0 cbranch-no" title="branch not covered" >{</span></span>
+      if (lastSyncLog.length &gt; <span class="branch-0 cbranch-no" title="branch not covered" >0 &amp;&amp; lastSyncLog[0]?.completedAt) <span class="branch-0 cbranch-no" title="branch not covered" >{</span></span>
 <span class="cstat-no" title="statement not covered" >        return new Date(lastSyncLog[0].completedAt)</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 &nbsp;
@@ -2348,7 +2363,7 @@ export class IncrementalSyncManager {
    */
 <span class="fstat-no" title="function not covered" >  private async recordSyncCompletion(</span>
 <span class="cstat-no" title="statement not covered" >    params: IncrementalSyncParams,</span>
-<span class="cstat-no" title="statement not covered" >    timestamp: Date</span>
+<span class="cstat-no" title="statement not covered" >    timestamp: Date,</span>
 <span class="cstat-no" title="statement not covered" >  ): Promise&lt;void&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    if (!this.currentSessionId) {</span>
       // セッションが開始されていない場合は新しく作成
@@ -2357,7 +2372,7 @@ export class IncrementalSyncManager {
 &nbsp;
     // 統計情報はダミーデータ（実際の同期処理で更新される）
 <span class="cstat-no" title="statement not covered" >    const dummyStats: SyncStatistics = {</span>
-<span class="cstat-no" title="statement not covered" >      sessionId: this.currentSessionId!,</span>
+<span class="cstat-no" title="statement not covered" >      sessionId: this.currentSessionId || '',</span>
 <span class="cstat-no" title="statement not covered" >      startedAt: new Date(),</span>
 <span class="cstat-no" title="statement not covered" >      completedAt: timestamp,</span>
 <span class="cstat-no" title="statement not covered" >      dataStats: {</span>
@@ -2367,7 +2382,9 @@ export class IncrementalSyncManager {
 <span class="cstat-no" title="statement not covered" >      },</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    await this.completeSyncSession(this.currentSessionId!, dummyStats)</span>
+<span class="cstat-no" title="statement not covered" >    if (this.currentSessionId) {</span>
+<span class="cstat-no" title="statement not covered" >      await this.completeSyncSession(this.currentSessionId, dummyStats)</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 &nbsp;
   /**
@@ -2381,7 +2398,7 @@ export class IncrementalSyncManager {
 <span class="cstat-no" title="statement not covered" >        .where(eq(projects.backlogProjectId, backlogProjectId))</span>
 <span class="cstat-no" title="statement not covered" >        .limit(1)</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >      return project.length &gt; 0 ? project[0].id : null</span>
+<span class="cstat-no" title="statement not covered" >      return project.length &gt; 0 ? project[0]?.id || null : null</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >    catch (error) {</span>
 <span class="cstat-no" title="statement not covered" >      console.warn('ローカルプロジェクトIDの取得に失敗しました', {</span>
@@ -2395,11 +2412,11 @@ export class IncrementalSyncManager {
   /**
    * 日時文字列をDateオブジェクトに変換
    */
-  private parseDate(dateValue: any): Date | null {
+  private parseDate(dateValue: unknown): Date | null {
     if (!dateValue) <span class="branch-0 cbranch-no" title="branch not covered" >return null</span>
-    
+&nbsp;
     try {
-      const date = new Date(dateValue)
+      const date = new Date(dateValue as string | number | Date)
       return isNaN(date.getTime()<span class="branch-0 cbranch-no" title="branch not covered" >) ? null : d</span>ate
 <span class="branch-0 cbranch-no" title="branch not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >    catch {</span>
@@ -2410,37 +2427,37 @@ export class IncrementalSyncManager {
 &nbsp;
 /**
  * 増分同期管理サービスファクトリー関数
- * 
+ *
  * @param database - Drizzle ORMデータベースインスタンス
  * @param options - 同期履歴管理オプション
  * @returns IncrementalSyncManagerインスタンス
  */
 export <span class="fstat-no" title="function not covered" >function createIncrementalSyncManager(</span>
 <span class="cstat-no" title="statement not covered" >  database: ReturnType&lt;typeof drizzle&gt;,</span>
-<span class="cstat-no" title="statement not covered" >  options?: SyncHistoryOptions</span>
+<span class="cstat-no" title="statement not covered" >  options?: SyncHistoryOptions,</span>
 <span class="cstat-no" title="statement not covered" >): IncrementalSyncManager {</span>
 <span class="cstat-no" title="statement not covered" >  return new IncrementalSyncManager(database, options)</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;
 /**
  * 差分統計のサマリー生成
- * 
+ *
  * @param deltaChanges - 差分計算結果
  * @returns 統計サマリー文字列
  */
 export <span class="fstat-no" title="function not covered" >function formatDeltaChangesSummary&lt;T&gt;(deltaChanges: DeltaChanges&lt;T&gt;): string {</span>
 <span class="cstat-no" title="statement not covered" >  const { stats } = deltaChanges</span>
-<span class="cstat-no" title="statement not covered" >  return `処理済み: ${stats.totalProcessed}, ` +</span>
-<span class="cstat-no" title="statement not covered" >    `新規: ${stats.createdCount}, ` +</span>
-<span class="cstat-no" title="statement not covered" >    `更新: ${stats.updatedCount}, ` +</span>
-<span class="cstat-no" title="statement not covered" >    `削除: ${stats.deletedCount}, ` +</span>
-<span class="cstat-no" title="statement not covered" >    `変更なし: ${stats.unchangedCount}, ` +</span>
-<span class="cstat-no" title="statement not covered" >    `処理時間: ${stats.processingTime}ms`</span>
+<span class="cstat-no" title="statement not covered" >  return `処理済み: ${stats.totalProcessed}, `</span>
+<span class="cstat-no" title="statement not covered" >    + `新規: ${stats.createdCount}, `</span>
+<span class="cstat-no" title="statement not covered" >    + `更新: ${stats.updatedCount}, `</span>
+<span class="cstat-no" title="statement not covered" >    + `削除: ${stats.deletedCount}, `</span>
+<span class="cstat-no" title="statement not covered" >    + `変更なし: ${stats.unchangedCount}, `</span>
+<span class="cstat-no" title="statement not covered" >    + `処理時間: ${stats.processingTime}ms`</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;
 /**
  * 同期パフォーマンスメトリクスの計算
- * 
+ *
  * @param stats - 同期統計
  * @returns パフォーマンスメトリクス
  */
@@ -2449,16 +2466,16 @@ export <span class="fstat-no" title="function not covered" >function calculateSy
   averageProcessingTime: number // ms per item
   dataEfficiency: number // percentage of actual changes
 <span class="cstat-no" title="statement not covered" >} {</span>
-<span class="cstat-no" title="statement not covered" >  const totalItems = stats.dataStats.projects.totalProcessed + </span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.issues.totalProcessed + </span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.users.totalProcessed</span>
+<span class="cstat-no" title="statement not covered" >  const totalItems = stats.dataStats.projects.totalProcessed</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.issues.totalProcessed</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.users.totalProcessed</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  const totalChanges = stats.dataStats.projects.createdCount + </span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.projects.updatedCount +</span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.issues.createdCount + </span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.issues.updatedCount +</span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.users.createdCount + </span>
-<span class="cstat-no" title="statement not covered" >    stats.dataStats.users.updatedCount</span>
+<span class="cstat-no" title="statement not covered" >  const totalChanges = stats.dataStats.projects.createdCount</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.projects.updatedCount</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.issues.createdCount</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.issues.updatedCount</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.users.createdCount</span>
+<span class="cstat-no" title="statement not covered" >    + stats.dataStats.users.updatedCount</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  const processingTime = stats.processingTime || 1</span>
 <span class="cstat-no" title="statement not covered" >  const throughput = totalItems / (processingTime / 1000)</span>
@@ -2475,14 +2492,15 @@ export <span class="fstat-no" title="function not covered" >function calculateSy
 /**
  * デフォルトエクスポート
  */
-export default IncrementalSyncManager</pre></td></tr></table></pre>
+export default IncrementalSyncManager
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-16T03:01:23.870Z
+                at 2025-08-16T07:27:21.081Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

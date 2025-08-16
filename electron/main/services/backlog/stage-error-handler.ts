@@ -22,7 +22,8 @@
 
 import type { Database } from '../../database/connection'
 import { syncLogs } from '../../database/schema'
-import { BacklogErrorHandler, BacklogApiError, ErrorType, ErrorSeverity } from './error-handler'
+import type { BacklogApiError } from './error-handler'
+import { BacklogErrorHandler, ErrorType, ErrorSeverity } from './error-handler'
 import { Logger } from '../../utils/logger'
 
 /**
@@ -149,7 +150,7 @@ export class StageErrorHandler {
 
   // Stage別戦略設定
   private readonly stageStrategies: Map<StageType, StageRetryStrategy>
-  
+
   // エラー統計と状態管理
   private readonly errorStats: StageErrorStats
   private readonly activeRetries = new Map<string, {
@@ -158,7 +159,7 @@ export class StageErrorHandler {
     startTime: Date
     lastRetryTime: Date
   }>()
-  
+
   // 永続的エラー検出
   private readonly persistentErrorTracker = new Map<string, {
     errorType: ErrorType
@@ -232,7 +233,7 @@ export class StageErrorHandler {
     this.backlogErrorHandler = backlogErrorHandler || new BacklogErrorHandler()
     this.logger = Logger.getInstance()
     this.stageStrategies = new Map(StageErrorHandler.DEFAULT_STAGE_STRATEGIES)
-    
+
     // エラー統計の初期化
     this.errorStats = {
       stageErrorCounts: {
@@ -247,8 +248,8 @@ export class StageErrorHandler {
           averageRecoveryTime: 0,
           successfulRetries: 0,
           failedRetries: 0,
-        }])
-      ) as Record<ErrorType, any>,
+        }]),
+      ) as any,
       stageSuccessRates: {
         [StageType.STAGE_1_HIGH_PRIORITY]: 1.0,
         [StageType.STAGE_2_BACKGROUND]: 1.0,
@@ -300,15 +301,15 @@ export class StageErrorHandler {
       while (attempt <= strategy.maxRetries) {
         try {
           const result = await operation()
-          
+
           // 成功時の処理
           if (attempt > 0) {
             await this.recordSuccessfulRecovery(context, attempt, lastError)
           }
-          
+
           // 永続的エラートラッカーをリセット
           this.resetPersistentErrorTracking(context)
-          
+
           return result
         }
         catch (error) {
@@ -320,13 +321,13 @@ export class StageErrorHandler {
           })
 
           lastError = classifiedError
-          
+
           // エラー統計を更新
           this.updateErrorStats(context, classifiedError, attempt)
-          
+
           // 永続的エラーを追跡
           this.trackPersistentError(context, classifiedError)
-          
+
           // リトライ可能性をチェック
           if (!this.shouldRetry(classifiedError, attempt, strategy, context)) {
             await this.recordFinalFailure(context, classifiedError, attempt)
@@ -335,7 +336,7 @@ export class StageErrorHandler {
 
           // 遅延計算とリトライ実行
           const delay = this.calculateRetryDelay(strategy, attempt)
-          
+
           this.logger.warn('Stage operation failed, retrying', {
             stage: context.stage,
             spaceId: context.spaceId,
@@ -349,7 +350,7 @@ export class StageErrorHandler {
 
           await this.sleep(delay)
           attempt++
-          
+
           // アクティブリトライ情報を更新
           const retryInfo = this.activeRetries.get(executionKey)
           if (retryInfo) {
@@ -362,12 +363,12 @@ export class StageErrorHandler {
       // 最大リトライ回数に達した場合
       if (lastError) {
         await this.recordFinalFailure(context, lastError, attempt)
-        
+
         // エスカレーション判定
         if (strategy.enableEscalation && this.shouldEscalate(context, lastError)) {
           await this.escalateError(context, lastError)
         }
-        
+
         throw lastError
       }
 
@@ -392,10 +393,10 @@ export class StageErrorHandler {
   ): Promise<ErrorRecoveryResult> {
     const startTime = Date.now()
     const recoveryLog: string[] = []
-    let retriesAttempted = 0
+    const retriesAttempted = 0
 
     recoveryLog.push(`Starting error recovery for ${context.stage} at ${new Date().toISOString()}`)
-    
+
     try {
       // 1. 基本的なエラー回復を試行
       const basicRecovery = await this.backlogErrorHandler.attemptRecovery(error)
@@ -489,15 +490,15 @@ export class StageErrorHandler {
    */
   resetPersistentErrors(spaceId: string, errorType?: ErrorType): void {
     const keysToDelete: string[] = []
-    
+
     this.persistentErrorTracker.forEach((tracker, key) => {
       if (key.startsWith(spaceId) && (!errorType || tracker.errorType === errorType)) {
         keysToDelete.push(key)
       }
     })
-    
+
     keysToDelete.forEach(key => this.persistentErrorTracker.delete(key))
-    
+
     this.logger.info('Persistent errors reset', {
       spaceId,
       errorType,
@@ -557,7 +558,7 @@ export class StageErrorHandler {
     const exponentialDelay = strategy.baseDelayMs * Math.pow(strategy.backoffMultiplier, attempt)
     const jitter = Math.random() * strategy.jitterRangeMs
     const totalDelay = exponentialDelay + jitter
-    
+
     return Math.min(totalDelay, strategy.maxDelayMs)
   }
 
@@ -571,27 +572,27 @@ export class StageErrorHandler {
   ): void {
     // Stage別エラーカウント
     this.errorStats.stageErrorCounts[context.stage]++
-    
+
     // エラータイプ統計
     const typeStats = this.errorStats.errorTypeStats[error.type]
     if (typeStats) {
       typeStats.count++
       typeStats.lastOccurrence = new Date()
-      
+
       if (attempt > 0) {
         typeStats.failedRetries++
       }
     }
-    
+
     // 時刻パターン分析
     const hour = new Date().getHours()
     const dayOfWeek = new Date().getDay()
-    
-    this.errorStats.errorPatterns.timeOfDayDistribution[hour] = 
-      (this.errorStats.errorPatterns.timeOfDayDistribution[hour] || 0) + 1
-    
-    this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek] = 
-      (this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek] || 0) + 1
+
+    this.errorStats.errorPatterns.timeOfDayDistribution[hour]
+      = (this.errorStats.errorPatterns.timeOfDayDistribution[hour] || 0) + 1
+
+    this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek]
+      = (this.errorStats.errorPatterns.dayOfWeekDistribution[dayOfWeek] || 0) + 1
   }
 
   /**
@@ -600,11 +601,12 @@ export class StageErrorHandler {
   private trackPersistentError(context: StageExecutionContext, error: BacklogApiError): void {
     const key = `${context.spaceId}:${error.type}:${context.endpoint}`
     const existing = this.persistentErrorTracker.get(key)
-    
+
     if (existing) {
       existing.consecutiveFailures++
       existing.lastFailure = new Date()
-    } else {
+    }
+    else {
       this.persistentErrorTracker.set(key, {
         errorType: error.type,
         consecutiveFailures: 1,
@@ -612,9 +614,10 @@ export class StageErrorHandler {
         lastFailure: new Date(),
       })
     }
-    
+
     // 永続的エラーとして記録
-    const tracker = this.persistentErrorTracker.get(key)!
+    const tracker = this.persistentErrorTracker.get(key)
+    if (!tracker) return
     if (tracker.consecutiveFailures >= this.alertThresholds.persistentErrorThreshold) {
       this.errorStats.persistentErrors.push({
         errorType: error.type,
@@ -634,9 +637,9 @@ export class StageErrorHandler {
   private isPersistentError(context: StageExecutionContext, error: BacklogApiError): boolean {
     const key = `${context.spaceId}:${error.type}:${context.endpoint}`
     const tracker = this.persistentErrorTracker.get(key)
-    
-    return tracker !== undefined && 
-           tracker.consecutiveFailures >= this.alertThresholds.persistentErrorThreshold
+
+    return tracker !== undefined
+      && tracker.consecutiveFailures >= this.alertThresholds.persistentErrorThreshold
   }
 
   /**
@@ -644,13 +647,13 @@ export class StageErrorHandler {
    */
   private resetPersistentErrorTracking(context: StageExecutionContext): void {
     const keysToDelete: string[] = []
-    
+
     this.persistentErrorTracker.forEach((_, key) => {
       if (key.startsWith(`${context.spaceId}:`) && key.includes(`:${context.endpoint}`)) {
         keysToDelete.push(key)
       }
     })
-    
+
     keysToDelete.forEach(key => this.persistentErrorTracker.delete(key))
   }
 
@@ -667,8 +670,8 @@ export class StageErrorHandler {
       const typeStats = this.errorStats.errorTypeStats[lastError.type]
       if (typeStats) {
         typeStats.successfulRetries++
-        typeStats.averageRecoveryTime = 
-          (typeStats.averageRecoveryTime + (Date.now() - context.startTime.getTime())) / 2
+        typeStats.averageRecoveryTime
+          = (typeStats.averageRecoveryTime + (Date.now() - context.startTime.getTime())) / 2
       }
     }
 
@@ -695,7 +698,8 @@ export class StageErrorHandler {
             executionId: context.executionId,
           }),
         })
-    } catch (dbError) {
+    }
+    catch (dbError) {
       this.logger.error('Failed to record successful recovery to syncLogs', dbError as Error, {
         context,
         attempts,
@@ -714,8 +718,8 @@ export class StageErrorHandler {
   ): Promise<void> {
     // Stage成功率を更新
     const currentRate = this.errorStats.stageSuccessRates[context.stage]
-    this.errorStats.stageSuccessRates[context.stage] = 
-      Math.max(0, currentRate - 0.01) // 1%減少
+    this.errorStats.stageSuccessRates[context.stage]
+      = Math.max(0, currentRate - 0.01) // 1%減少
 
     // syncLogsテーブルに記録
     try {
@@ -744,7 +748,8 @@ export class StageErrorHandler {
             httpStatus: error.httpStatus,
           }),
         })
-    } catch (dbError) {
+    }
+    catch (dbError) {
       this.logger.error('Failed to record final failure to syncLogs', dbError as Error, {
         context,
         error: error.getFullDetails(),
@@ -760,18 +765,18 @@ export class StageErrorHandler {
     if (error.severity === ErrorSeverity.CRITICAL) {
       return true
     }
-    
+
     // Stage 1の場合は積極的にエスカレーション
     if (context.stage === StageType.STAGE_1_HIGH_PRIORITY) {
       return true
     }
-    
+
     // 実行時間による判定
     const executionDuration = Date.now() - context.startTime.getTime()
     if (executionDuration > this.alertThresholds.escalationTimeoutMs) {
       return true
     }
-    
+
     return false
   }
 
@@ -798,20 +803,20 @@ export class StageErrorHandler {
    */
   private getEscalationReason(context: StageExecutionContext, error: BacklogApiError): string {
     const reasons: string[] = []
-    
+
     if (error.severity === ErrorSeverity.CRITICAL) {
       reasons.push('Critical error severity')
     }
-    
+
     if (context.stage === StageType.STAGE_1_HIGH_PRIORITY) {
       reasons.push('High priority stage failure')
     }
-    
+
     const executionDuration = Date.now() - context.startTime.getTime()
     if (executionDuration > this.alertThresholds.escalationTimeoutMs) {
       reasons.push(`Execution timeout (${Math.round(executionDuration / 1000)}s)`)
     }
-    
+
     return reasons.join(', ')
   }
 
@@ -820,27 +825,27 @@ export class StageErrorHandler {
    */
   private async attemptStageSpecificRecovery(
     context: StageExecutionContext,
-    error: BacklogApiError,
+    _error: BacklogApiError,
   ): Promise<ErrorRecoveryResult> {
     const recoveryLog: string[] = []
-    
+
     switch (context.stage) {
       case StageType.STAGE_1_HIGH_PRIORITY:
         recoveryLog.push('Attempting high-priority stage recovery')
         // 即座の代替エンドポイント試行など
         break
-        
+
       case StageType.STAGE_2_BACKGROUND:
         recoveryLog.push('Attempting background stage recovery')
         // より長い待機時間での再試行など
         break
-        
+
       case StageType.STAGE_3_IDLE:
         recoveryLog.push('Attempting idle stage recovery')
         // 次回実行への延期など
         break
     }
-    
+
     // 基本的な実装：常に失敗を返す（具体的な回復ロジックは要件に応じて実装）
     return {
       recovered: false,
@@ -855,14 +860,14 @@ export class StageErrorHandler {
    * フォールバック回復を試行
    */
   private async attemptFallbackRecovery(
-    context: StageExecutionContext,
-    error: BacklogApiError,
+    _context: StageExecutionContext,
+    _error: BacklogApiError,
   ): Promise<ErrorRecoveryResult> {
     const recoveryLog: string[] = ['Attempting fallback recovery']
-    
+
     // 基本的な実装：キャッシュからのデータ取得、デフォルト値の使用など
     // 具体的な実装は要件に応じて追加
-    
+
     return {
       recovered: false,
       recoveryMethod: 'abort',

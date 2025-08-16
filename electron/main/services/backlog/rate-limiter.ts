@@ -7,7 +7,7 @@
  */
 
 import { eq, and, lt } from 'drizzle-orm'
-import type Database from '../../database/connection'
+import type { Database } from '../../database/connection'
 import { rateLimits } from '../../database/schema'
 import type {
   SelectRateLimit,
@@ -190,7 +190,7 @@ export class BacklogRateLimiter {
     spaceId: string,
     headers: RateLimitHeaders,
     endpoint?: string,
-    method: string = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
   ): Promise<void> {
     try {
       const now = new Date()
@@ -300,7 +300,7 @@ export class BacklogRateLimiter {
   public async getRateLimitStatus(
     spaceId: string,
     endpoint?: string,
-    method: string = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
   ): Promise<RateLimitStatus | null> {
     try {
       // メモリキャッシュから確認
@@ -368,7 +368,7 @@ export class BacklogRateLimiter {
   public async calculateOptimalConcurrency(
     spaceId: string,
     endpoint?: string,
-    method: string = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
   ): Promise<number> {
     try {
       const status = await this.getRateLimitStatus(spaceId, endpoint, method)
@@ -432,7 +432,7 @@ export class BacklogRateLimiter {
   public async checkRequestPermission(
     spaceId: string,
     endpoint?: string,
-    method: string = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
   ): Promise<number> {
     try {
       const status = await this.getRateLimitStatus(spaceId, endpoint, method)
@@ -643,7 +643,7 @@ export class BacklogRateLimiter {
   /**
    * スペースキーを生成
    */
-  private getSpaceKey(spaceId: string, endpoint?: string, method: string = 'GET'): string {
+  private getSpaceKey(spaceId: string, endpoint?: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET'): string {
     return `${spaceId}:${endpoint || 'global'}:${method}`
   }
 
@@ -676,7 +676,7 @@ export class BacklogRateLimiter {
       lastUpdated,
       isActive: !!data.isActive,
       ...(data.endpoint && { endpoint: data.endpoint }),
-      method: data.method,
+      method: data.method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
       utilizationPercent,
       timeToReset,
       recommendedDelay,

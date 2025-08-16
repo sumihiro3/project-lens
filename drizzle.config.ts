@@ -4,7 +4,7 @@ export default defineConfig({
   // スキーマファイルの場所
   schema: './electron/main/database/schema/*.ts',
   // マイグレーションファイルの出力先
-  out: './electron/main/database/migrations',
+  out: './drizzle',
   // データベースドライバー
   dialect: 'sqlite',
   // データベースファイルのパス（開発時）

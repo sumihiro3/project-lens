@@ -140,7 +140,7 @@ export class BacklogApiClient {
       return {
         spaceId: secureConfig.spaceId,
         apiKey: decryptedApiKey,
-        host: secureConfig.host,
+        host: secureConfig.host || 'backlog.com',
       }
     }
     catch (error) {
@@ -822,7 +822,7 @@ export function createSecureBacklogConfig(
   return {
     spaceId,
     encryptedApiKey: encryptApiKey(apiKey),
-    host,
+    host: host || 'backlog.com',
   }
 }
 

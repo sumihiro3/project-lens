@@ -68,7 +68,7 @@ describe('BacklogRateLimiter', () => {
     vi.clearAllMocks()
 
     // データベースモックを正常な状態にリセット
-    ;(mockDatabase.getDrizzle().insert as any).mockReturnValue({
+    ;(mockDatabase.getDrizzle().insert as unknown as MockedFunction<() => { values: MockedFunction<any> }>).mockReturnValue({
       values: vi.fn().mockReturnValue({
         onConflictDoUpdate: vi.fn().mockResolvedValue({}),
       }),
@@ -183,8 +183,8 @@ describe('BacklogRateLimiter', () => {
         'GET',
       )
 
-      const insertCall = mockDatabase.getDrizzle().insert as any
-      const valuesCall = insertCall().values as any
+      const insertCall = mockDatabase.getDrizzle().insert as unknown as MockedFunction<() => { values: MockedFunction<any> }>
+      const valuesCall = insertCall().values as MockedFunction<any>
 
       expect(valuesCall).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -264,7 +264,7 @@ describe('BacklogRateLimiter', () => {
         }),
       })
 
-      const result = await rateLimiter.getRateLimitStatus('test-space')
+      const _result = await rateLimiter.getRateLimitStatus('test-space')
       // 期限切れなのでnullが返される想定
     })
   })
@@ -452,7 +452,7 @@ describe('BacklogRateLimiter', () => {
       }]
 
       // モックデータベースのselectを更新
-      ;(mockDatabase.getDrizzle().select as any).mockReturnValue({
+      ;(mockDatabase.getDrizzle().select as unknown as MockedFunction<() => { from: MockedFunction<any> }>).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             orderBy: vi.fn().mockResolvedValue(mockStats),

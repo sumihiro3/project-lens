@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">48.57% </span>
+                <span class="strong">47.93% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>290/597</span>
+                <span class='fraction'>290/605</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">48.57% </span>
+                <span class="strong">47.93% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>290/597</span>
+                <span class='fraction'>290/605</span>
             </div>
         
             
@@ -1039,7 +1039,16 @@
 <a name='L974'></a><a href='#L974'>974</a>
 <a name='L975'></a><a href='#L975'>975</a>
 <a name='L976'></a><a href='#L976'>976</a>
-<a name='L977'></a><a href='#L977'>977</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L977'></a><a href='#L977'>977</a>
+<a name='L978'></a><a href='#L978'>978</a>
+<a name='L979'></a><a href='#L979'>979</a>
+<a name='L980'></a><a href='#L980'>980</a>
+<a name='L981'></a><a href='#L981'>981</a>
+<a name='L982'></a><a href='#L982'>982</a>
+<a name='L983'></a><a href='#L983'>983</a>
+<a name='L984'></a><a href='#L984'>984</a>
+<a name='L985'></a><a href='#L985'>985</a>
+<a name='L986'></a><a href='#L986'>986</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1819,6 +1828,10 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1832,6 +1845,10 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2015,7 +2032,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">/**
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Enhanced Backlog APIレート制限管理機能
  *
  * BacklogRateLimiterを基底として、Stage別並列数調整、
@@ -2198,14 +2216,14 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
       const stageConfig = this.stageConfigs.get(stageName)
       if (!stageConfig) {
         console.warn('不明なStage名です、デフォルト並列数を返します', { stageName })
-        return await this.calculateOptimalConcurrency(spaceId, endpoint, method)
+        return await this.calculateOptimalConcurrency(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
       }
 &nbsp;
       // 基本的な並列数を取得
-      const baseConcurrency = await this.calculateOptimalConcurrency(spaceId, endpoint, method)
+      const baseConcurrency = await this.calculateOptimalConcurrency(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
 &nbsp;
       // 利用率分析を実行
-      const utilization = await this.analyzeUtilizationRate(spaceId, endpoint, method)
+      const utilization = await this.analyzeUtilizationRate(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
 &nbsp;
       // Stage固有の調整を適用
       let stageConcurrency = this.applyStageConcurrencyLogic(
@@ -2273,7 +2291,7 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
     method: string = 'GET',
   ): Promise&lt;UtilizationAnalysis&gt; {
     try {
-      const status = await this.getRateLimitStatus(spaceId, endpoint, method)
+      const status = await this.getRateLimitStatus(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
       const historyKey = this.getUtilizationHistoryKey(spaceId, endpoint, method)
 &nbsp;
       if (!status) {
@@ -2446,7 +2464,7 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
     }
 <span class="cstat-no" title="statement not covered" >  }&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
-<span class="cstat-no" title="statement not covered" >      const baseDelay = await this.checkRequestPermission(spaceId, endpoint, method)</span>
+<span class="cstat-no" title="statement not covered" >      const baseDelay = await this.checkRequestPermission(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')</span>
 <span class="cstat-no" title="statement not covered" >      const utilization = await this.analyzeUtilizationRate(spaceId, endpoint, method)</span>
 <span class="cstat-no" title="statement not covered" >      const optimalConcurrency = await this.calculateOptimalConcurrencyForStage(</span>
 <span class="cstat-no" title="statement not covered" >        stageName,</span>
@@ -2568,7 +2586,7 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
   /**
    * サービスを終了し、リソースをクリーンアップ
    */
-  public async destroy(): Promise&lt;void&gt; {
+  public override async destroy(): Promise&lt;void&gt; {
     if (this.optimizationInterval) {
       clearInterval(this.optimizationInterval)
       this.optimizationInterval = null
@@ -2789,10 +2807,14 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
 <span class="cstat-no" title="statement not covered" >    let increaseCount = 0</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    for (let i = 1; i &lt; values.length; i++) {</span>
-<span class="cstat-no" title="statement not covered" >      const increase = values[i] - values[i - 1]</span>
-<span class="cstat-no" title="statement not covered" >      if (increase &gt; 0) {</span>
-<span class="cstat-no" title="statement not covered" >        totalIncrease += increase</span>
-<span class="cstat-no" title="statement not covered" >        increaseCount++</span>
+<span class="cstat-no" title="statement not covered" >      const current = values[i]</span>
+<span class="cstat-no" title="statement not covered" >      const previous = values[i - 1]</span>
+<span class="cstat-no" title="statement not covered" >      if (current !== undefined &amp;&amp; previous !== undefined) {</span>
+<span class="cstat-no" title="statement not covered" >        const increase = current - previous</span>
+<span class="cstat-no" title="statement not covered" >        if (increase &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >          totalIncrease += increase</span>
+<span class="cstat-no" title="statement not covered" >          increaseCount++</span>
+<span class="cstat-no" title="statement not covered" >        }</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 &nbsp;
@@ -2809,10 +2831,14 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
 <span class="cstat-no" title="statement not covered" >    let decreaseCount = 0</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    for (let i = 1; i &lt; values.length; i++) {</span>
-<span class="cstat-no" title="statement not covered" >      const decrease = values[i - 1] - values[i]</span>
-<span class="cstat-no" title="statement not covered" >      if (decrease &gt; 0) {</span>
-<span class="cstat-no" title="statement not covered" >        totalDecrease += decrease</span>
-<span class="cstat-no" title="statement not covered" >        decreaseCount++</span>
+<span class="cstat-no" title="statement not covered" >      const previous = values[i - 1]</span>
+<span class="cstat-no" title="statement not covered" >      const current = values[i]</span>
+<span class="cstat-no" title="statement not covered" >      if (previous !== undefined &amp;&amp; current !== undefined) {</span>
+<span class="cstat-no" title="statement not covered" >        const decrease = previous - current</span>
+<span class="cstat-no" title="statement not covered" >        if (decrease &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >          totalDecrease += decrease</span>
+<span class="cstat-no" title="statement not covered" >          decreaseCount++</span>
+<span class="cstat-no" title="statement not covered" >        }</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 &nbsp;
@@ -2991,14 +3017,15 @@ export <span class="fstat-no" title="function not covered" >function createEnhan
 /**
  * デフォルトエクスポート
  */
-export default EnhancedRateLimiter</pre></td></tr></table></pre>
+export default EnhancedRateLimiter
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-16T03:01:23.870Z
+                at 2025-08-16T07:27:21.081Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

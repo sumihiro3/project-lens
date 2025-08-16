@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "ProjectLens - Backlogチケット管理デスクトップアプリケーション",
   "author": "ProjectLens Team",
-  "main": "dist-electron/main/index.cjs",
+  "main": "dist-electron/electron/main/index.cjs",
   "type": "module",
   "scripts": {
     "dev": "nuxt dev --host",

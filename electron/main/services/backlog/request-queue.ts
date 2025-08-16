@@ -15,7 +15,7 @@
  */
 
 import { eq, and } from 'drizzle-orm'
-import type { DatabaseManager } from '../../database/connection'
+import type { Database, DatabaseManager } from '../../database/connection'
 import { syncLogs } from '../../database/schema'
 import type { BacklogApiClient } from './api-client'
 import type { BacklogRateLimiter } from './rate-limiter'
@@ -44,7 +44,7 @@ export interface QueuedRequest {
   id: string
   spaceId: string
   endpoint: string
-  params: any
+  params: Record<string, unknown>
   priority: RequestPriority
   retryCount: number
   maxRetries: number
@@ -54,7 +54,7 @@ export interface QueuedRequest {
   completedAt?: Date
   error?: string
   metadata?: Record<string, unknown>
-  requestFn?: () => Promise<any>
+  requestFn?: () => Promise<unknown>
   updatedSince?: string // 差分更新用
 }
 
@@ -221,7 +221,7 @@ export class BacklogRequestQueue {
       const now = new Date()
 
       // 優先度を正規化（数値からenumへの変換をサポート）
-      const normalizedPriority = this.normalizePriority(request.priority as any)
+      const normalizedPriority = this.normalizePriority(request.priority as RequestPriority | number)
 
       const queuedRequest: QueuedRequest = {
         ...request,
@@ -303,8 +303,8 @@ export class BacklogRequestQueue {
   public async enqueueHighPriority(
     spaceId: string,
     endpoint: string,
-    params: any = {},
-    requestFn?: () => Promise<any>,
+    params: Record<string, unknown> = {},
+    requestFn?: () => Promise<unknown>,
   ): Promise<string> {
     return this.enqueue({
       spaceId,
@@ -334,8 +334,8 @@ export class BacklogRequestQueue {
   public async enqueueMediumPriority(
     spaceId: string,
     endpoint: string,
-    params: any = {},
-    requestFn?: () => Promise<any>,
+    params: Record<string, unknown> = {},
+    requestFn?: () => Promise<unknown>,
   ): Promise<string> {
     return this.enqueue({
       spaceId,
@@ -364,8 +364,8 @@ export class BacklogRequestQueue {
   public async enqueueLowPriority(
     spaceId: string,
     endpoint: string,
-    params: any = {},
-    requestFn?: () => Promise<any>,
+    params: Record<string, unknown> = {},
+    requestFn?: () => Promise<unknown>,
   ): Promise<string> {
     return this.enqueue({
       spaceId,
@@ -746,7 +746,7 @@ export class BacklogRequestQueue {
       }
 
       // リクエストを実行
-      let result: any
+      let result: unknown
       if (request.requestFn) {
         result = await request.requestFn()
       }
@@ -801,7 +801,7 @@ export class BacklogRequestQueue {
    * @param request - リクエスト情報
    * @returns API実行結果
    */
-  private async executeApiRequest(apiClient: BacklogApiClient, request: QueuedRequest): Promise<any> {
+  private async executeApiRequest(apiClient: BacklogApiClient, request: QueuedRequest): Promise<unknown> {
     // エンドポイントに基づいて適切なAPIメソッドを呼び出し
     switch (request.endpoint) {
       case '/issues':

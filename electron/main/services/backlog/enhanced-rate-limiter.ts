@@ -181,14 +181,14 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
       const stageConfig = this.stageConfigs.get(stageName)
       if (!stageConfig) {
         console.warn('不明なStage名です、デフォルト並列数を返します', { stageName })
-        return await this.calculateOptimalConcurrency(spaceId, endpoint, method)
+        return await this.calculateOptimalConcurrency(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
       }
 
       // 基本的な並列数を取得
-      const baseConcurrency = await this.calculateOptimalConcurrency(spaceId, endpoint, method)
+      const baseConcurrency = await this.calculateOptimalConcurrency(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
 
       // 利用率分析を実行
-      const utilization = await this.analyzeUtilizationRate(spaceId, endpoint, method)
+      const utilization = await this.analyzeUtilizationRate(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
 
       // Stage固有の調整を適用
       let stageConcurrency = this.applyStageConcurrencyLogic(
@@ -256,7 +256,7 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
     method: string = 'GET',
   ): Promise<UtilizationAnalysis> {
     try {
-      const status = await this.getRateLimitStatus(spaceId, endpoint, method)
+      const status = await this.getRateLimitStatus(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
       const historyKey = this.getUtilizationHistoryKey(spaceId, endpoint, method)
 
       if (!status) {
@@ -429,7 +429,7 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
     }
   }> {
     try {
-      const baseDelay = await this.checkRequestPermission(spaceId, endpoint, method)
+      const baseDelay = await this.checkRequestPermission(spaceId, endpoint, method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')
       const utilization = await this.analyzeUtilizationRate(spaceId, endpoint, method)
       const optimalConcurrency = await this.calculateOptimalConcurrencyForStage(
         stageName,
@@ -551,7 +551,7 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
   /**
    * サービスを終了し、リソースをクリーンアップ
    */
-  public async destroy(): Promise<void> {
+  public override async destroy(): Promise<void> {
     if (this.optimizationInterval) {
       clearInterval(this.optimizationInterval)
       this.optimizationInterval = null
@@ -772,10 +772,14 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
     let increaseCount = 0
 
     for (let i = 1; i < values.length; i++) {
-      const increase = values[i] - values[i - 1]
-      if (increase > 0) {
-        totalIncrease += increase
-        increaseCount++
+      const current = values[i]
+      const previous = values[i - 1]
+      if (current !== undefined && previous !== undefined) {
+        const increase = current - previous
+        if (increase > 0) {
+          totalIncrease += increase
+          increaseCount++
+        }
       }
     }
 
@@ -792,10 +796,14 @@ export class EnhancedRateLimiter extends BacklogRateLimiter {
     let decreaseCount = 0
 
     for (let i = 1; i < values.length; i++) {
-      const decrease = values[i - 1] - values[i]
-      if (decrease > 0) {
-        totalDecrease += decrease
-        decreaseCount++
+      const previous = values[i - 1]
+      const current = values[i]
+      if (previous !== undefined && current !== undefined) {
+        const decrease = previous - current
+        if (decrease > 0) {
+          totalDecrease += decrease
+          decreaseCount++
+        }
       }
     }
 

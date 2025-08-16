@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "strict": true,
     "outDir": "../dist-electron",
-    "rootDir": ".",
+    "rootDir": "..",
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": false,
@@ -17,7 +17,8 @@
   },
   "include": [
     "main/**/*",
-    "preload/**/*"
+    "preload/**/*",
+    "../shared/types/**/*"
   ],
   "exclude": [
     "node_modules",

@@ -20,14 +20,15 @@ import type { BacklogRateLimiter } from './rate-limiter'
 import type { BacklogRequestQueue } from './request-queue'
 import { RequestPriority } from './request-queue'
 import type { IntegratedBacklogCacheService } from './cache-manager'
-import type {
-  BacklogProject,
-  BacklogIssue,
-  BacklogUser,
-  BacklogSpace,
-  BacklogIssueSearchParams,
-} from '../../../../shared/types/backlog'
-import type { ApiResponse } from '../../../../shared/types/common'
+// 将来の実装のため型定義をコメントアウト
+// import type {
+//   BacklogProject,
+//   BacklogIssue,
+//   BacklogUser,
+//   BacklogSpace,
+//   BacklogIssueSearchParams,
+// } from '../../../../shared/types/backlog'
+// import type { ApiResponse } from '../../../../shared/types/common'
 
 /**
  * ステージ実行設定
@@ -95,7 +96,7 @@ export interface DataFetchTask {
   /** APIエンドポイント */
   endpoint: string
   /** リクエストパラメータ */
-  params: any
+  params: Record<string, unknown>
   /** 優先度 */
   priority: RequestPriority
   /** タスクタイプ */
@@ -105,7 +106,7 @@ export interface DataFetchTask {
   /** 依存関係（このタスクの前に実行すべきタスクID） */
   dependencies?: string[]
   /** カスタム実行関数 */
-  customExecutor?: () => Promise<any>
+  customExecutor?: () => Promise<unknown>
 }
 
 /**
@@ -668,7 +669,7 @@ export class StageDataFetcher {
     let totalDataSize = 0
     let totalResponseTime = 0
     let responseCount = 0
-    let cacheHits = 0
+    const cacheHits = 0
 
     // 依存関係を解決してタスクを並び替え
     const sortedTasks = this.resolveDependencies(tasks)
@@ -686,7 +687,7 @@ export class StageDataFetcher {
       // 新しいタスクを開始
       while (executing.size < maxConcurrent && currentIndex < sortedTasks.length) {
         const task = sortedTasks[currentIndex]
-        
+
         // 依存関係チェック
         if (task.dependencies && !task.dependencies.every(dep => completed.has(dep))) {
           currentIndex++
@@ -780,7 +781,7 @@ export class StageDataFetcher {
   /**
    * 個別タスクを実行
    */
-  private async executeTask(task: DataFetchTask): Promise<any> {
+  private async executeTask(task: DataFetchTask): Promise<unknown> {
     this.executingTasks.add(task.id)
 
     try {
@@ -800,18 +801,19 @@ export class StageDataFetcher {
         // APIクライアントからレート制限状況を取得
         if (this.apiClient && 'getRateLimitStatus' in this.apiClient) {
           try {
-            await (this.apiClient as any).getRateLimitStatus(task.spaceId)
-          } catch (error) {
+            await (this.apiClient as { getRateLimitStatus: (spaceId: string) => Promise<unknown> }).getRateLimitStatus(task.spaceId)
+          }
+          catch (error) {
             console.debug('レート制限状況取得エラー（無視）:', error)
           }
         }
-        
+
         // EnhancedRateLimiterの場合はStage別最適並列数計算を呼び出し
         if (this.rateLimiter && 'calculateOptimalConcurrencyForStage' in this.rateLimiter) {
           const stage = task.priority === RequestPriority.HIGH ? 1 : task.priority === RequestPriority.MEDIUM ? 2 : 3
-          await (this.rateLimiter as any).calculateOptimalConcurrencyForStage(task.spaceId, stage as 1 | 2 | 3)
+          await (this.rateLimiter as { calculateOptimalConcurrencyForStage: (spaceId: string, stage: 1 | 2 | 3) => Promise<void> }).calculateOptimalConcurrencyForStage(task.spaceId, stage as 1 | 2 | 3)
         }
-        
+
         const delay = await this.rateLimiter.checkRequestPermission(task.spaceId, task.endpoint)
         if (delay > 0) {
           console.log(`レート制限により遅延: ${task.id}`, { delay })
@@ -842,11 +844,14 @@ export class StageDataFetcher {
       // タスクタイプに応じてモックデータを返す
       if (task.type === 'project') {
         return Array(Math.floor(Math.random() * 5) + 1).fill(null).map((_, i) => ({ id: i + 1, name: `Project ${i + 1}` }))
-      } else if (task.type === 'issue') {
+      }
+      else if (task.type === 'issue') {
         return Array(Math.floor(Math.random() * 10) + 1).fill(null).map((_, i) => ({ id: i + 1, title: `Issue ${i + 1}` }))
-      } else if (task.type === 'user') {
+      }
+      else if (task.type === 'user') {
         return Array(Math.floor(Math.random() * 3) + 1).fill(null).map((_, i) => ({ id: i + 1, name: `User ${i + 1}` }))
-      } else {
+      }
+      else {
         return { success: true, requestId, data: `Mock data for ${task.type}` }
       }
     }
@@ -871,8 +876,8 @@ export class StageDataFetcher {
     const resolvedIds = new Set<string>()
 
     while (remaining.length > 0) {
-      const resolvableIndex = remaining.findIndex(task => 
-        !task.dependencies || task.dependencies.every(dep => resolvedIds.has(dep))
+      const resolvableIndex = remaining.findIndex(task =>
+        !task.dependencies || task.dependencies.every(dep => resolvedIds.has(dep)),
       )
 
       if (resolvableIndex === -1) {
@@ -924,7 +929,7 @@ export class StageDataFetcher {
   /**
    * 最後の同期時刻を取得
    */
-  private getLastSyncTime(spaceId: string): string {
+  private getLastSyncTime(_spaceId: string): string {
     // 簡易実装：現在時刻から1時間前
     const oneHourAgo = new Date()
     oneHourAgo.setHours(oneHourAgo.getHours() - 1)

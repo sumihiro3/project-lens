@@ -1,9 +1,10 @@
-import { app, BrowserWindow, shell, protocol } from 'electron'
+import { app, BrowserWindow, shell, protocol, ipcMain } from 'electron'
 import { join } from 'node:path'
 import * as fs from 'node:fs'
 import { is } from '@electron-toolkit/utils'
 import { getDatabase, type DatabaseConfig } from './database/connection'
 import logger, { info, error, warn, debug, fatal, withAsyncPerformance } from './utils/logger'
+import { BacklogService, type BacklogServiceConfig, type SpaceConfig } from './services/backlog/index'
 
 // パフォーマンス最適化: 起動時間測定
 const startTime = Date.now()
