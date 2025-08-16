@@ -196,4 +196,7 @@ export async function executeTransaction<T>(
   })
 }
 
+// Database型のエイリアス（後方互換性のため）
+export type Database = DatabaseManager
+
 export default DatabaseManager

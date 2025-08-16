@@ -98,8 +98,8 @@ describe('BacklogConnectionManager', () => {
 
   beforeEach(() => {
     // レートリミッターのモックリセット
-    ;(mockRateLimiter.checkRequestPermission as any).mockResolvedValue(0)
-    ;(mockRateLimiter.calculateOptimalConcurrency as any).mockResolvedValue(5)
+    ;(mockRateLimiter.checkRequestPermission as MockedFunction<typeof mockRateLimiter.checkRequestPermission>).mockResolvedValue(0)
+    ;(mockRateLimiter.calculateOptimalConcurrency as MockedFunction<typeof mockRateLimiter.calculateOptimalConcurrency>).mockResolvedValue(5)
 
     connectionManager = new BacklogConnectionManager(mockDatabase, mockRateLimiter)
     eventListener = vi.fn()
@@ -311,7 +311,7 @@ describe('BacklogConnectionManager', () => {
       }
 
       // APIクライアントをモックで置き換え
-      ;(connectionManager as any).apiClients.set('test-space', mockApiClient)
+      ;(connectionManager as typeof connectionManager & { apiClients: Map<string, typeof mockApiClient> }).apiClients.set('test-space', mockApiClient)
 
       const result = await connectionManager.testConnection('test-space')
 
@@ -335,7 +335,7 @@ describe('BacklogConnectionManager', () => {
           data: { connected: true },
         }),
       }
-      ;(connectionManager as any).apiClients.set('test-space', mockApiClient)
+      ;(connectionManager as typeof connectionManager & { apiClients: Map<string, typeof mockApiClient> }).apiClients.set('test-space', mockApiClient)
 
       await connectionManager.testConnection('test-space')
 
@@ -395,14 +395,14 @@ describe('BacklogConnectionManager', () => {
 
     it.skip('レート制限を考慮した遅延が適用される', async () => {
       // 遅延ありのモック設定（1msに短縮）
-      ;(mockRateLimiter.checkRequestPermission as any).mockReset().mockResolvedValue(1) // 1ms遅延
+      ;(mockRateLimiter.checkRequestPermission as MockedFunction<typeof mockRateLimiter.checkRequestPermission>).mockReset().mockResolvedValue(1) // 1ms遅延
 
       const requests = [{
         spaceId: 'space-1',
         requestFn: vi.fn().mockResolvedValue({ data: 'result' }),
       }]
 
-      const startTime = Date.now()
+      const _startTime = Date.now()
       await connectionManager.executeParallelRequests(requests)
 
       expect(mockRateLimiter.checkRequestPermission).toHaveBeenCalledWith('space-1')
@@ -542,7 +542,7 @@ describe('BacklogConnectionManager', () => {
 
   describe('接続プール統計', () => {
     it('特定スペースの統計情報を取得できる', () => {
-      const stats = connectionManager.getConnectionPoolStats('test-space')
+      const _stats = connectionManager.getConnectionPoolStats('test-space')
       // 初期状態ではnullまたは初期値
     })
 

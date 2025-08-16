@@ -51,6 +51,7 @@ export default defineNuxtConfig({
   // CSS framework
   css: [
     'vuetify/lib/styles/main.sass',
+    '@mdi/font/css/materialdesignicons.css',
   ],
 
   // Router configuration for Electron file:// protocol
@@ -199,14 +200,16 @@ export default defineNuxtConfig({
       template: {
         preprocessOptions: {
           pug: {
-            // 開発時はキャッシュを無効化
-            cache: process.env.NODE_ENV === 'production',
+            // 開発時はキャッシュを完全に無効化
+            cache: false,
             // デバッグモードでより良いエラーメッセージ
-            compileDebug: process.env.NODE_ENV !== 'production',
-            pretty: process.env.NODE_ENV !== 'production',
+            compileDebug: true,
+            pretty: true,
             // Pugファイルのホットリロード対応
             globals: ['require'],
             self: true,
+            // Vue 3互換性のための設定
+            doctype: 'html',
           },
         },
       },
@@ -214,7 +217,7 @@ export default defineNuxtConfig({
     // 開発時の追加最適化
     optimizeDeps: {
       include: ['vuetify', '@vueuse/core'],
-      exclude: ['electron', '@mdi/font'],
+      exclude: ['electron'],
       force: false, // 開発時のキャッシュを使用
     },
     // パフォーマンス最適化: CSS設定

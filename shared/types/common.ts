@@ -9,7 +9,7 @@
 export interface ApiResponse<T = unknown> {
   success: boolean
   data?: T
-  error?: string
+  error?: string | undefined
   message?: string
   timestamp: string
 }

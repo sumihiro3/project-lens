@@ -258,7 +258,7 @@ class ConnectionPool {
  * ヘルスモニタリング機能を提供します。
  */
 export class BacklogConnectionManager {
-  private readonly _db: Database
+  // private readonly db: Database // 未使用のためコメントアウト
   private readonly rateLimiter: BacklogRateLimiter
   private readonly connectionPool: ConnectionPool
   private readonly spaceConfigs = new Map<string, SpaceConnectionConfig>()
@@ -274,8 +274,8 @@ export class BacklogConnectionManager {
    * @param db - データベース接続インスタンス
    * @param rateLimiter - レート制限管理インスタンス
    */
-  constructor(db: Database, rateLimiter: BacklogRateLimiter) {
-    this._db = db
+  constructor(_db: Database, rateLimiter: BacklogRateLimiter) {
+    // this.db = db // 未使用のためコメントアウト
     this.rateLimiter = rateLimiter
     this.connectionPool = new ConnectionPool()
 
@@ -450,34 +450,6 @@ export class BacklogConnectionManager {
     }
   }
 
-  /**
-   * 復号化されたAPIキーを取得
-   *
-   * @param spaceId - BacklogスペースID
-   * @returns 復号化されたAPIキー
-   */
-  private _getDecryptedApiKey(spaceId: string): string | null {
-    try {
-      const encryptedKeyInfo = this.encryptedKeys.get(spaceId)
-      if (!encryptedKeyInfo) {
-        return null
-      }
-
-      if (!safeStorage.isEncryptionAvailable()) {
-        console.error('暗号化機能が利用できません')
-        return null
-      }
-
-      return safeStorage.decryptString(encryptedKeyInfo.encryptedData)
-    }
-    catch (error) {
-      console.error('APIキーの復号化に失敗しました', {
-        spaceId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return null
-    }
-  }
 
   /**
    * スペースのAPIクライアントを取得
@@ -557,7 +529,7 @@ export class BacklogConnectionManager {
    * @param spaceId - BacklogスペースID
    * @returns 接続テスト結果
    */
-  public async testConnection(spaceId: string): Promise<ApiResponse<{ connected: boolean, user?: any, space?: any }>> {
+  public async testConnection(spaceId: string): Promise<ApiResponse<{ connected: boolean, user?: Record<string, unknown> | undefined, space?: Record<string, unknown> | undefined }>> {
     try {
       const apiClient = this.getApiClient(spaceId)
       if (!apiClient) {
@@ -593,7 +565,18 @@ export class BacklogConnectionManager {
         responseTime,
       })
 
-      return result
+      return {
+        success: result.success,
+        data: result.success ? {
+          connected: true as const,
+          user: result.data?.user ? (result.data.user as unknown as Record<string, unknown>) : undefined,
+          space: result.data?.space ? (result.data.space as unknown as Record<string, unknown>) : undefined,
+        } : {
+          connected: false as const,
+        },
+        error: result.error || undefined,
+        timestamp: result.timestamp,
+      }
     }
     catch (error) {
       console.error('接続テストでエラーが発生しました', {
@@ -637,7 +620,10 @@ export class BacklogConnectionManager {
       if (!requestsBySpace.has(request.spaceId)) {
         requestsBySpace.set(request.spaceId, [])
       }
-      requestsBySpace.get(request.spaceId)!.push(request)
+      const spaceRequests = requestsBySpace.get(request.spaceId)
+      if (spaceRequests) {
+        spaceRequests.push(request)
+      }
     }
 
     // 各スペースで並列実行

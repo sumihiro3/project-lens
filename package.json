@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "ProjectLens - Backlogチケット管理デスクトップアプリケーション",
   "author": "ProjectLens Team",
-  "main": "dist-electron/main/index.cjs",
+  "main": "dist-electron/electron/main/index.cjs",
   "type": "module",
   "scripts": {
     "dev": "nuxt dev --host",
@@ -29,6 +29,9 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --testNamePattern='Stage実装統合テスト'",
+    "test:stage": "vitest run electron/test/services/backlog/stage-integration.test.ts",
+    "test:electron": "vitest run electron/test/**/*.test.ts",
     "type-check": "nuxt typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

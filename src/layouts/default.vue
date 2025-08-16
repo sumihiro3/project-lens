@@ -1,16 +1,22 @@
-<template lang="pug">
-v-app
-  v-app-bar(app color="primary" dark)
-    v-app-bar-title
-      v-icon(class="mr-2") mdi-view-dashboard
-      | ProjectLens
-    v-spacer
-    v-btn(icon @click="toggleTheme")
-      v-icon {{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}
+<template>
+  <v-app>
+    <v-app-bar app color="primary" dark>
+      <v-app-bar-title>
+        <v-icon class="mr-2">mdi-view-dashboard</v-icon>
+        ProjectLens
+      </v-app-bar-title>
+      <v-spacer />
+      <v-btn icon @click="toggleTheme">
+        <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+      </v-btn>
+    </v-app-bar>
 
-  v-main
-    v-container(fluid)
-      slot
+    <v-main>
+      <v-container fluid>
+        <slot />
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
 
 <script setup lang="ts">
@@ -38,7 +44,6 @@ const toggleTheme = (): void => {
 // - toggleTheme: テンプレート内の@click="toggleTheme"で使用
 
 // TypeScript用のダミー参照（テンプレートでの使用を認識させる）
-
 if (process.env.NODE_ENV === 'development') {
   // テンプレートで使用されている変数を参照
   void isDark.value

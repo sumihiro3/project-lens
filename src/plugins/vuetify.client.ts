@@ -1,5 +1,5 @@
 import { createVuetify } from 'vuetify'
-import { aliases, mdi } from 'vuetify/iconsets/mdi-svg'
+import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import { ja, en } from 'vuetify/locale'
 import { defineNuxtPlugin, type NuxtApp } from 'nuxt/app'
 

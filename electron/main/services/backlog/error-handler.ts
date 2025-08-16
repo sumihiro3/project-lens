@@ -97,7 +97,7 @@ export interface RetryStrategy {
   backoffMultiplier: number
   jitterMs: number
   retryableErrors: ErrorType[]
-  retryCondition?: (error: BacklogApiError, attemptCount: number) => boolean
+  retryCondition?: ((error: BacklogApiError, attemptCount: number) => boolean) | undefined
 }
 
 /**
@@ -145,12 +145,12 @@ export class BacklogApiError extends Error {
   public readonly type: ErrorType
   public readonly severity: ErrorSeverity
   public readonly context: ErrorContext
-  public readonly originalError?: Error
+  public readonly originalError: Error | undefined
   public readonly recoverable: boolean
   public readonly retryable: boolean
-  public readonly suggestedAction?: string
-  public readonly errorCode?: string
-  public readonly httpStatus?: number
+  public readonly suggestedAction: string | undefined
+  public readonly errorCode: string | undefined
+  public readonly httpStatus: number | undefined
 
   constructor({
     type,
@@ -171,16 +171,16 @@ export class BacklogApiError extends Error {
     originalError?: Error
     recoverable?: boolean
     retryable?: boolean
-    suggestedAction?: string
-    errorCode?: string
-    httpStatus?: number
+    suggestedAction?: string | undefined
+    errorCode?: string | undefined
+    httpStatus?: number | undefined
   }) {
     super(message)
     this.name = 'BacklogApiError'
     this.type = type
     this.severity = severity
     this.context = context
-    this.originalError = originalError || undefined
+    this.originalError = originalError
     this.recoverable = recoverable
     this.retryable = retryable
     this.suggestedAction = suggestedAction
@@ -497,11 +497,11 @@ export class BacklogErrorHandler {
       message: error instanceof Error ? error.message : String(error),
       severity,
       context: fullContext,
-      originalError: error instanceof Error ? error : undefined,
+      originalError: error instanceof Error ? error : new Error(String(error)),
       recoverable,
       retryable,
-      suggestedAction,
-      httpStatus,
+      suggestedAction: suggestedAction || undefined,
+      httpStatus: httpStatus || undefined,
     })
 
     // エラーログ記録とトレンド分析
@@ -591,13 +591,7 @@ export class BacklogErrorHandler {
         const jitter = Math.random() * strategy.jitterMs
         const delay = Math.min(baseDelay + jitter, strategy.maxDelayMs)
 
-        this.logger.warn('Operation failed - retrying', undefined, {
-          errorType: classifiedError.type,
-          attempt: attempt + 1,
-          maxRetries: strategy.maxRetries,
-          delayMs: delay,
-          context: classifiedError.context,
-        })
+        this.logger.warn('Operation failed - retrying')
 
         // 遅延実行
         await this.sleep(delay)

@@ -10,13 +10,24 @@ ProjectLens/
 ├── .output/              # Nuxtビルド出力（無視）
 ├── docs/                 # プロジェクトドキュメント
 ├── electron/             # Electronアプリケーションコード
+├── i18n/                 # 国際化設定
 ├── release/              # ビルド済みアプリケーション（無視）
+├── scripts/              # ビルド・開発スクリプト
 ├── shared/               # 共通型定義・ユーティリティ
 ├── src/                  # Nuxtフロントエンドコード
 ├── tests/                # テストコード
 ├── dist-electron/        # Electron TypeScriptビルド出力（無視）
 ├── node_modules/         # 依存関係（無視）
-└── 設定ファイル群
+├── 設定ファイル群         # 各種設定ファイル
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── electron-vite.config.ts
+│   ├── drizzle.config.ts
+│   ├── nuxt.config.ts
+│   ├── vitest.config.ts
+│   └── eslint.config.js
+└── データベースファイル
+    └── dev-database.sqlite3
 ```
 
 ## 主要ディレクトリ詳細
@@ -28,14 +39,35 @@ electron/
 ├── main/                 # メインプロセス
 │   ├── database/        # データベース関連
 │   │   ├── connection-manager.ts    # 接続管理
+│   │   ├── connection-config.ts     # 接続設定
 │   │   ├── connection.ts           # データベース接続
 │   │   ├── health-checker.ts       # ヘルスチェック
 │   │   ├── schema/                 # データベーススキーマ
 │   │   └── utils/                  # DB関連ユーティリティ
+│   │       ├── error-handler.ts   # エラーハンドリング
+│   │       └── migration-runner.ts # マイグレーション実行
+│   ├── services/        # ビジネスサービス層
+│   │   └── backlog/    # Backlog API統合サービス
+│   │       ├── api-client.ts             # API クライアント
+│   │       ├── cache-manager.ts          # キャッシュ管理
+│   │       ├── connection-manager.ts     # 接続管理
+│   │       ├── enhanced-rate-limiter.ts  # 拡張レート制限
+│   │       ├── error-handler.ts          # エラーハンドリング
+│   │       ├── incremental-sync-manager.ts # 差分同期管理
+│   │       ├── index.ts                  # サービスエクスポート
+│   │       ├── rate-limiter.ts           # レート制限
+│   │       ├── request-queue.ts          # リクエストキュー
+│   │       ├── stage-data-fetcher.ts     # 段階的データ取得
+│   │       └── stage-error-handler.ts    # ステージエラー処理
 │   ├── utils/           # メインプロセス用ユーティリティ
 │   │   ├── logger.ts              # ログシステム
 │   │   └── logger-example.ts      # ログ使用例
 │   └── index.ts         # メインプロセスエントリーポイント
+├── test/                # Electronテスト
+│   ├── services/       # サービステスト
+│   │   └── backlog/   # Backlogサービステスト
+│   ├── utils/         # ユーティリティテスト
+│   └── types/         # テスト型定義
 └── preload/             # プリロードスクリプト
     └── index.ts         # レンダラープロセス連携
 ```
@@ -83,6 +115,9 @@ tests/
 │   ├── basic.test.ts  # 基本機能テスト
 │   └── electron.test.ts  # Electronテスト
 ├── electron/           # Electron専用テスト
+│   ├── backlog/       # Backlogサービステスト
+│   │   ├── unit/     # ユニットテスト
+│   │   └── integration/  # 統合テスト
 │   └── utils/         # Electronユーティリティテスト
 └── setup.ts           # テスト環境設定
 ```
@@ -143,7 +178,7 @@ import type { FeatureConfig } from '../../shared/types/feature'
 
 export class FeatureManager {
   constructor(private config: FeatureConfig) {}
-  
+
   async initialize(): Promise<void> {
     logger.info('Feature initializing')
     // 実装
@@ -181,11 +216,11 @@ import type { FeatureConfig, FeatureStatus } from '~/shared/types/feature'
 export const useFeatureStore = defineStore('feature', () => {
   const status = ref<FeatureStatus>('pending')
   const config = ref<FeatureConfig | null>(null)
-  
+
   const initialize = async () => {
     // ストアロジック
   }
-  
+
   return {
     status: readonly(status),
     config: readonly(config),
@@ -197,25 +232,30 @@ export const useFeatureStore = defineStore('feature', () => {
 ## ファイル命名規則
 
 ### TypeScript/JavaScript
-- **PascalCase**: クラス、インターフェース、型エイリアス
+
+- **PascalCase**: クラス、インターフェイス、型エイリアス
 - **camelCase**: 変数、関数、メソッド
 - **kebab-case**: ファイル名、ディレクトリ名
 
 ### Vue コンポーネント
+
 - **PascalCase**: コンポーネントファイル名（`FeatureCard.vue`）
 - **kebab-case**: テンプレート内でのコンポーネント使用
 
 ### データベース関連
+
 - **snake_case**: テーブル名、カラム名
 - **camelCase**: TypeScript内でのプロパティ名
 
 ### 設定・ドキュメント
+
 - **kebab-case**: 設定ファイル（`nuxt.config.ts`）
 - **lowercase + hyphen**: ドキュメント（`logging-system.md`）
 
 ## インポート組織規則
 
 ### インポート順序
+
 ```typescript
 // 1. Node.js組み込みモジュール
 import path from 'path'
@@ -235,6 +275,7 @@ import { validateConfig } from '../utils/validator'
 ```
 
 ### パスエイリアス設定
+
 ```typescript
 // tsconfig.json
 {
@@ -250,35 +291,44 @@ import { validateConfig } from '../utils/validator'
 ## アーキテクチャ設計原則
 
 ### 関心の分離
+
 - **Presentation**: Vue/Nuxtコンポーネント（UIロジック）
 - **Business**: Piniaストア（ビジネスロジック）
-- **Data**: Electronメインプロセス（データアクセス）
+- **Service**: Backlogサービス層（API統合・キャッシュ管理）
+- **Data**: Electronメインプロセス（データアクセス・永続化）
 
 ### 依存関係の方向
+
 ```
 src/ (Presentation)
   ↓
 shared/ (Common Types)
   ↑
-electron/ (Data & Platform)
+electron/main/services/ (Service Layer)
+  ↓
+electron/main/database/ (Data Access)
 ```
 
 ### モジュール設計
+
 - **高凝集**: 関連する機能を同一モジュールに集約
 - **疎結合**: モジュール間の依存を最小限に抑制
-- **単一責任**: 各モジュールは一つの責任のみを持つ
+- **単一責任**: 各モジュールは1つの責任のみを持つ
 
 ### エラーハンドリング
+
 - **境界での処理**: レイヤー境界でエラーをキャッチ
 - **適切なレベル**: ユーザーレベルとシステムレベルの区別
 - **ログとの連携**: エラー発生時の自動ログ出力
 
 ### パフォーマンス考慮
+
 - **レイジーローディング**: 必要時にのみモジュール読み込み
 - **メモリ効率**: 不要なオブジェクト参照の削除
 - **非同期処理**: UIブロッキングの回避
 
 ### テスタビリティ
+
 - **依存性注入**: モック化可能な構造
 - **純粋関数**: 副作用のない関数の推奨
 - **単体テスト**: 各モジュールの独立テスト可能性
