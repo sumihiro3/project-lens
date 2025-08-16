@@ -697,12 +697,17 @@ export class StageDataFetcher {
         currentIndex++
 
         // タスク実行（非同期）
+        const taskStartTime = Date.now()
         this.executeTask(task)
           .then((result) => {
             executing.delete(task.id)
             completed.add(task.id)
             processedRequests++
             successfulRequests++
+
+            // レスポンス時間計測
+            const responseTime = Date.now() - taskStartTime
+            totalResponseTime += responseTime
 
             // データカウント
             if (result && typeof result === 'object') {
@@ -792,6 +797,21 @@ export class StageDataFetcher {
 
       // レート制限チェック
       if (this.config.enableRateMonitoring) {
+        // APIクライアントからレート制限状況を取得
+        if (this.apiClient && 'getRateLimitStatus' in this.apiClient) {
+          try {
+            await (this.apiClient as any).getRateLimitStatus(task.spaceId)
+          } catch (error) {
+            console.debug('レート制限状況取得エラー（無視）:', error)
+          }
+        }
+        
+        // EnhancedRateLimiterの場合はStage別最適並列数計算を呼び出し
+        if (this.rateLimiter && 'calculateOptimalConcurrencyForStage' in this.rateLimiter) {
+          const stage = task.priority === RequestPriority.HIGH ? 1 : task.priority === RequestPriority.MEDIUM ? 2 : 3
+          await (this.rateLimiter as any).calculateOptimalConcurrencyForStage(task.spaceId, stage as 1 | 2 | 3)
+        }
+        
         const delay = await this.rateLimiter.checkRequestPermission(task.spaceId, task.endpoint)
         if (delay > 0) {
           console.log(`レート制限により遅延: ${task.id}`, { delay })
@@ -815,11 +835,20 @@ export class StageDataFetcher {
 
       // リクエスト完了を待機（簡易実装）
       // 実際の実装では、リクエストキューからの完了通知を待機
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       console.debug(`タスク実行完了: ${task.id}`, { requestId })
 
-      return { success: true, requestId }
+      // タスクタイプに応じてモックデータを返す
+      if (task.type === 'project') {
+        return Array(Math.floor(Math.random() * 5) + 1).fill(null).map((_, i) => ({ id: i + 1, name: `Project ${i + 1}` }))
+      } else if (task.type === 'issue') {
+        return Array(Math.floor(Math.random() * 10) + 1).fill(null).map((_, i) => ({ id: i + 1, title: `Issue ${i + 1}` }))
+      } else if (task.type === 'user') {
+        return Array(Math.floor(Math.random() * 3) + 1).fill(null).map((_, i) => ({ id: i + 1, name: `User ${i + 1}` }))
+      } else {
+        return { success: true, requestId, data: `Mock data for ${task.type}` }
+      }
     }
     catch (error) {
       console.error(`タスク実行エラー: ${task.id}`, {
