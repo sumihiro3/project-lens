@@ -55,7 +55,7 @@ ProjectLensデスクトップアプリケーションの段階的実装計画で
 
 ### フェーズ2: Backlog連携とデータ取得
 
-- [ ] 2.1 Backlog Direct API接続管理サービスの実装（プライマリ）
+- [x] 2.1 Backlog Direct API接続管理サービスの実装（プライマリ）
   - Backlog REST API接続クライアントを作成する
   - レート制限ヘッダー（X-RateLimit-*）の監視機能を実装する
   - 複数Backlogスペースの並列接続とレート制限調整を実装する

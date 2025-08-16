@@ -1,0 +1,30 @@
+services:
+  dev:
+    platform: linux/x86_64
+    privileged: true
+    environment:
+      - TZ=Asia/Tokyo
+    build:
+      context: ../.
+      dockerfile: .devcontainer/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../.:/workspace:cached
+      - try-node-node_modules:/workspace/node_modules
+      - claude-code-bashhistory:/commandhistory
+      - claude-code-config:/home/node/.claude
+      - gh-config:/home/node/.config/gh
+    tty: true
+
+volumes:
+  # 共有volumeは自分のユースケースにあったものに変更しましょう
+  # ホストマシンからsetup-shared-volumes.shを実行して作成すればひとまず動きます
+  try-node-node_modules:
+    external: true
+  claude-code-bashhistory:
+    external: true
+  claude-code-config:
+    external: true
+  gh-config:
+    external: true
