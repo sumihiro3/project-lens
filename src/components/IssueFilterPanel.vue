@@ -104,7 +104,6 @@ const localFilters = computed({
 const statusFilterOptions = [
   { title: '未処理のみ', value: 'unprocessed' },
   { title: '処理中のみ', value: 'in_progress' },
-  { title: '完了を非表示', value: 'hide_completed' },
   { title: 'すべて表示', value: 'all' }
 ]
 
