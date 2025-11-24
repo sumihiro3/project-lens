@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "ProjectLens",
+    "lastSynced": "最終同期: {time}",
+    "dashboard": "ダッシュボード",
+    "settings": "設定"
+  },
+  "settings": {
+    "title": "設定",
+    "domain": "ドメイン (例: example.backlog.com)",
+    "apiKey": "APIキー",
+    "projectKeys": "プロジェクトキー",
+    "projectKeysHint": "最大5つまで選択可能",
+    "maxProjects": "最大5プロジェクトまでです",
+    "save": "設定を保存",
+    "syncNow": "今すぐ同期",
+    "saved": "設定を保存しました",
+    "synced": "{count} 件の課題を同期しました",
+    "errorSaving": "設定の保存に失敗しました: {error}",
+    "errorSyncing": "同期に失敗しました: {error}",
+    "loadProjectsError": "プロジェクトの読み込みに失敗しました: {error}",
+    "language": "言語"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "welcome": "ProjectLensへようこそ。",
+    "noIssues": "課題が見つかりません。設定画面で同期してください。",
+    "noFilteredIssues": "フィルター条件に一致する課題がありません。"
+  },
+  "filters": {
+    "status": {
+      "label": "ステータス",
+      "unprocessed": "未処理のみ",
+      "in_progress": "処理中のみ",
+      "all": "すべて表示",
+      "hide_completed": "完了を非表示"
+    },
+    "dueDate": {
+      "label": "期限",
+      "overdue": "期限切れ",
+      "today": "今日まで",
+      "this_week": "今週まで",
+      "this_month": "今月まで",
+      "no_due_date": "期限なし"
+    },
+    "search": "検索",
+    "searchPlaceholder": "検索（課題キー、件名、説明）",
+    "project": "プロジェクト",
+    "minScore": "最小スコア",
+    "priority": "優先度",
+    "assignee": "担当者",
+    "reset": "リセット",
+    "apply": "適用",
+    "dialogTitle": "フィルター・検索設定",
+    "summary": {
+      "search": "検索: \"{query}\"",
+      "status": "ステータス: {value}",
+      "project": "プロジェクト: {value}",
+      "dueDate": "期限: {value}",
+      "minScore": "スコア≥{score}",
+      "priority": "優先度: {value}",
+      "assignee": "担当者: {value}",
+      "noFilter": "フィルターなし（完了を非表示）",
+      "count": "{filtered} / {total} 件"
+    }
+  },
+  "issue": {
+    "score": "Score: {score}",
+    "due": "Due: {date}"
+  }
+}

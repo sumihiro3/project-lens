@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "ProjectLens",
+    "lastSynced": "Last Synced: {time}",
+    "dashboard": "Dashboard",
+    "settings": "Settings"
+  },
+  "settings": {
+    "title": "Settings",
+    "domain": "Domain (e.g., example.backlog.com)",
+    "apiKey": "API Key",
+    "projectKeys": "Project Keys",
+    "projectKeysHint": "Select up to 5 projects",
+    "maxProjects": "Maximum 5 projects allowed",
+    "save": "Save Settings",
+    "syncNow": "Sync Issues Now",
+    "saved": "Settings saved successfully",
+    "synced": "Synced {count} issues successfully",
+    "errorSaving": "Error saving settings: {error}",
+    "errorSyncing": "Error syncing issues: {error}",
+    "loadProjectsError": "Failed to load projects: {error}",
+    "language": "Language"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to ProjectLens.",
+    "noIssues": "No issues found. Go to Settings to sync.",
+    "noFilteredIssues": "No matching issues found."
+  },
+  "filters": {
+    "status": {
+      "label": "Status",
+      "unprocessed": "Unprocessed Only",
+      "in_progress": "In Progress Only",
+      "all": "Show All",
+      "hide_completed": "Hide Completed"
+    },
+    "dueDate": {
+      "label": "Due Date",
+      "overdue": "Overdue",
+      "today": "Until Today",
+      "this_week": "Until This Week",
+      "this_month": "Until This Month",
+      "no_due_date": "No Due Date"
+    },
+    "search": "Search",
+    "searchPlaceholder": "Search (Key, Summary, Description)",
+    "project": "Project",
+    "minScore": "Min Score",
+    "priority": "Priority",
+    "assignee": "Assignee",
+    "reset": "Reset",
+    "apply": "Apply",
+    "dialogTitle": "Filter & Search Settings",
+    "summary": {
+      "search": "Search: \"{query}\"",
+      "status": "Status: {value}",
+      "project": "Project: {value}",
+      "dueDate": "Due: {value}",
+      "minScore": "Score≥{score}",
+      "priority": "Priority: {value}",
+      "assignee": "Assignee: {value}",
+      "noFilter": "No filters (Hide Completed)",
+      "count": "{filtered} / {total} items"
+    }
+  },
+  "issue": {
+    "score": "Score: {score}",
+    "due": "Due: {date}"
+  }
+}
