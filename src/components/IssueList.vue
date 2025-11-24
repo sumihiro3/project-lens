@@ -7,7 +7,7 @@
     </v-row>
     
     <v-alert v-if="issues.length === 0 && !loading" type="info" class="mt-4">
-      {{ emptyMessage }}
+      {{ emptyMessage || $t('dashboard.noFilteredIssues') }}
     </v-alert>
   </div>
 </template>
@@ -22,7 +22,5 @@ interface Props {
   emptyMessage?: string
 }
 
-withDefaults(defineProps<Props>(), {
-  emptyMessage: 'フィルター条件に一致する課題がありません。'
-})
+defineProps<Props>()
 </script>

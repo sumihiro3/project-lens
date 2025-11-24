@@ -1,16 +1,16 @@
 <template>
   <v-app>
-    <v-app-bar title="ProjectLens" color="primary">
+    <v-app-bar :title="$t('app.title')" color="primary">
       <template v-slot:append>
-        <span v-if="lastSyncTime" class="text-caption mr-4">Last Synced: {{ lastSyncTime }}</span>
+        <span v-if="lastSyncTime" class="text-caption mr-4">{{ $t('app.lastSynced', { time: lastSyncTime }) }}</span>
         <v-btn icon="mdi-cog" to="/settings"></v-btn>
       </template>
     </v-app-bar>
 
     <v-navigation-drawer expand-on-hover rail>
       <v-list>
-        <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" to="/"></v-list-item>
-        <v-list-item prepend-icon="mdi-cog" title="Settings" to="/settings"></v-list-item>
+        <v-list-item prepend-icon="mdi-view-dashboard" :title="$t('app.dashboard')" to="/"></v-list-item>
+        <v-list-item prepend-icon="mdi-cog" :title="$t('app.settings')" to="/settings"></v-list-item>
       </v-list>
     </v-navigation-drawer>
 

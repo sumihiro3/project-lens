@@ -2,12 +2,12 @@
   <div>
     <!-- フィルター設定ダイアログ -->
     <v-dialog v-model="dialog" max-width="600">
-      <v-card title="フィルター・検索設定">
+      <v-card :title="$t('filters.dialogTitle')">
         <v-card-text>
           <!-- 検索バー -->
           <v-text-field
             v-model="localFilters.searchQuery"
-            label="検索（課題キー、件名、説明）"
+            :label="$t('filters.searchPlaceholder')"
             prepend-inner-icon="mdi-magnify"
             clearable
             class="mb-4"
@@ -17,7 +17,7 @@
           <v-select
             v-model="localFilters.statusFilter"
             :items="statusFilterOptions"
-            label="ステータス"
+            :label="$t('filters.status.label')"
             clearable
             class="mb-4"
           ></v-select>
@@ -26,7 +26,7 @@
           <v-select
             v-model="localFilters.selectedProjects"
             :items="availableProjects"
-            label="プロジェクト"
+            :label="$t('filters.project')"
             multiple
             chips
             clearable
@@ -37,14 +37,14 @@
           <v-select
             v-model="localFilters.dueDateFilter"
             :items="dueDateFilterOptions"
-            label="期限"
+            :label="$t('filters.dueDate.label')"
             clearable
             class="mb-4"
           ></v-select>
 
           <!-- 最小スコアフィルター -->
           <div class="mb-4">
-            <v-label>最小スコア: {{ localFilters.minScore }}</v-label>
+            <v-label>{{ $t('filters.minScore') }}: {{ localFilters.minScore }}</v-label>
             <v-slider
               v-model="localFilters.minScore"
               :min="0"
@@ -58,7 +58,7 @@
           <v-select
             v-model="localFilters.selectedPriorities"
             :items="availablePriorities"
-            label="優先度"
+            :label="$t('filters.priority')"
             multiple
             chips
             clearable
@@ -69,7 +69,7 @@
           <v-select
             v-model="localFilters.selectedAssignees"
             :items="availableAssignees"
-            label="担当者"
+            :label="$t('filters.assignee')"
             multiple
             chips
             clearable
@@ -78,8 +78,8 @@
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="resetFilters">リセット</v-btn>
-          <v-btn color="primary" @click="dialog = false">適用</v-btn>
+          <v-btn text @click="resetFilters">{{ $t('filters.reset') }}</v-btn>
+          <v-btn color="primary" @click="dialog = false">{{ $t('filters.apply') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -88,6 +88,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FilterState } from '../composables/useIssueFilters'
 
 interface Props {
@@ -103,6 +104,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: FilterState]
 }>()
 
+const { t } = useI18n()
+
 // ダイアログ表示状態
 const dialog = ref(false)
 
@@ -113,20 +116,20 @@ const localFilters = computed({
 })
 
 // ステータスフィルターオプション
-const statusFilterOptions = [
-  { title: '未処理のみ', value: 'unprocessed' },
-  { title: '処理中のみ', value: 'in_progress' },
-  { title: 'すべて表示', value: 'all' }
-]
+const statusFilterOptions = computed(() => [
+  { title: t('filters.status.unprocessed'), value: 'unprocessed' },
+  { title: t('filters.status.in_progress'), value: 'in_progress' },
+  { title: t('filters.status.all'), value: 'all' }
+])
 
 // 期限フィルターオプション
-const dueDateFilterOptions = [
-  { title: '期限切れ', value: 'overdue' },
-  { title: '今日まで', value: 'today' },
-  { title: '今週まで', value: 'this_week' },
-  { title: '今月まで', value: 'this_month' },
-  { title: '期限なし', value: 'no_due_date' }
-]
+const dueDateFilterOptions = computed(() => [
+  { title: t('filters.dueDate.overdue'), value: 'overdue' },
+  { title: t('filters.dueDate.today'), value: 'today' },
+  { title: t('filters.dueDate.this_week'), value: 'this_week' },
+  { title: t('filters.dueDate.this_month'), value: 'this_month' },
+  { title: t('filters.dueDate.no_due_date'), value: 'no_due_date' }
+])
 
 // フィルターをリセット
 function resetFilters() {

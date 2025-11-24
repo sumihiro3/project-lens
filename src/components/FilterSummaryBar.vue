@@ -15,7 +15,7 @@
     
     <template v-slot:append>
       <v-chip size="small" color="primary">
-        {{ filteredCount }} / {{ totalCount }} 件
+        {{ $t('filters.summary.count', { filtered: filteredCount, total: totalCount }) }}
       </v-chip>
     </template>
   </v-alert>
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FilterState } from '../composables/useIssueFilters'
 
 interface Props {
@@ -37,21 +38,23 @@ defineEmits<{
   'open-filter-dialog': []
 }>()
 
+const { t } = useI18n()
+
 // ステータスフィルターオプション（表示用）
-const statusFilterOptions = [
-  { title: '未処理のみ', value: 'unprocessed' },
-  { title: '処理中のみ', value: 'in_progress' },
-  { title: 'すべて表示', value: 'all' }
-]
+const statusFilterOptions = computed(() => [
+  { title: t('filters.status.unprocessed'), value: 'unprocessed' },
+  { title: t('filters.status.in_progress'), value: 'in_progress' },
+  { title: t('filters.status.all'), value: 'all' }
+])
 
 // 期限フィルターオプション（表示用）
-const dueDateFilterOptions = [
-  { title: '期限切れ', value: 'overdue' },
-  { title: '今日まで', value: 'today' },
-  { title: '今週まで', value: 'this_week' },
-  { title: '今月まで', value: 'this_month' },
-  { title: '期限なし', value: 'no_due_date' }
-]
+const dueDateFilterOptions = computed(() => [
+  { title: t('filters.dueDate.overdue'), value: 'overdue' },
+  { title: t('filters.dueDate.today'), value: 'today' },
+  { title: t('filters.dueDate.this_week'), value: 'this_week' },
+  { title: t('filters.dueDate.this_month'), value: 'this_month' },
+  { title: t('filters.dueDate.no_due_date'), value: 'no_due_date' }
+])
 
 // 現在のフィルター設定のサマリー
 const filterSummary = computed(() => {
@@ -59,42 +62,42 @@ const filterSummary = computed(() => {
   
   // 検索クエリ
   if (props.filters.searchQuery) {
-    parts.push(`検索: "${props.filters.searchQuery}"`)
+    parts.push(t('filters.summary.search', { query: props.filters.searchQuery }))
   }
   
   // ステータス
-  const statusOption = statusFilterOptions.find(opt => opt.value === props.filters.statusFilter)
+  const statusOption = statusFilterOptions.value.find(opt => opt.value === props.filters.statusFilter)
   if (statusOption && props.filters.statusFilter !== 'hide_completed') {
-    parts.push(`ステータス: ${statusOption.title}`)
+    parts.push(t('filters.summary.status', { value: statusOption.title }))
   }
   
   // プロジェクト
   if (props.filters.selectedProjects && props.filters.selectedProjects.length > 0) {
-    parts.push(`プロジェクト: ${props.filters.selectedProjects.join(', ')}`)
+    parts.push(t('filters.summary.project', { value: props.filters.selectedProjects.join(', ') }))
   }
   
   // 期限
-  const dueDateOption = dueDateFilterOptions.find(opt => opt.value === props.filters.dueDateFilter)
+  const dueDateOption = dueDateFilterOptions.value.find(opt => opt.value === props.filters.dueDateFilter)
   if (dueDateOption) {
-    parts.push(`期限: ${dueDateOption.title}`)
+    parts.push(t('filters.summary.dueDate', { value: dueDateOption.title }))
   }
   
   // スコア
   if (props.filters.minScore > 0) {
-    parts.push(`スコア≥${props.filters.minScore}`)
+    parts.push(t('filters.summary.minScore', { score: props.filters.minScore }))
   }
   
   // 優先度
   if (props.filters.selectedPriorities.length > 0) {
-    parts.push(`優先度: ${props.filters.selectedPriorities.join(', ')}`)
+    parts.push(t('filters.summary.priority', { value: props.filters.selectedPriorities.join(', ') }))
   }
   
   // 担当者
   if (props.filters.selectedAssignees.length > 0) {
-    parts.push(`担当者: ${props.filters.selectedAssignees.join(', ')}`)
+    parts.push(t('filters.summary.assignee', { value: props.filters.selectedAssignees.join(', ') }))
   }
   
-  return parts.length > 0 ? parts.join(' | ') : 'フィルターなし（完了を非表示）'
+  return parts.length > 0 ? parts.join(' | ') : t('filters.summary.noFilter')
 })
 </script>
 

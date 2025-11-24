@@ -1,9 +1,9 @@
 <template>
   <v-container>
-    <v-card title="Dashboard" class="mb-4">
+    <v-card :title="$t('dashboard.title')" class="mb-4">
       <v-card-text>
         <div class="d-flex justify-space-between align-center">
-          <p>Welcome to ProjectLens.</p>
+          <p>{{ $t('dashboard.welcome') }}</p>
           <v-btn icon="mdi-refresh" @click="loadIssues" :loading="loading"></v-btn>
         </div>
       </v-card-text>
@@ -30,7 +30,7 @@
     <IssueList
       :issues="filteredIssues"
       :loading="loading"
-      :empty-message="issues.length === 0 ? 'No issues found. Go to Settings to sync.' : 'フィルター条件に一致する課題がありません。'"
+      :empty-message="issues.length === 0 ? $t('dashboard.noIssues') : $t('dashboard.noFilteredIssues')"
     />
   </v-container>
 </template>
