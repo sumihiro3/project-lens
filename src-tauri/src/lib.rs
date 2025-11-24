@@ -9,14 +9,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_sql::Builder::new().build())
-        .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+        .setup(|_app| {
             Ok(())
         })
         .run(tauri::generate_context!())
