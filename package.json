@@ -1,5 +1,5 @@
 {
-  "name": "ProjectLens",
+  "name": "project-lens",
   "type": "module",
   "private": true,
   "scripts": {
