@@ -68,64 +68,68 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
           }
         }
       } else if (filters.value.statusFilter === 'in_progress') {
-        if (!issue.status?.name || !inProgressStatuses.some(status => issue.status.name.includes(status))) {
+        const statusName = issue.status?.name
+        if (!statusName || !inProgressStatuses.some(s => statusName.includes(s))) {
           return false
         }
+
       } else if (filters.value.statusFilter === 'hide_completed') {
-        if (issue.status?.name && completedStatuses.some(status => issue.status.name.includes(status))) {
+        const statusName = issue.status?.name
+        if (statusName && completedStatuses.some(status => statusName.includes(status))) {
           return false
         }
-      }
 
-      // 期限フィルター
-      if (filters.value.dueDateFilter) {
-        const dueDate = parseDueDate(issue.dueDate)
 
-        if (filters.value.dueDateFilter === 'no_due_date') {
-          if (dueDate !== null) return false
-        } else if (filters.value.dueDateFilter === 'overdue') {
-          if (!dueDate || !isOverdue(dueDate)) return false
-        } else if (filters.value.dueDateFilter === 'today') {
-          if (!dueDate || !isToday(dueDate)) return false
-        } else if (filters.value.dueDateFilter === 'this_week') {
-          if (!dueDate || !isThisWeek(dueDate)) return false
-        } else if (filters.value.dueDateFilter === 'this_month') {
-          if (!dueDate || !isThisMonth(dueDate)) return false
+        // 期限フィルター
+        if (filters.value.dueDateFilter) {
+          const dueDate = parseDueDate(issue.dueDate)
+
+          if (filters.value.dueDateFilter === 'no_due_date') {
+            if (dueDate !== null) return false
+          } else if (filters.value.dueDateFilter === 'overdue') {
+            if (!dueDate || !isOverdue(dueDate)) return false
+          } else if (filters.value.dueDateFilter === 'today') {
+            if (!dueDate || !isToday(dueDate)) return false
+          } else if (filters.value.dueDateFilter === 'this_week') {
+            if (!dueDate || !isThisWeek(dueDate)) return false
+          } else if (filters.value.dueDateFilter === 'this_month') {
+            if (!dueDate || !isThisMonth(dueDate)) return false
+          }
         }
-      }
 
-      // スコアフィルター
-      if (issue.relevance_score < filters.value.minScore) {
-        return false
-      }
-
-      // 優先度フィルター
-      if (filters.value.selectedPriorities.length > 0) {
-        if (!issue.priority?.name || !filters.value.selectedPriorities.includes(issue.priority.name)) {
+        // スコアフィルター
+        if (issue.relevance_score < filters.value.minScore) {
           return false
         }
-      }
 
-      // 担当者フィルター
-      if (filters.value.selectedAssignees.length > 0) {
-        if (!issue.assignee?.name || !filters.value.selectedAssignees.includes(issue.assignee.name)) {
-          return false
+        // 優先度フィルター
+        if (filters.value.selectedPriorities.length > 0) {
+          if (!issue.priority?.name || !filters.value.selectedPriorities.includes(issue.priority.name)) {
+            return false
+          }
         }
-      }
 
-      // 検索クエリフィルター
-      if (filters.value.searchQuery) {
-        const query = filters.value.searchQuery.toLowerCase()
-        const matchesKey = issue.issueKey?.toLowerCase().includes(query)
-        const matchesSummary = issue.summary?.toLowerCase().includes(query)
-        const matchesDescription = issue.description?.toLowerCase().includes(query)
-
-        if (!matchesKey && !matchesSummary && !matchesDescription) {
-          return false
+        // 担当者フィルター
+        if (filters.value.selectedAssignees.length > 0) {
+          if (!issue.assignee?.name || !filters.value.selectedAssignees.includes(issue.assignee.name)) {
+            return false
+          }
         }
-      }
 
-      return true
+        // 検索クエリフィルター
+        if (filters.value.searchQuery) {
+          const query = filters.value.searchQuery.toLowerCase()
+          const matchesKey = issue.issueKey?.toLowerCase().includes(query)
+          const matchesSummary = issue.summary?.toLowerCase().includes(query)
+          const matchesDescription = issue.description?.toLowerCase().includes(query)
+
+          if (!matchesKey && !matchesSummary && !matchesDescription) {
+            return false
+          }
+        }
+
+        return true
+      }
     })
   })
 
