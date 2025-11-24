@@ -80,11 +80,15 @@ pub async fn fetch_issues(db: State<'_, DbClient>) -> Result<usize, String> {
     // プロジェクトキー（カンマ区切り）を分割して処理
     let project_keys: Vec<&str> = project_key.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()).collect();
     let mut all_issues = Vec::new();
+    let mut synced_projects = Vec::new();
 
     for key in project_keys {
         // 各プロジェクトの課題を取得
         match client.get_issues(key, &target_status_ids).await {
-            Ok(mut issues) => all_issues.append(&mut issues),
+            Ok(mut issues) => {
+                all_issues.append(&mut issues);
+                synced_projects.push(key);
+            },
             Err(e) => eprintln!("Failed to fetch issues for project {}: {}", key, e),
         }
     }
@@ -99,7 +103,7 @@ pub async fn fetch_issues(db: State<'_, DbClient>) -> Result<usize, String> {
     
     // データベースに保存
     let count = all_issues.len();
-    db.save_issues(&all_issues).await.map_err(|e| e.to_string())?;
+    db.save_issues(&all_issues, &synced_projects).await.map_err(|e| e.to_string())?;
 
     Ok(count)
 }

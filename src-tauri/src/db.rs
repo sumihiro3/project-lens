@@ -156,13 +156,18 @@ impl DbClient {
     /// 
     /// 課題のリストをデータベースに保存する。
     /// 既存の課題（同じID）がある場合は上書きされる。
+    /// また、同期されたプロジェクトの課題のうち、新しいリストに含まれていないもの（完了など）は削除される。
     /// 
     /// # 引数
     /// * `issues` - 保存する課題のスライス
+    /// * `synced_project_keys` - 同期に成功したプロジェクトキーのリスト
     /// 
     /// # 戻り値
     /// 成功時は`Ok(())`、失敗時はエラー
-    pub async fn save_issues(&self, issues: &[Issue]) -> Result<()> {
+    pub async fn save_issues(&self, issues: &[Issue], synced_project_keys: &[&str]) -> Result<()> {
+        let mut transaction = self.pool.begin().await?;
+
+        // 1. 新しい課題を保存/更新
         for issue in issues {
             // 課題全体をJSONとして保存（raw_data）
             let raw_data = serde_json::to_string(issue)?;
@@ -190,9 +195,37 @@ impl DbClient {
             .bind(&issue.updated)
             .bind(raw_data)
             .bind(issue.relevance_score)
-            .execute(&self.pool)
+            .execute(&mut *transaction)
             .await?;
         }
+
+        // 2. 同期されたプロジェクトの古い課題を削除
+        // 新しいリストに含まれる課題IDのリストを作成
+        let new_issue_ids: Vec<i64> = issues.iter().map(|i| i.id).collect();
+        
+        // IDリストをカンマ区切りの文字列に変換（SQLのIN句用）
+        // 空の場合は "0" を入れて構文エラーを防ぐ（ID 0は通常存在しない）
+        let id_list = if new_issue_ids.is_empty() {
+            "0".to_string()
+        } else {
+            new_issue_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",")
+        };
+
+        for project_key in synced_project_keys {
+            // そのプロジェクトに属するが、新しいリストに含まれていない課題を削除
+            // issue_keyは "PROJECT-123" の形式なので、前方一致でプロジェクトを判定
+            let sql = format!(
+                "DELETE FROM issues WHERE issue_key LIKE ? || '-%' AND id NOT IN ({})",
+                id_list
+            );
+            
+            sqlx::query(&sql)
+                .bind(project_key)
+                .execute(&mut *transaction)
+                .await?;
+        }
+
+        transaction.commit().await?;
         Ok(())
     }
     

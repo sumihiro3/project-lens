@@ -68,11 +68,15 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     // プロジェクトキー（カンマ区切り）を分割して処理
     let project_keys: Vec<&str> = project_key.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()).collect();
     let mut issues = Vec::new();
+    let mut synced_projects = Vec::new();
 
     for key in project_keys {
         // 各プロジェクトの課題を取得
         match client.get_issues(key, &target_status_ids).await {
-            Ok(mut project_issues) => issues.append(&mut project_issues),
+            Ok(mut project_issues) => {
+                issues.append(&mut project_issues);
+                synced_projects.push(key);
+            },
             Err(e) => error!("Failed to fetch issues for project {}: {}", key, e),
         }
     }
@@ -117,7 +121,7 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     }
     
     // 3. データベースに保存
-    db.save_issues(&issues).await?;
+    db.save_issues(&issues, &synced_projects).await?;
     
     // 4. 新しい高スコア課題があれば通知
     if !new_high_score_issues.is_empty() {
