@@ -132,22 +132,30 @@ impl BacklogClient {
     /// 
     /// # 引数
     /// * `project_id_or_key` - プロジェクトIDまたはプロジェクトキー
+    /// * `status_ids` - 取得対象のステータスIDのリスト（空の場合はすべて取得）
     /// 
     /// # 戻り値
     /// 課題のベクタ、またはエラー
-    pub async fn get_issues(&self, project_id_or_key: &str) -> Result<Vec<Issue>, Box<dyn Error>> {
+    pub async fn get_issues(&self, project_id_or_key: &str, status_ids: &[i64]) -> Result<Vec<Issue>, Box<dyn Error>> {
         // プロジェクトキーからIDを取得
         let project_id = self.get_project_id(project_id_or_key).await?;
         
         let url = format!("{}/issues", self.base_url);
+        let mut query = vec![
+            ("apiKey", self.api_key.clone()),
+            ("projectId[]", project_id.to_string()),
+            ("count", "100".to_string()),
+            ("sort", "updated".to_string()),
+        ];
+
+        // ステータスIDを追加
+        for status_id in status_ids {
+            query.push(("statusId[]", status_id.to_string()));
+        }
+
         let response = self.client
             .get(&url)
-            .query(&[
-                ("apiKey", &self.api_key),
-                ("projectId[]", &project_id.to_string()),
-                ("count", &"100".to_string()),
-                ("sort", &"updated".to_string()),
-            ])
+            .query(&query)
             .send()
             .await?;
 

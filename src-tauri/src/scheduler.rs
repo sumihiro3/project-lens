@@ -65,7 +65,12 @@ async fn sync_and_notify(app: &AppHandle) -> Result<(), String> {
 
     // 2. Backlog APIから課題を取得してスコアリング
     let client = BacklogClient::new(&domain, &api_key);
-    let mut issues = client.get_issues(&project_key).await.map_err(|e| e.to_string())?;
+    
+    // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
+    // 完了(4)は除外する
+    let target_status_ids = vec![1, 2, 3];
+    
+    let mut issues = client.get_issues(&project_key, &target_status_ids).await.map_err(|e| e.to_string())?;
     let me = client.get_myself().await.map_err(|e| e.to_string())?;
     
     // 高スコア課題のリスト（通知用）

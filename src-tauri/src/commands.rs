@@ -73,8 +73,12 @@ pub async fn fetch_issues(db: State<'_, DbClient>) -> Result<usize, String> {
     // Backlog APIクライアントを作成
     let client = BacklogClient::new(&domain, &api_key);
     
+    // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
+    // 完了(4)は除外する
+    let target_status_ids = vec![1, 2, 3];
+
     // 課題を取得
-    let mut issues = client.get_issues(&project_key).await.map_err(|e| e.to_string())?;
+    let mut issues = client.get_issues(&project_key, &target_status_ids).await.map_err(|e| e.to_string())?;
     
     // 現在のユーザー情報を取得
     let me = client.get_myself().await.map_err(|e| e.to_string())?;
