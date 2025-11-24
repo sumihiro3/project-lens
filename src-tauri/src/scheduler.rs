@@ -1,7 +1,9 @@
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
+use log::{info, error, debug};
 use crate::db::DbClient;
 use crate::backlog::BacklogClient;
 use crate::scoring::ScoringService;
+use anyhow::Result;
 use tauri_plugin_notification::NotificationExt;
 use std::time::Duration;
 
@@ -18,19 +20,15 @@ use std::time::Duration;
 /// * `app` - Tauriアプリケーションハンドル
 pub fn init(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        println!("Scheduler started");
-        
+        let mut interval = tokio::time::interval(Duration::from_secs(60 * 5)); // 5分ごとに実行
+
         loop {
-            // 初回は30秒待機（データベース初期化とアプリ起動を待つ）
-            tokio::time::sleep(Duration::from_secs(30)).await;
+            interval.tick().await;
+            info!("Scheduler: Starting sync...");
             
-            println!("Scheduler: Starting sync...");
             if let Err(e) = sync_and_notify(&app).await {
-                eprintln!("Scheduler error: {}", e);
+                error!("Scheduler: Sync failed: {}", e);
             }
-            
-            // 次回は5分後（300秒）
-            tokio::time::sleep(Duration::from_secs(300)).await;
         }
     });
 }
@@ -51,17 +49,14 @@ pub fn init(app: AppHandle) {
 /// 
 /// # 戻り値
 /// 成功時は`Ok(())`、失敗時はエラーメッセージ
-async fn sync_and_notify(app: &AppHandle) -> Result<(), String> {
+async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     // データベースクライアントを取得
     let db = app.state::<DbClient>();
     
     // 1. 設定を取得
-    let domain = db.get_setting("domain").await.map_err(|e| e.to_string())?
-        .ok_or("Domain not set")?;
-    let api_key = db.get_setting("api_key").await.map_err(|e| e.to_string())?
-        .ok_or("API Key not set")?;
-    let project_key = db.get_setting("project_key").await.map_err(|e| e.to_string())?
-        .ok_or("Project Key not set")?;
+    let domain = db.get_setting("domain").await?.ok_or(anyhow::anyhow!("Domain not set"))?;
+    let api_key = db.get_setting("api_key").await?.ok_or(anyhow::anyhow!("API Key not set"))?;
+    let project_key = db.get_setting("project_key").await?.ok_or(anyhow::anyhow!("Project Key not set"))?;
 
     // 2. Backlog APIから課題を取得してスコアリング
     let client = BacklogClient::new(&domain, &api_key);
@@ -70,45 +65,96 @@ async fn sync_and_notify(app: &AppHandle) -> Result<(), String> {
     // 完了(4)は除外する
     let target_status_ids = vec![1, 2, 3];
     
-    let mut issues = client.get_issues(&project_key, &target_status_ids).await.map_err(|e| e.to_string())?;
-    let me = client.get_myself().await.map_err(|e| e.to_string())?;
+    // プロジェクトキー（カンマ区切り）を分割して処理
+    let project_keys: Vec<&str> = project_key.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()).collect();
+    let mut issues = Vec::new();
+
+    for key in project_keys {
+        // 各プロジェクトの課題を取得
+        match client.get_issues(key, &target_status_ids).await {
+            Ok(mut project_issues) => issues.append(&mut project_issues),
+            Err(e) => error!("Failed to fetch issues for project {}: {}", key, e),
+        }
+    }
+    let me = client.get_myself().await.map_err(|e| anyhow::anyhow!("{}", e))?;
     
+    // 既存の課題IDとスコアを取得（通知判定用）
+    let existing_issues = db.get_issues().await?;
+    let mut existing_issue_map = std::collections::HashMap::new();
+    for issue in existing_issues {
+        existing_issue_map.insert(issue.id, issue.relevance_score);
+    }
+
     // 高スコア課題のリスト（通知用）
-    let mut high_score_issues = Vec::new();
+    let mut new_high_score_issues = Vec::new();
 
     // 各課題のスコアを計算
     for issue in &mut issues {
         let score = ScoringService::calculate_score(issue, &me);
         issue.relevance_score = score;
         
-        // スコアが80点以上の課題を記録
+        // デバッグログ: スコア計算結果
+        debug!("Issue {} ({}): Score {}", issue.issue_key, issue.summary, score);
+        
+        // スコアが80点以上の課題をチェック
         if score >= 80 {
-            high_score_issues.push(format!("{} ({})", issue.summary, score));
+            let should_notify = match existing_issue_map.get(&issue.id) {
+                Some(&old_score) => {
+                    // 既存の課題: 以前は80点未満だった場合のみ通知
+                    old_score < 80
+                },
+                None => {
+                    // 新規の課題: 無条件で通知
+                    true
+                }
+            };
+
+            if should_notify {
+                info!("-> Notification target: {}", issue.issue_key);
+                new_high_score_issues.push(format!("{} ({})", issue.summary, score));
+            }
         }
     }
     
     // 3. データベースに保存
-    db.save_issues(&issues).await.map_err(|e| e.to_string())?;
+    db.save_issues(&issues).await?;
     
-    // 4. 高スコア課題があれば通知
-    if !high_score_issues.is_empty() {
-        let body = if high_score_issues.len() == 1 {
+    // 4. 新しい高スコア課題があれば通知
+    if !new_high_score_issues.is_empty() {
+        let body = if new_high_score_issues.len() == 1 {
             // 1件の場合は課題名とスコアを表示
-            format!("High priority issue: {}", high_score_issues[0])
+            format!("New high priority issue: {}", new_high_score_issues[0])
         } else {
             // 複数件の場合は件数のみ表示
-            format!("{} high priority issues found.", high_score_issues.len())
+            format!("{} new high priority issues found.", new_high_score_issues.len())
         };
 
+        info!("Sending notification: {}", body);
+
+        // macOSのシステムサウンドを再生
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("afplay")
+                .arg("/System/Library/Sounds/Glass.aiff")
+                .spawn();
+        }
+
         // システム通知を表示
-        let _ = app.notification()
+        match app.notification()
             .builder()
             .title("ProjectLens Alert")
-            .body(body)
-            .show();
+            .body(&body)
+            .show() {
+            Ok(_) => info!("Notification sent successfully"),
+            Err(e) => error!("Failed to send notification: {}", e),
+        }
     }
     
-    println!("Scheduler: Sync complete. {} issues processed.", issues.len());
+    // フロントエンドに更新通知を送る（現在時刻を付与）
+    let now = chrono::Local::now().format("%H:%M").to_string();
+    let _ = app.emit("refresh-issues", now);
+    
+    info!("Scheduler: Sync complete. {} issues processed.", issues.len());
 
     Ok(())
 }
