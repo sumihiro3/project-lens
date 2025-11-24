@@ -24,6 +24,7 @@
     "vuetify": "^3.10.11"
   },
   "devDependencies": {
+    "@nuxtjs/i18n": "^10.2.1",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/cli": "^2.9.4"
   }
