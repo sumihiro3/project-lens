@@ -12,6 +12,7 @@ export interface FilterState {
   minScore: number
   selectedPriorities: string[]
   selectedAssignees: string[]
+  selectedProjects: string[]
 }
 
 /**
@@ -24,7 +25,8 @@ const filters = ref<FilterState>({
   dueDateFilter: '',
   minScore: 0,
   selectedPriorities: [],
-  selectedAssignees: []
+  selectedAssignees: [],
+  selectedProjects: []
 })
 
 /**
@@ -58,6 +60,20 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
       }
     })
     return Array.from(assignees).sort()
+  })
+
+  // 利用可能なプロジェクトリスト（課題キーのプレフィックスから抽出）
+  const availableProjects = computed(() => {
+    const projects = new Set<string>()
+    issues.value.forEach(issue => {
+      if (issue.issueKey) {
+        const projectKey = issue.issueKey.split('-')[0]
+        if (projectKey) {
+          projects.add(projectKey)
+        }
+      }
+    })
+    return Array.from(projects).sort()
   })
 
   // フィルター適用後の課題リスト
@@ -149,7 +165,20 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
       }
 
       // ----------------------------------------------------------------
-      // 6. 検索クエリフィルター
+      // 6. プロジェクトフィルター
+      // ----------------------------------------------------------------
+      // 選択されたプロジェクトに含まれない課題を除外
+      if (filters.value.selectedProjects.length > 0) {
+        if (issue.issueKey) {
+          const projectKey = issue.issueKey.split('-')[0]
+          if (!projectKey || !filters.value.selectedProjects.includes(projectKey)) {
+            return false
+          }
+        }
+      }
+
+      // ----------------------------------------------------------------
+      // 7. 検索クエリフィルター
       // ----------------------------------------------------------------
       // 課題キー、要約、説明文のいずれかにクエリが含まれているか確認
       if (filters.value.searchQuery) {
@@ -173,6 +202,7 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
     filters,
     filteredIssues,
     availablePriorities,
-    availableAssignees
+    availableAssignees,
+    availableProjects
   }
 }

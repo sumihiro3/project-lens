@@ -68,6 +68,11 @@ const filterSummary = computed(() => {
     parts.push(`ステータス: ${statusOption.title}`)
   }
   
+  // プロジェクト
+  if (props.filters.selectedProjects && props.filters.selectedProjects.length > 0) {
+    parts.push(`プロジェクト: ${props.filters.selectedProjects.join(', ')}`)
+  }
+  
   // 期限
   const dueDateOption = dueDateFilterOptions.find(opt => opt.value === props.filters.dueDateFilter)
   if (dueDateOption) {

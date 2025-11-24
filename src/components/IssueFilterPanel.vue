@@ -22,6 +22,17 @@
             class="mb-4"
           ></v-select>
 
+          <!-- プロジェクトフィルター -->
+          <v-select
+            v-model="localFilters.selectedProjects"
+            :items="availableProjects"
+            label="プロジェクト"
+            multiple
+            chips
+            clearable
+            class="mb-4"
+          ></v-select>
+
           <!-- 期限フィルター -->
           <v-select
             v-model="localFilters.dueDateFilter"
@@ -83,6 +94,7 @@ interface Props {
   modelValue: FilterState
   availablePriorities: string[]
   availableAssignees: string[]
+  availableProjects: string[]
 }
 
 const props = defineProps<Props>()
@@ -124,7 +136,8 @@ function resetFilters() {
     dueDateFilter: '',
     minScore: 0,
     selectedPriorities: [],
-    selectedAssignees: []
+    selectedAssignees: [],
+    selectedProjects: []
   })
 }
 

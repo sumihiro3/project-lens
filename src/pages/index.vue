@@ -23,6 +23,7 @@
       v-model="filters"
       :available-priorities="availablePriorities"
       :available-assignees="availableAssignees"
+      :available-projects="availableProjects"
     />
 
     <!-- 課題リスト -->
@@ -35,24 +36,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useIssues } from '../composables/useIssues'
 import { useIssueFilters } from '../composables/useIssueFilters'
 import IssueFilterPanel from '../components/IssueFilterPanel.vue'
 import FilterSummaryBar from '../components/FilterSummaryBar.vue'
 import IssueList from '../components/IssueList.vue'
+import { listen } from '@tauri-apps/api/event'
 
 // 課題データ管理
 const { issues, loading, loadIssues } = useIssues()
 
 // フィルター管理
-const { filters, filteredIssues, availablePriorities, availableAssignees } = useIssueFilters(issues)
+const {
+  filters,
+  filteredIssues,
+  availablePriorities,
+  availableAssignees,
+  availableProjects
+} = useIssueFilters(issues)
 
 // フィルターパネルへの参照
 const filterPanelRef = ref<InstanceType<typeof IssueFilterPanel>>()
 
+// 自動更新イベントのリスナー解除関数
+let unlisten: (() => void) | null = null
+
 // 初期データ読み込み
-onMounted(() => {
-  loadIssues()
+onMounted(async () => {
+  await loadIssues()
+  
+  // バックグラウンド同期完了イベントを監視
+  unlisten = await listen('refresh-issues', () => {
+    console.log('Received refresh-issues event, reloading...')
+    loadIssues()
+  })
+})
+
+onUnmounted(() => {
+  if (unlisten) {
+    unlisten()
+  }
 })
 </script>
