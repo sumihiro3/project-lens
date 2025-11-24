@@ -3,25 +3,34 @@
     <v-card>
       <v-card-title class="d-flex align-center">
         <v-btn icon="mdi-arrow-left" @click="$router.push('/')" class="mr-2"></v-btn>
-        Settings
+        {{ $t('settings.title') }}
       </v-card-title>
       <v-card-text>
         <v-form @submit.prevent="saveSettings">
-          <v-text-field v-model="domain" label="Domain (e.g., example.backlog.com)" required></v-text-field>
-          <v-text-field v-model="apiKey" label="API Key" type="password" required></v-text-field>
+          <v-select
+            v-model="locale"
+            :items="availableLocales"
+            item-title="name"
+            item-value="code"
+            :label="$t('settings.language')"
+            class="mb-4"
+          ></v-select>
+
+          <v-text-field v-model="domain" :label="$t('settings.domain')" required></v-text-field>
+          <v-text-field v-model="apiKey" :label="$t('settings.apiKey')" type="password" required></v-text-field>
           
           <v-autocomplete
             v-model="projectKeys"
             :items="availableProjects"
             item-title="name"
             item-value="key"
-            label="Project Keys"
+            :label="$t('settings.projectKeys')"
             multiple
             chips
             closable-chips
-            hint="Select up to 5 projects"
+            :hint="$t('settings.projectKeysHint')"
             persistent-hint
-            :rules="[v => v.length <= 5 || 'Maximum 5 projects allowed']"
+            :rules="[v => v.length <= 5 || $t('settings.maxProjects')]"
             :loading="loadingProjects"
             required
           >
@@ -36,12 +45,12 @@
             </template>
           </v-autocomplete>
           
-          <v-btn type="submit" color="primary" :loading="saving" class="mt-4">Save Settings</v-btn>
+          <v-btn type="submit" color="primary" :loading="saving" class="mt-4">{{ $t('settings.save') }}</v-btn>
         </v-form>
 
         <v-divider class="my-4"></v-divider>
 
-        <v-btn color="secondary" @click="syncIssues" :loading="syncing">Sync Issues Now</v-btn>
+        <v-btn color="secondary" @click="syncIssues" :loading="syncing">{{ $t('settings.syncNow') }}</v-btn>
         
         <v-alert v-if="message" :type="messageType" class="mt-4" closable>{{ message }}</v-alert>
       </v-card-text>
@@ -50,8 +59,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+
+const { t, locale, locales, setLocale } = useI18n()
+const availableLocales = computed(() => {
+  return (locales.value as any[]).map(i => ({
+    name: i.name,
+    code: i.code
+  }))
+})
+
+// Watch for locale changes and call setLocale
+watch(locale, async (newLocale) => {
+  await setLocale(newLocale)
+})
 
 const domain = ref('')
 const apiKey = ref('')
@@ -91,7 +113,7 @@ async function loadProjects() {
     availableProjects.value = projects.map(([key, name]) => ({ key, name: `${key} - ${name}` }))
   } catch (e) {
     console.error('Failed to load projects:', e)
-    message.value = `Failed to load projects: ${e}`
+    message.value = t('settings.loadProjectsError', { error: e })
     messageType.value = 'error'
   } finally {
     loadingProjects.value = false
@@ -104,7 +126,7 @@ async function saveSettings() {
   try {
     // プロジェクト数の検証
     if (projectKeys.value.length > 5) {
-      message.value = 'Maximum 5 projects allowed'
+      message.value = t('settings.maxProjects')
       messageType.value = 'error'
       return
     }
@@ -116,10 +138,10 @@ async function saveSettings() {
     const keysString = projectKeys.value.join(',')
     await invoke('save_settings', { key: 'project_key', value: keysString })
     
-    message.value = 'Settings saved successfully'
+    message.value = t('settings.saved')
     messageType.value = 'success'
   } catch (e) {
-    message.value = `Error saving settings: ${e}`
+    message.value = t('settings.errorSaving', { error: e })
     messageType.value = 'error'
   } finally {
     saving.value = false
@@ -131,10 +153,10 @@ async function syncIssues() {
   message.value = ''
   try {
     const count = await invoke<number>('fetch_issues')
-    message.value = `Synced ${count} issues successfully`
+    message.value = t('settings.synced', { count })
     messageType.value = 'success'
   } catch (e) {
-    message.value = `Error syncing issues: ${e}`
+    message.value = t('settings.errorSyncing', { error: e })
     messageType.value = 'error'
   } finally {
     syncing.value = false
