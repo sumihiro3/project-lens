@@ -4,14 +4,11 @@
     variant="tonal"
     density="compact"
     class="filter-summary-bar mb-4"
+    @click="$emit('open-filter-dialog')"
+    style="cursor: pointer;"
   >
     <template v-slot:prepend>
-      <v-btn
-        icon="mdi-filter"
-        size="small"
-        variant="text"
-        @click="$emit('open-filter-dialog')"
-      ></v-btn>
+      <v-icon>mdi-filter</v-icon>
     </template>
     
     <div class="text-body-2">{{ filterSummary }}</div>
