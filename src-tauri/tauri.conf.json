@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "project-lens",
+  "productName": "ProjectLens",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.projectlens.app",
   "build": {
     "frontendDist": "../.output/public"
   },
