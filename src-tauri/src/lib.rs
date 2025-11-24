@@ -42,6 +42,7 @@ pub fn run() {
             commands::save_settings,   // 設定保存
             commands::get_settings,    // 設定取得
             commands::fetch_issues,    // Backlogから課題を取得してスコアリング
+            commands::fetch_projects,  // Backlogからプロジェクト一覧を取得
             commands::get_issues       // 保存済み課題一覧を取得
         ])
         // アプリケーション起動時のセットアップ処理

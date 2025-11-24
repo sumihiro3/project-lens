@@ -192,4 +192,39 @@ impl BacklogClient {
         let user = response.json::<User>().await?;
         Ok(user)
     }
+
+    /// ユーザーがアクセス可能なプロジェクト一覧を取得
+    /// 
+    /// APIキーに紐づくユーザーがアクセスできるプロジェクトの一覧を取得する。
+    /// 設定画面でプロジェクトを選択する際に使用。
+    /// 
+    /// # 戻り値
+    /// プロジェクト情報のベクタ、またはエラー
+    pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
+        let url = format!("{}/projects", self.base_url);
+        let response = self.client
+            .get(&url)
+            .query(&[("apiKey", &self.api_key)])
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(format!("API request failed: {}", response.status()).into());
+        }
+
+        let projects = response.json::<Vec<Project>>().await?;
+        Ok(projects)
+    }
+}
+
+/// プロジェクト情報
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Project {
+    /// プロジェクトID
+    pub id: i64,
+    /// プロジェクトキー (例: PROJ)
+    #[serde(rename = "projectKey")]
+    pub project_key: String,
+    /// プロジェクト名
+    pub name: String,
 }

@@ -77,22 +77,60 @@ pub async fn fetch_issues(db: State<'_, DbClient>) -> Result<usize, String> {
     // 完了(4)は除外する
     let target_status_ids = vec![1, 2, 3];
 
-    // 課題を取得
-    let mut issues = client.get_issues(&project_key, &target_status_ids).await.map_err(|e| e.to_string())?;
+    // プロジェクトキー（カンマ区切り）を分割して処理
+    let project_keys: Vec<&str> = project_key.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()).collect();
+    let mut all_issues = Vec::new();
+
+    for key in project_keys {
+        // 各プロジェクトの課題を取得
+        match client.get_issues(key, &target_status_ids).await {
+            Ok(mut issues) => all_issues.append(&mut issues),
+            Err(e) => eprintln!("Failed to fetch issues for project {}: {}", key, e),
+        }
+    }
     
     // 現在のユーザー情報を取得
     let me = client.get_myself().await.map_err(|e| e.to_string())?;
     
     // 各課題のスコアを計算
-    for issue in &mut issues {
+    for issue in &mut all_issues {
         issue.relevance_score = crate::scoring::ScoringService::calculate_score(issue, &me);
     }
     
     // データベースに保存
-    let count = issues.len();
-    db.save_issues(&issues).await.map_err(|e| e.to_string())?;
+    let count = all_issues.len();
+    db.save_issues(&all_issues).await.map_err(|e| e.to_string())?;
 
     Ok(count)
+}
+
+/// プロジェクト一覧を取得するコマンド
+/// 
+/// Backlog APIから自分がアクセス可能なプロジェクト一覧を取得する。
+/// 設定画面でプロジェクトを選択する際に使用。
+/// 
+/// # 戻り値
+/// プロジェクト情報のベクタ（プロジェクトキーと名前）
+#[tauri::command]
+pub async fn fetch_projects(db: tauri::State<'_, DbClient>) -> Result<Vec<(String, String)>, String> {
+    // 設定を取得
+    let domain = db.get_setting("domain").await.map_err(|e| e.to_string())?
+        .ok_or("Domain not set")?;
+    let api_key = db.get_setting("api_key").await.map_err(|e| e.to_string())?
+        .ok_or("API Key not set")?;
+
+    // Backlog APIクライアントを作成
+    let client = BacklogClient::new(&domain, &api_key);
+    
+    // プロジェクト一覧を取得
+    let projects = client.get_projects().await.map_err(|e| e.to_string())?;
+    
+    // (project_key, name) のタプルに変換
+    let result: Vec<(String, String)> = projects.iter()
+        .map(|p| (p.project_key.clone(), p.name.clone()))
+        .collect();
+    
+    Ok(result)
 }
 
 /// 保存された課題一覧を取得
