@@ -9,9 +9,34 @@
         <v-form @submit.prevent="saveSettings">
           <v-text-field v-model="domain" label="Domain (e.g., example.backlog.com)" required></v-text-field>
           <v-text-field v-model="apiKey" label="API Key" type="password" required></v-text-field>
-          <v-text-field v-model="projectKey" label="Project Key (e.g., PROJ)" required></v-text-field>
           
-          <v-btn type="submit" color="primary" :loading="saving">Save Settings</v-btn>
+          <v-autocomplete
+            v-model="projectKeys"
+            :items="availableProjects"
+            item-title="name"
+            item-value="key"
+            label="Project Keys"
+            multiple
+            chips
+            closable-chips
+            hint="Select up to 5 projects"
+            persistent-hint
+            :rules="[v => v.length <= 5 || 'Maximum 5 projects allowed']"
+            :loading="loadingProjects"
+            required
+          >
+            <template v-slot:prepend>
+              <v-btn 
+                icon="mdi-refresh" 
+                size="small" 
+                variant="text"
+                @click="loadProjects"
+                :loading="loadingProjects"
+              ></v-btn>
+            </template>
+          </v-autocomplete>
+          
+          <v-btn type="submit" color="primary" :loading="saving" class="mt-4">Save Settings</v-btn>
         </v-form>
 
         <v-divider class="my-4"></v-divider>
@@ -30,7 +55,9 @@ import { invoke } from '@tauri-apps/api/core'
 
 const domain = ref('')
 const apiKey = ref('')
-const projectKey = ref('')
+const projectKeys = ref<string[]>([])
+const availableProjects = ref<{ key: string; name: string }[]>([])
+const loadingProjects = ref(false)
 const saving = ref(false)
 const syncing = ref(false)
 const message = ref('')
@@ -43,19 +70,52 @@ onMounted(async () => {
     const p = await invoke<string | null>('get_settings', { key: 'project_key' })
     if (d) domain.value = d
     if (k) apiKey.value = k
-    if (p) projectKey.value = p
+    if (p) {
+      // カンマ区切り文字列を配列に変換
+      projectKeys.value = p.split(',').map(k => k.trim()).filter(k => k.length > 0)
+    }
+    
+    // プロジェクト一覧を読み込み
+    if (d && k) {
+      await loadProjects()
+    }
   } catch (e) {
     console.error(e)
   }
 })
 
+async function loadProjects() {
+  loadingProjects.value = true
+  try {
+    const projects = await invoke<[string, string][]>('fetch_projects')
+    availableProjects.value = projects.map(([key, name]) => ({ key, name: `${key} - ${name}` }))
+  } catch (e) {
+    console.error('Failed to load projects:', e)
+    message.value = `Failed to load projects: ${e}`
+    messageType.value = 'error'
+  } finally {
+    loadingProjects.value = false
+  }
+}
+
 async function saveSettings() {
   saving.value = true
   message.value = ''
   try {
+    // プロジェクト数の検証
+    if (projectKeys.value.length > 5) {
+      message.value = 'Maximum 5 projects allowed'
+      messageType.value = 'error'
+      return
+    }
+    
     await invoke('save_settings', { key: 'domain', value: domain.value })
     await invoke('save_settings', { key: 'api_key', value: apiKey.value })
-    await invoke('save_settings', { key: 'project_key', value: projectKey.value })
+    
+    // 配列をカンマ区切り文字列に変換して保存
+    const keysString = projectKeys.value.join(',')
+    await invoke('save_settings', { key: 'project_key', value: keysString })
+    
     message.value = 'Settings saved successfully'
     messageType.value = 'success'
   } catch (e) {
