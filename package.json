@@ -7,7 +7,9 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "tauri:dev": "npm run generate && cargo run --manifest-path=src-tauri/Cargo.toml",
+    "tauri:build": "npm run generate && cargo build --release --manifest-path=src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",

@@ -1,17 +1,20 @@
 <template>
   <v-app>
-    <v-app-bar title="ProjectLens"></v-app-bar>
+    <v-app-bar title="ProjectLens" color="primary">
+      <template v-slot:append>
+        <v-btn icon="mdi-cog" to="/settings"></v-btn>
+      </template>
+    </v-app-bar>
+
+    <v-navigation-drawer expand-on-hover rail>
+      <v-list>
+        <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" to="/"></v-list-item>
+        <v-list-item prepend-icon="mdi-cog" title="Settings" to="/settings"></v-list-item>
+      </v-list>
+    </v-navigation-drawer>
+
     <v-main>
-      <v-container class="d-flex justify-center align-center h-100">
-        <v-card width="400" prepend-icon="mdi-check-circle" title="Setup Complete">
-          <v-card-text>
-            ProjectLens is running with Vuetify!
-          </v-card-text>
-          <v-card-actions>
-            <v-btn color="primary" variant="elevated" block>Click Me</v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-container>
+      <NuxtPage />
     </v-main>
   </v-app>
 </template>
