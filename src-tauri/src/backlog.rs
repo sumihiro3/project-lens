@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 /// Backlog APIクライアント
-/// 
+///
 /// Backlog APIとの通信を担当するクライアント構造体。
 /// APIキーとドメインを使用して認証を行い、課題情報やユーザー情報を取得する。
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ pub struct BacklogClient {
 }
 
 /// Backlog課題
-/// 
+///
 /// Backlog APIから取得した課題の情報を保持する構造体。
 /// JSON形式のレスポンスをデシリアライズして使用する。
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,7 +69,7 @@ pub struct User {
 
 impl BacklogClient {
     /// 新しいBacklogClientを作成
-    /// 
+    ///
     /// # 引数
     /// * `domain` - Backlogのドメイン (例: example.backlog.com)
     /// * `api_key` - BacklogのAPIキー
@@ -83,28 +83,29 @@ impl BacklogClient {
     }
 
     /// プロジェクトの課題一覧を取得
-    /// 
+    ///
     /// 指定されたプロジェクトの課題を最大100件取得する。
     /// 更新日時の降順でソートされる。
-    /// 
+    ///
     /// # 引数
     /// * `project_id_or_key` - プロジェクトIDまたはプロジェクトキー
-    /// 
+    ///
     /// # 戻り値
     /// 課題のベクタ、またはエラー
     /// プロジェクト情報を取得
-    /// 
+    ///
     /// プロジェクトキーまたはIDからプロジェクト情報を取得する。
     /// プロジェクトキーを使用する場合、このメソッドでIDを取得できる。
-    /// 
+    ///
     /// # 引数
     /// * `project_id_or_key` - プロジェクトIDまたはプロジェクトキー
-    /// 
+    ///
     /// # 戻り値
     /// プロジェクトID、またはエラー
     async fn get_project_id(&self, project_id_or_key: &str) -> Result<i64, Box<dyn Error>> {
         let url = format!("{}/projects/{}", self.base_url, project_id_or_key);
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .query(&[("apiKey", &self.api_key)])
             .send()
@@ -112,7 +113,10 @@ impl BacklogClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read response body".to_string());
             return Err(format!("Failed to get project: {} - {}", status, body).into());
         }
 
@@ -126,20 +130,24 @@ impl BacklogClient {
     }
 
     /// プロジェクトの課題一覧を取得
-    /// 
+    ///
     /// 指定されたプロジェクトの課題を最大100件取得する。
     /// 更新日時の降順でソートされる。
-    /// 
+    ///
     /// # 引数
     /// * `project_id_or_key` - プロジェクトIDまたはプロジェクトキー
     /// * `status_ids` - 取得対象のステータスIDのリスト（空の場合はすべて取得）
-    /// 
+    ///
     /// # 戻り値
     /// 課題のベクタ、またはエラー
-    pub async fn get_issues(&self, project_id_or_key: &str, status_ids: &[i64]) -> Result<Vec<Issue>, Box<dyn Error>> {
+    pub async fn get_issues(
+        &self,
+        project_id_or_key: &str,
+        status_ids: &[i64],
+    ) -> Result<Vec<Issue>, Box<dyn Error>> {
         // プロジェクトキーからIDを取得
         let project_id = self.get_project_id(project_id_or_key).await?;
-        
+
         let url = format!("{}/issues", self.base_url);
         let mut query = vec![
             ("apiKey", self.api_key.clone()),
@@ -153,16 +161,15 @@ impl BacklogClient {
             query.push(("statusId[]", status_id.to_string()));
         }
 
-        let response = self.client
-            .get(&url)
-            .query(&query)
-            .send()
-            .await?;
+        let response = self.client.get(&url).query(&query).send().await?;
 
         // レスポンスステータスの確認
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read response body".to_string());
             return Err(format!("API request failed: {} - {}", status, body).into());
         }
 
@@ -171,15 +178,16 @@ impl BacklogClient {
     }
 
     /// 自分のユーザー情報を取得
-    /// 
+    ///
     /// APIキーに紐づくユーザーの情報を取得する。
     /// スコアリング時に「自分が担当者」かどうかを判定するために使用。
-    /// 
+    ///
     /// # 戻り値
     /// ユーザー情報、またはエラー
     pub async fn get_myself(&self) -> Result<User, Box<dyn Error>> {
         let url = format!("{}/users/myself", self.base_url);
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .query(&[("apiKey", &self.api_key)])
             .send()
@@ -194,15 +202,16 @@ impl BacklogClient {
     }
 
     /// ユーザーがアクセス可能なプロジェクト一覧を取得
-    /// 
+    ///
     /// APIキーに紐づくユーザーがアクセスできるプロジェクトの一覧を取得する。
     /// 設定画面でプロジェクトを選択する際に使用。
-    /// 
+    ///
     /// # 戻り値
     /// プロジェクト情報のベクタ、またはエラー
     pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
         let url = format!("{}/projects", self.base_url);
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .query(&[("apiKey", &self.api_key)])
             .send()

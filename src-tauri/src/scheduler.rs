@@ -1,21 +1,21 @@
-use tauri::{AppHandle, Manager, Emitter};
-use log::{info, error, debug};
-use crate::db::DbClient;
 use crate::backlog::BacklogClient;
+use crate::db::DbClient;
 use crate::scoring::ScoringService;
 use anyhow::Result;
-use tauri_plugin_notification::NotificationExt;
+use log::{debug, error, info};
 use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 
 /// バックグラウンドスケジューラーを初期化
-/// 
+///
 /// アプリケーション起動時に呼び出され、バックグラウンドで定期的に
 /// Backlogから課題を同期し、高スコアの課題があれば通知を送る。
-/// 
+///
 /// 実行タイミング：
 /// - 初回: アプリ起動10秒後
 /// - 以降: 5分ごと
-/// 
+///
 /// # 引数
 /// * `app` - Tauriアプリケーションハンドル
 pub fn init(app: AppHandle) {
@@ -25,7 +25,7 @@ pub fn init(app: AppHandle) {
         loop {
             interval.tick().await;
             info!("Scheduler: Starting sync...");
-            
+
             if let Err(e) = sync_and_notify(&app).await {
                 error!("Scheduler: Sync failed: {}", e);
             }
@@ -34,7 +34,7 @@ pub fn init(app: AppHandle) {
 }
 
 /// 同期と通知を実行
-/// 
+///
 /// 以下の処理を順に実行する：
 /// 1. データベースから設定を取得
 /// 2. Backlog APIから課題を取得
@@ -43,30 +43,43 @@ pub fn init(app: AppHandle) {
 /// 5. 高スコア（80点以上）の課題を抽出
 /// 6. 課題をデータベースに保存
 /// 7. 高スコア課題があれば通知を表示
-/// 
+///
 /// # 引数
 /// * `app` - Tauriアプリケーションハンドル
-/// 
+///
 /// # 戻り値
 /// 成功時は`Ok(())`、失敗時はエラーメッセージ
 async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     // データベースクライアントを取得
     let db = app.state::<DbClient>();
-    
+
     // 1. 設定を取得
-    let domain = db.get_setting("domain").await?.ok_or(anyhow::anyhow!("Domain not set"))?;
-    let api_key = db.get_setting("api_key").await?.ok_or(anyhow::anyhow!("API Key not set"))?;
-    let project_key = db.get_setting("project_key").await?.ok_or(anyhow::anyhow!("Project Key not set"))?;
+    let domain = db
+        .get_setting("domain")
+        .await?
+        .ok_or(anyhow::anyhow!("Domain not set"))?;
+    let api_key = db
+        .get_setting("api_key")
+        .await?
+        .ok_or(anyhow::anyhow!("API Key not set"))?;
+    let project_key = db
+        .get_setting("project_key")
+        .await?
+        .ok_or(anyhow::anyhow!("Project Key not set"))?;
 
     // 2. Backlog APIから課題を取得してスコアリング
     let client = BacklogClient::new(&domain, &api_key);
-    
+
     // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
     // 完了(4)は除外する
     let target_status_ids = vec![1, 2, 3];
-    
+
     // プロジェクトキー（カンマ区切り）を分割して処理
-    let project_keys: Vec<&str> = project_key.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()).collect();
+    let project_keys: Vec<&str> = project_key
+        .split(',')
+        .map(|k| k.trim())
+        .filter(|k| !k.is_empty())
+        .collect();
     let mut issues = Vec::new();
     let mut synced_projects = Vec::new();
 
@@ -76,12 +89,15 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
             Ok(mut project_issues) => {
                 issues.append(&mut project_issues);
                 synced_projects.push(key);
-            },
+            }
             Err(e) => error!("Failed to fetch issues for project {}: {}", key, e),
         }
     }
-    let me = client.get_myself().await.map_err(|e| anyhow::anyhow!("{}", e))?;
-    
+    let me = client
+        .get_myself()
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
     // 既存の課題IDとスコアを取得（通知判定用）
     let existing_issues = db.get_issues().await?;
     let mut existing_issue_map = std::collections::HashMap::new();
@@ -96,17 +112,20 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     for issue in &mut issues {
         let score = ScoringService::calculate_score(issue, &me);
         issue.relevance_score = score;
-        
+
         // デバッグログ: スコア計算結果
-        debug!("Issue {} ({}): Score {}", issue.issue_key, issue.summary, score);
-        
+        debug!(
+            "Issue {} ({}): Score {}",
+            issue.issue_key, issue.summary, score
+        );
+
         // スコアが80点以上の課題をチェック
         if score >= 80 {
             let should_notify = match existing_issue_map.get(&issue.id) {
                 Some(&old_score) => {
                     // 既存の課題: 以前は80点未満だった場合のみ通知
                     old_score < 80
-                },
+                }
                 None => {
                     // 新規の課題: 無条件で通知
                     true
@@ -119,10 +138,11 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
             }
         }
     }
-    
+
     // 3. データベースに保存
-    db.save_issues(&issues, &synced_projects, &project_keys).await?;
-    
+    db.save_issues(&issues, &synced_projects, &project_keys)
+        .await?;
+
     // 4. 新しい高スコア課題があれば通知
     if !new_high_score_issues.is_empty() {
         let body = if new_high_score_issues.len() == 1 {
@@ -130,7 +150,10 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
             format!("New high priority issue: {}", new_high_score_issues[0])
         } else {
             // 複数件の場合は件数のみ表示
-            format!("{} new high priority issues found.", new_high_score_issues.len())
+            format!(
+                "{} new high priority issues found.",
+                new_high_score_issues.len()
+            )
         };
 
         info!("Sending notification: {}", body);
@@ -144,21 +167,26 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         }
 
         // システム通知を表示
-        match app.notification()
+        match app
+            .notification()
             .builder()
             .title("ProjectLens Alert")
             .body(&body)
-            .show() {
+            .show()
+        {
             Ok(_) => info!("Notification sent successfully"),
             Err(e) => error!("Failed to send notification: {}", e),
         }
     }
-    
+
     // フロントエンドに更新通知を送る（現在時刻を付与）
     let now = chrono::Local::now().format("%H:%M").to_string();
     let _ = app.emit("refresh-issues", now);
-    
-    info!("Scheduler: Sync complete. {} issues processed.", issues.len());
+
+    info!(
+        "Scheduler: Sync complete. {} issues processed.",
+        issues.len()
+    );
 
     Ok(())
 }

@@ -1,13 +1,13 @@
-use tauri_plugin_sql::{Migration, MigrationKind};
-use sqlx::{Pool, Sqlite, SqlitePool};
-use anyhow::Result;
 use crate::backlog::Issue;
+use anyhow::Result;
+use sqlx::{Pool, Sqlite, SqlitePool};
+use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// データベースマイグレーション定義を取得
-/// 
+///
 /// アプリケーション起動時に実行されるSQLiteのマイグレーションを定義する。
 /// テーブル構造の初期化を行う。
-/// 
+///
 /// # 戻り値
 /// マイグレーション定義のベクタ
 pub fn get_migrations() -> Vec<Migration> {
@@ -45,7 +45,7 @@ pub fn get_migrations() -> Vec<Migration> {
 }
 
 /// データベースクライアント
-/// 
+///
 /// SQLiteデータベースへのアクセスを提供するクライアント。
 /// 設定、課題データの保存・取得を担当する。
 #[derive(Clone)]
@@ -56,10 +56,10 @@ pub struct DbClient {
 
 impl DbClient {
     /// URLからデータベースクライアントを作成
-    /// 
+    ///
     /// # 引数
     /// * `db_url` - データベースURL（例: "sqlite://path/to/db.sqlite"）
-    /// 
+    ///
     /// # 戻り値
     /// データベースクライアント、またはエラー
     #[allow(dead_code)]
@@ -69,18 +69,18 @@ impl DbClient {
     }
 
     /// オプション指定でデータベースクライアントを作成
-    /// 
+    ///
     /// データベースファイルが存在しない場合に自動作成するなど、
     /// 詳細なオプションを指定してクライアントを作成する。
-    /// 
+    ///
     /// # 引数
     /// * `options` - SQLite接続オプション
-    /// 
+    ///
     /// # 戻り値
     /// データベースクライアント、またはエラー
     pub async fn new_with_options(options: sqlx::sqlite::SqliteConnectOptions) -> Result<Self> {
         let pool = SqlitePool::connect_with(options).await?;
-        
+
         // マイグレーションを実行（テーブルが存在しない場合に作成）
         sqlx::query(
             r#"
@@ -108,23 +108,23 @@ impl DbClient {
                 ai_summary TEXT,
                 raw_data TEXT
             );
-            "#
+            "#,
         )
         .execute(&pool)
         .await?;
-        
+
         Ok(Self { pool })
     }
 
     /// 設定を保存
-    /// 
+    ///
     /// キーと値のペアで設定を保存する。
     /// 既存のキーがある場合は上書きされる（UPSERT）。
-    /// 
+    ///
     /// # 引数
     /// * `key` - 設定のキー
     /// * `value` - 設定の値
-    /// 
+    ///
     /// # 戻り値
     /// 成功時は`Ok(())`、失敗時はエラー
     pub async fn save_setting(&self, key: &str, value: &str) -> Result<()> {
@@ -137,12 +137,12 @@ impl DbClient {
     }
 
     /// 設定を取得
-    /// 
+    ///
     /// 指定されたキーの設定値を取得する。
-    /// 
+    ///
     /// # 引数
     /// * `key` - 設定のキー
-    /// 
+    ///
     /// # 戻り値
     /// 設定値（存在しない場合は`None`）、またはエラー
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
@@ -154,28 +154,33 @@ impl DbClient {
     }
 
     /// 課題を保存
-    /// 
+    ///
     /// 課題のリストをデータベースに保存する。
     /// 既存の課題（同じID）がある場合は上書きされる。
     /// また、以下のクリーンアップを行う：
     /// 1. 同期に成功したプロジェクトについて、新しいリストに含まれていない課題（完了など）を削除
     /// 2. 設定に含まれていないプロジェクトの課題を削除（プロジェクト選択解除時など）
-    /// 
+    ///
     /// # 引数
     /// * `issues` - 保存する課題のスライス
     /// * `synced_project_keys` - 同期に成功したプロジェクトキーのリスト
     /// * `all_project_keys` - 設定されている全てのプロジェクトキーのリスト
-    /// 
+    ///
     /// # 戻り値
     /// 成功時は`Ok(())`、失敗時はエラー
-    pub async fn save_issues(&self, issues: &[Issue], synced_project_keys: &[&str], all_project_keys: &[&str]) -> Result<()> {
+    pub async fn save_issues(
+        &self,
+        issues: &[Issue],
+        synced_project_keys: &[&str],
+        all_project_keys: &[&str],
+    ) -> Result<()> {
         let mut transaction = self.pool.begin().await?;
 
         // 1. 新しい課題を保存/更新
         for issue in issues {
             // 課題全体をJSONとして保存（raw_data）
             let raw_data = serde_json::to_string(issue)?;
-            
+
             // 検索・表示用に一部のフィールドを個別カラムに展開
             let priority = issue.priority.as_ref().map(|p| p.name.clone());
             let status = issue.status.as_ref().map(|s| s.name.clone());
@@ -206,13 +211,17 @@ impl DbClient {
         // 2. 同期されたプロジェクトの古い課題を削除
         // 新しいリストに含まれる課題IDのリストを作成
         let new_issue_ids: Vec<i64> = issues.iter().map(|i| i.id).collect();
-        
+
         // IDリストをカンマ区切りの文字列に変換（SQLのIN句用）
         // 空の場合は "0" を入れて構文エラーを防ぐ（ID 0は通常存在しない）
         let id_list = if new_issue_ids.is_empty() {
             "0".to_string()
         } else {
-            new_issue_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",")
+            new_issue_ids
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
         };
 
         for project_key in synced_project_keys {
@@ -222,7 +231,7 @@ impl DbClient {
                 "DELETE FROM issues WHERE issue_key LIKE ? || '-%' AND id NOT IN ({})",
                 id_list
             );
-            
+
             sqlx::query(&sql)
                 .bind(project_key)
                 .execute(&mut *transaction)
@@ -238,7 +247,7 @@ impl DbClient {
                 conditions.push("issue_key NOT LIKE ? || '-%'");
             }
             let sql = format!("DELETE FROM issues WHERE {}", conditions.join(" AND "));
-            
+
             let mut query = sqlx::query(&sql);
             for key in all_project_keys {
                 query = query.bind(key);
@@ -254,29 +263,32 @@ impl DbClient {
         transaction.commit().await?;
         Ok(())
     }
-    
+
     /// 課題一覧を取得
-    /// 
+    ///
     /// データベースに保存されている課題を関連度スコアの降順で取得する。
     /// スコアが高い（重要度が高い）課題が先頭に来る。
-    /// 
+    ///
     /// # 戻り値
     /// 課題のベクタ（スコア降順）、またはエラー
     pub async fn get_issues(&self) -> Result<Vec<Issue>> {
         // raw_dataとスコアを取得し、スコア降順でソート
-        let rows: Vec<(String, i32)> = sqlx::query_as("SELECT raw_data, relevance_score FROM issues ORDER BY relevance_score DESC")
-            .fetch_all(&self.pool)
-            .await?;
-            
+        let rows: Vec<(String, i32)> = sqlx::query_as(
+            "SELECT raw_data, relevance_score FROM issues ORDER BY relevance_score DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
         // JSONをデシリアライズしてスコアを設定
-        let issues = rows.into_iter()
+        let issues = rows
+            .into_iter()
             .filter_map(|(json, score)| {
                 let mut issue: Issue = serde_json::from_str(&json).ok()?;
                 issue.relevance_score = score;
                 Some(issue)
             })
             .collect();
-            
+
         Ok(issues)
     }
 }
