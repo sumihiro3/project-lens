@@ -13,6 +13,8 @@ export interface FilterState {
   selectedPriorities: string[]
   selectedAssignees: string[]
   selectedProjects: string[]
+  sortKey: string
+  sortOrder: 'asc' | 'desc'
 }
 
 /**
@@ -26,7 +28,9 @@ const filters = ref<FilterState>({
   minScore: 0,
   selectedPriorities: [],
   selectedAssignees: [],
-  selectedProjects: []
+  selectedProjects: [],
+  sortKey: 'relevance_score', // デフォルト：関連度スコア順
+  sortOrder: 'desc'
 })
 
 /**
@@ -78,7 +82,7 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
 
   // フィルター適用後の課題リスト
   const filteredIssues = computed(() => {
-    return issues.value.filter(issue => {
+    const result = issues.value.filter(issue => {
       // ----------------------------------------------------------------
       // 1. ステータスフィルター
       // ----------------------------------------------------------------
@@ -195,6 +199,63 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
 
       // すべてのフィルターを通過した課題のみ表示
       return true
+    })
+
+    // ----------------------------------------------------------------
+    // 8. ソート
+    // ----------------------------------------------------------------
+    return result.sort((a, b) => {
+      let comparison = 0
+      const { sortKey } = filters.value
+
+      switch (sortKey) {
+        case 'dueDate':
+          // 期限日順（期限なしは最後）
+          if (!a.dueDate && !b.dueDate) comparison = 0
+          else if (!a.dueDate) comparison = 1
+          else if (!b.dueDate) comparison = -1
+          else comparison = a.dueDate.localeCompare(b.dueDate)
+          break
+
+        case 'priority':
+          // 優先度の重み付け（高い順）
+          const priorityRanks: Record<string, number> = {
+            '高': 3, 'High': 3, 'Highest': 4,
+            '中': 2, 'Normal': 2,
+            '低': 1, 'Low': 1, 'Lowest': 0
+          }
+
+          const pA = a.priority?.name || ''
+          const pB = b.priority?.name || ''
+
+          const rankA = priorityRanks[pA] ?? 0
+          const rankB = priorityRanks[pB] ?? 0
+
+          // ランクで比較（ランクが高い方が大きい）
+          comparison = rankA - rankB
+
+          // ランクが同じ場合は名前で比較
+          if (comparison === 0) {
+            comparison = pA.localeCompare(pB)
+          }
+          break
+
+        case 'updated':
+          // 更新日順
+          const uA = a.updated || ''
+          const uB = b.updated || ''
+          comparison = uA.localeCompare(uB)
+          break
+
+        case 'relevance_score':
+        default:
+          // スコア順
+          comparison = a.relevance_score - b.relevance_score
+          break
+      }
+
+      // 降順の場合は符号を反転
+      return filters.value.sortOrder === 'desc' ? -comparison : comparison
     })
   })
 

@@ -14,15 +14,62 @@
     <div class="text-body-2">{{ filterSummary }}</div>
     
     <template v-slot:append>
-      <v-chip size="small" color="primary">
-        {{ $t('filters.summary.count', { filtered: filteredCount, total: totalCount }) }}
-      </v-chip>
+      <div class="d-flex align-center">
+        <v-chip size="small" color="primary" class="mr-2">
+          {{ $t('filters.summary.count', { filtered: filteredCount, total: totalCount }) }}
+        </v-chip>
+
+        <v-menu location="bottom end">
+          <template v-slot:activator="{ props }">
+            <v-tooltip :text="$t('filters.sort.label')" location="bottom">
+              <template v-slot:activator="{ props: tooltipProps }">
+                <v-btn
+                  v-bind="mergeProps(props, tooltipProps)"
+                  icon="mdi-sort"
+                  variant="text"
+                  density="comfortable"
+                  size="small"
+                  :color="filters.sortKey !== 'relevance_score' ? 'primary' : undefined"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+          </template>
+          <v-list density="compact" nav width="200">
+            <v-list-subheader>{{ $t('filters.sort.label') }}</v-list-subheader>
+            
+            <v-list-item
+              v-for="option in sortOptions"
+              :key="option.value"
+              :value="option.value"
+              @click="selectSortKey(option.value)"
+              :active="filters.sortKey === option.value"
+              color="primary"
+            >
+              <template v-slot:prepend>
+                <v-icon :icon="option.icon"></v-icon>
+              </template>
+              <v-list-item-title>{{ option.title }}</v-list-item-title>
+            </v-list-item>
+            
+            <v-divider class="my-2"></v-divider>
+            
+            <v-list-item @click="toggleSortOrder">
+              <template v-slot:prepend>
+                <v-icon :icon="filters.sortOrder === 'asc' ? 'mdi-sort-ascending' : 'mdi-sort-descending'"></v-icon>
+              </template>
+              <v-list-item-title>
+                {{ filters.sortOrder === 'asc' ? '昇順' : '降順' }}
+              </v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+      </div>
     </template>
   </v-alert>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, mergeProps } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FilterState } from '../composables/useIssueFilters'
 
@@ -39,6 +86,25 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+// ソートオプション
+const sortOptions = computed(() => [
+  { title: t('filters.sort.relevance_score'), value: 'relevance_score', icon: 'mdi-star' },
+  { title: t('filters.sort.dueDate'), value: 'dueDate', icon: 'mdi-calendar-clock' },
+  { title: t('filters.sort.priority'), value: 'priority', icon: 'mdi-flag' },
+  { title: t('filters.sort.updated'), value: 'updated', icon: 'mdi-update' }
+])
+
+// ソートキー選択（デフォルトで降順にする）
+function selectSortKey(key: string) {
+  props.filters.sortKey = key
+  props.filters.sortOrder = 'desc'
+}
+
+// ソート順切り替え
+function toggleSortOrder() {
+  props.filters.sortOrder = props.filters.sortOrder === 'asc' ? 'desc' : 'asc'
+}
 
 // ステータスフィルターオプション（表示用）
 const statusFilterOptions = computed(() => [
@@ -102,7 +168,5 @@ const filterSummary = computed(() => {
 </script>
 
 <style scoped>
-.filter-summary-bar {
-  /* 親コンポーネントでsticky制御を行うため削除 */
-}
+
 </style>

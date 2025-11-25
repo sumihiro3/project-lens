@@ -63,6 +63,13 @@
       "assignee": "担当者: {value}",
       "noFilter": "フィルターなし（完了を非表示）",
       "count": "{filtered} / {total} 件"
+    },
+    "sort": {
+      "label": "並び替え",
+      "relevance_score": "関連度スコア",
+      "dueDate": "期限日",
+      "priority": "優先度",
+      "updated": "更新日"
     }
   },
   "issue": {

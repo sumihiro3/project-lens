@@ -10,6 +10,7 @@ export interface Issue {
   status?: { name: string }
   assignee?: { name: string }
   dueDate?: string
+  updated?: string
   relevance_score: number
 }
 

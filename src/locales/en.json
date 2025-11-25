@@ -63,6 +63,13 @@
       "assignee": "Assignee: {value}",
       "noFilter": "No filters (Hide Completed)",
       "count": "{filtered} / {total} items"
+    },
+    "sort": {
+      "label": "Sort By",
+      "relevance_score": "Relevance Score",
+      "dueDate": "Due Date",
+      "priority": "Priority",
+      "updated": "Updated Date"
     }
   },
   "issue": {
