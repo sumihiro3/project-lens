@@ -37,6 +37,23 @@ export function useIssues() {
   return {
     issues,
     loading,
-    loadIssues
+    loadIssues,
+    syncIssues
+  }
+
+  /**
+   * Backlogと同期して課題一覧を更新
+   */
+  async function syncIssues() {
+    loading.value = true
+    try {
+      await invoke('fetch_issues')
+      await loadIssues()
+    } catch (e) {
+      console.error('Failed to sync issues:', e)
+      throw e
+    } finally {
+      loading.value = false
+    }
   }
 }
