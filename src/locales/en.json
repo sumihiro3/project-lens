@@ -67,6 +67,7 @@
   },
   "issue": {
     "score": "Score: {score}",
-    "due": "Due: {date}"
+    "due": "Due: {date}",
+    "openInBrowser": "Open in Browser"
   }
 }

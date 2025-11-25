@@ -10,6 +10,7 @@
     "sql:default",
     "log:default",
     "http:default",
-    "notification:default"
+    "notification:default",
+    "shell:allow-open"
   ]
 }

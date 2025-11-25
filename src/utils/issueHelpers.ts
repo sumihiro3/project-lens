@@ -101,3 +101,47 @@ export function isThisMonth(dueDate: Date): boolean {
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
   return dueDate >= today && dueDate <= monthEnd
 }
+
+/**
+ * プロジェクトキーから一貫した色を生成
+ */
+export function getProjectColor(issueKey: string | undefined): string {
+  if (!issueKey) return '#9E9E9E' // grey
+
+  // プロジェクトキーを抽出（例: "PROJ-123" -> "PROJ"）
+  const projectKey = issueKey.split('-')[0]
+  if (!projectKey) return '#9E9E9E' // grey
+
+  // プロジェクトキーのハッシュ値を計算
+  let hash = 0
+  for (let i = 0; i < projectKey.length; i++) {
+    hash = projectKey.charCodeAt(i) + ((hash << 5) - hash)
+  }
+
+  // 視認性の高い色のパレット
+  const colors = [
+    '#2196F3', // blue
+    '#4CAF50', // green
+    '#FF9800', // orange
+    '#9C27B0', // purple
+    '#F44336', // red
+    '#00BCD4', // cyan
+    '#FF5722', // deep orange
+    '#3F51B5', // indigo
+    '#8BC34A', // light green
+    '#E91E63', // pink
+    '#009688', // teal
+    '#FFC107', // amber
+  ]
+
+  return colors[Math.abs(hash) % colors.length]
+}
+
+/**
+ * プロジェクトキーを抽出
+ */
+export function extractProjectKey(issueKey: string | undefined): string {
+  if (!issueKey) return ''
+  const projectKey = issueKey.split('-')[0]
+  return projectKey || ''
+}

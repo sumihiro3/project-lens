@@ -1,10 +1,8 @@
 <template>
   <div>
-    <v-row>
-      <v-col v-for="issue in issues" :key="issue.id" cols="12">
-        <IssueCard :issue="issue" />
-      </v-col>
-    </v-row>
+    <div v-for="issue in issues" :key="issue.id">
+      <IssueCard :issue="issue" />
+    </div>
     
     <v-alert v-if="issues.length === 0 && !loading" type="info" class="mt-4">
       {{ emptyMessage || $t('dashboard.noFilteredIssues') }}

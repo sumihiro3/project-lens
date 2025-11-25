@@ -22,6 +22,8 @@ pub fn run() {
     tauri::Builder::default()
         // 通知プラグインを初期化（システムトレイ通知用）
         .plugin(tauri_plugin_notification::init())
+        // Shellプラグインを初期化（ブラウザでURLを開く用）
+        .plugin(tauri_plugin_shell::init())
         // HTTPプラグインを初期化（Backlog API通信用）
         .plugin(tauri_plugin_http::init())
         // ログプラグインを初期化（デバッグ・エラーログ用）
