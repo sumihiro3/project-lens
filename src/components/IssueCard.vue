@@ -74,6 +74,17 @@
           >
             {{ $t('issue.due', { date: formatDate(issue.dueDate) }) }}
           </v-chip>
+
+        <v-chip 
+            v-if="issue.updated" 
+            size="small" 
+            prepend-icon="mdi-update"
+            class="metadata-chip"
+            variant="text"
+            color="grey-darken-1"
+          >
+            {{ formatRelativeTime(issue.updated) }}
+          </v-chip>
       </div>
       
       <!-- 説明文 -->
@@ -96,7 +107,8 @@ import {
   formatDate,
   getProjectColor,
   extractProjectKey,
-  getChipTextColor
+  getChipTextColor,
+  formatRelativeTime
 } from '../utils/issueHelpers'
 
 interface Props {

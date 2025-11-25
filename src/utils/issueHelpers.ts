@@ -166,3 +166,33 @@ export function getChipTextColor(bgColor: string): string {
   // コントラスト比が 4.5 以上になるように文字色を選択（WCAG 推奨）
   return L > 0.5 ? '#000000' : '#ffffff'
 }
+
+/**
+ * 更新日時を相対時間で表示（例: "たった今", "1分前", "1時間前"）
+ */
+export function formatRelativeTime(dateStr: string | undefined): string {
+  if (!dateStr) return ''
+
+  const date = parseDueDate(dateStr)
+  if (!date) return ''
+
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+
+  if (diffSec < 60) {
+    return 'たった今'
+  } else if (diffMin < 60) {
+    return `${diffMin}分前`
+  } else if (diffHour < 24) {
+    return `${diffHour}時間前`
+  } else if (diffDay < 7) {
+    return `${diffDay}日前`
+  } else {
+    // 1週間以上前は日付を表示
+    return formatDate(dateStr)
+  }
+}
