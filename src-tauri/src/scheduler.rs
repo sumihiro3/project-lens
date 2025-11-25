@@ -70,7 +70,7 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     let mut issues = Vec::new();
     let mut synced_projects = Vec::new();
 
-    for key in project_keys {
+    for &key in &project_keys {
         // 各プロジェクトの課題を取得
         match client.get_issues(key, &target_status_ids).await {
             Ok(mut project_issues) => {
@@ -121,7 +121,7 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     }
     
     // 3. データベースに保存
-    db.save_issues(&issues, &synced_projects).await?;
+    db.save_issues(&issues, &synced_projects, &project_keys).await?;
     
     // 4. 新しい高スコア課題があれば通知
     if !new_high_score_issues.is_empty() {

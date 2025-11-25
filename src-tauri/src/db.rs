@@ -62,6 +62,7 @@ impl DbClient {
     /// 
     /// # 戻り値
     /// データベースクライアント、またはエラー
+    #[allow(dead_code)]
     pub async fn new(db_url: &str) -> Result<Self> {
         let pool = SqlitePool::connect(db_url).await?;
         Ok(Self { pool })
@@ -156,15 +157,18 @@ impl DbClient {
     /// 
     /// 課題のリストをデータベースに保存する。
     /// 既存の課題（同じID）がある場合は上書きされる。
-    /// また、同期されたプロジェクトの課題のうち、新しいリストに含まれていないもの（完了など）は削除される。
+    /// また、以下のクリーンアップを行う：
+    /// 1. 同期に成功したプロジェクトについて、新しいリストに含まれていない課題（完了など）を削除
+    /// 2. 設定に含まれていないプロジェクトの課題を削除（プロジェクト選択解除時など）
     /// 
     /// # 引数
     /// * `issues` - 保存する課題のスライス
     /// * `synced_project_keys` - 同期に成功したプロジェクトキーのリスト
+    /// * `all_project_keys` - 設定されている全てのプロジェクトキーのリスト
     /// 
     /// # 戻り値
     /// 成功時は`Ok(())`、失敗時はエラー
-    pub async fn save_issues(&self, issues: &[Issue], synced_project_keys: &[&str]) -> Result<()> {
+    pub async fn save_issues(&self, issues: &[Issue], synced_project_keys: &[&str], all_project_keys: &[&str]) -> Result<()> {
         let mut transaction = self.pool.begin().await?;
 
         // 1. 新しい課題を保存/更新
@@ -221,6 +225,28 @@ impl DbClient {
             
             sqlx::query(&sql)
                 .bind(project_key)
+                .execute(&mut *transaction)
+                .await?;
+        }
+
+        // 3. 設定に含まれていないプロジェクトの課題を削除
+        if !all_project_keys.is_empty() {
+            // 設定されているプロジェクト以外の課題を削除
+            // issue_key NOT LIKE 'PRJ1-%' AND issue_key NOT LIKE 'PRJ2-%' ...
+            let mut conditions = Vec::new();
+            for _ in all_project_keys {
+                conditions.push("issue_key NOT LIKE ? || '-%'");
+            }
+            let sql = format!("DELETE FROM issues WHERE {}", conditions.join(" AND "));
+            
+            let mut query = sqlx::query(&sql);
+            for key in all_project_keys {
+                query = query.bind(key);
+            }
+            query.execute(&mut *transaction).await?;
+        } else {
+            // プロジェクトが一つも設定されていない場合は全削除
+            sqlx::query("DELETE FROM issues")
                 .execute(&mut *transaction)
                 .await?;
         }
