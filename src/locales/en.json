@@ -25,7 +25,8 @@
     "title": "Dashboard",
     "welcome": "Welcome to ProjectLens.",
     "noIssues": "No issues found. Go to Settings to sync.",
-    "noFilteredIssues": "No matching issues found."
+    "noFilteredIssues": "No matching issues found.",
+    "refresh": "Refresh Issues"
   },
   "filters": {
     "status": {

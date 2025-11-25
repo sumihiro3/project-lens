@@ -103,9 +103,6 @@ const filterSummary = computed(() => {
 
 <style scoped>
 .filter-summary-bar {
-  position: sticky;
-  top: 64px; /* v-app-barの高さ分 */
-  z-index: 10;
-  background-color: rgb(var(--v-theme-surface));
+  /* 親コンポーネントでsticky制御を行うため削除 */
 }
 </style>

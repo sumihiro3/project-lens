@@ -1,21 +1,28 @@
 <template>
   <v-container>
-    <v-card :title="$t('dashboard.title')" class="mb-4">
-      <v-card-text>
-        <div class="d-flex justify-space-between align-center">
-          <p>{{ $t('dashboard.welcome') }}</p>
-          <v-btn icon="mdi-refresh" @click="loadIssues" :loading="loading"></v-btn>
-        </div>
-      </v-card-text>
-    </v-card>
+    <div class="d-flex align-center mb-4 gap-2 sticky-header pt-2">
+      <FilterSummaryBar
+        class="flex-grow-1 mb-0"
+        :filters="filters"
+        :total-count="issues.length"
+        :filtered-count="filteredIssues.length"
+        @open-filter-dialog="filterPanelRef?.openDialog()"
+      />
+      <v-tooltip :text="$t('dashboard.refresh')" location="bottom">
+        <template v-slot:activator="{ props }">
+          <v-btn 
+            v-bind="props"
+            icon="mdi-refresh" 
+            @click="handleRefresh" 
+            :loading="loading" 
+            variant="text" 
+            size="small"
+          ></v-btn>
+        </template>
+      </v-tooltip>
+    </div>
 
-    <!-- フィルター設定サマリーバー -->
-    <FilterSummaryBar
-      :filters="filters"
-      :total-count="issues.length"
-      :filtered-count="filteredIssues.length"
-      @open-filter-dialog="filterPanelRef?.openDialog()"
-    />
+
 
     <!-- フィルター設定ダイアログ（非表示） -->
     <IssueFilterPanel
@@ -32,6 +39,16 @@
       :loading="loading"
       :empty-message="issues.length === 0 ? $t('dashboard.noIssues') : $t('dashboard.noFilteredIssues')"
     />
+    <v-snackbar
+      v-model="snackbar"
+      :color="snackbarColor"
+      timeout="3000"
+    >
+      {{ snackbarText }}
+      <template v-slot:actions>
+        <v-btn variant="text" @click="snackbar = false">Close</v-btn>
+      </template>
+    </v-snackbar>
   </v-container>
 </template>
 
@@ -43,9 +60,31 @@ import IssueFilterPanel from '../components/IssueFilterPanel.vue'
 import FilterSummaryBar from '../components/FilterSummaryBar.vue'
 import IssueList from '../components/IssueList.vue'
 import { listen } from '@tauri-apps/api/event'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 // 課題データ管理
-const { issues, loading, loadIssues } = useIssues()
+const { issues, loading, loadIssues, syncIssues } = useIssues()
+
+// スナックバー管理
+const snackbar = ref(false)
+const snackbarText = ref('')
+const snackbarColor = ref('success')
+
+// 手動同期ハンドラ
+async function handleRefresh() {
+  try {
+    await syncIssues()
+    snackbarText.value = t('settings.synced', { count: issues.value.length })
+    snackbarColor.value = 'success'
+    snackbar.value = true
+  } catch (e) {
+    snackbarText.value = t('settings.errorSyncing', { error: e })
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  }
+}
 
 // フィルター管理
 const {
@@ -79,3 +118,15 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.sticky-header {
+  position: sticky;
+  top: 64px;
+  z-index: 10;
+  background-color: rgb(var(--v-theme-background));
+  margin-top: -16px; /* コンテナのパディングを相殺 */
+  padding-top: 16px;
+  padding-bottom: 8px;
+}
+</style>

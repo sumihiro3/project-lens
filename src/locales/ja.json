@@ -25,7 +25,8 @@
     "title": "ダッシュボード",
     "welcome": "ProjectLensへようこそ。",
     "noIssues": "課題が見つかりません。設定画面で同期してください。",
-    "noFilteredIssues": "フィルター条件に一致する課題がありません。"
+    "noFilteredIssues": "フィルター条件に一致する課題がありません。",
+    "refresh": "最新の情報を取得"
   },
   "filters": {
     "status": {
@@ -66,6 +67,6 @@
   },
   "issue": {
     "score": "Score: {score}",
-    "due": "Due: {date}"
+    "due": "期限: {date}"
   }
 }
