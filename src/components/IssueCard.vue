@@ -34,6 +34,16 @@
       <!-- メタデータ -->
       <div class="d-flex gap-2 mb-3 align-center flex-wrap">
         <v-chip 
+            v-if="issue.issueType" 
+            size="small" 
+            color="indigo"
+            prepend-icon="mdi-tag"
+            class="metadata-chip"
+          >
+            {{ issue.issueType?.name }}
+          </v-chip>
+
+        <v-chip 
             v-if="issue.priority" 
             size="small" 
             :color="getPriorityColor(issue.priority?.name)"

@@ -8,6 +8,7 @@ export interface Issue {
   description?: string
   priority?: { name: string }
   status?: { name: string }
+  issueType?: { name: string }
   assignee?: { name: string }
   dueDate?: string
   updated?: string

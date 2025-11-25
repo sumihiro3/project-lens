@@ -34,6 +34,9 @@ pub struct Issue {
     pub priority: Option<Priority>,
     /// ステータス
     pub status: Option<Status>,
+    /// 種別
+    #[serde(rename = "issueType")]
+    pub issue_type: Option<IssueType>,
     /// 担当者
     pub assignee: Option<User>,
     /// 期限日
@@ -56,6 +59,13 @@ pub struct Priority {
 /// ステータス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Status {
+    pub id: i64,
+    pub name: String,
+}
+
+/// 種別
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IssueType {
     pub id: i64,
     pub name: String,
 }
