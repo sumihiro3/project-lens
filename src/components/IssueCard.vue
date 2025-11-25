@@ -34,43 +34,46 @@
       <!-- メタデータ -->
       <div class="d-flex gap-2 mb-3 align-center flex-wrap">
         <v-chip 
-          v-if="issue.priority" 
-          size="small" 
-          :color="getPriorityColor(issue.priority?.name)"
-          prepend-icon="mdi-flag"
-          class="metadata-chip"
-        >
-          {{ issue.priority?.name }}
-        </v-chip>
+            v-if="issue.priority" 
+            size="small" 
+            :color="getPriorityColor(issue.priority?.name)"
+            :style="{ color: getChipTextColor(getPriorityColor(issue.priority?.name)) }"
+            prepend-icon="mdi-flag"
+            class="metadata-chip"
+          >
+            {{ issue.priority?.name }}
+          </v-chip>
         
         <v-chip 
-          v-if="issue.status" 
-          size="small" 
-          :color="getStatusColor(issue.status?.name)"
-          prepend-icon="mdi-progress-check"
-          class="metadata-chip"
-        >
-          {{ issue.status?.name }}
-        </v-chip>
+            v-if="issue.status" 
+            size="small" 
+            :color="getStatusColor(issue.status?.name)"
+            :style="{ color: getChipTextColor(getStatusColor(issue.status?.name)) }"
+            prepend-icon="mdi-progress-check"
+            class="metadata-chip"
+          >
+            {{ issue.status?.name }}
+          </v-chip>
+        
+        <v-chip
+    v-if="issue.assignee"
+    size="small"
+    prepend-icon="mdi-account"
+    class="metadata-chip"
+  >
+    {{ issue.assignee.name }}
+  </v-chip>
         
         <v-chip 
-          v-if="issue.assignee" 
-          size="small"
-          prepend-icon="mdi-account"
-          class="metadata-chip"
-        >
-          {{ issue.assignee.name }}
-        </v-chip>
-        
-        <v-chip 
-          v-if="issue.dueDate" 
-          size="small" 
-          :color="getDueDateColor(issue.dueDate)"
-          prepend-icon="mdi-calendar-clock"
-          class="metadata-chip"
-        >
-          {{ $t('issue.due', { date: formatDate(issue.dueDate) }) }}
-        </v-chip>
+            v-if="issue.dueDate" 
+            size="small" 
+            :color="getDueDateColor(issue.dueDate)"
+            :style="{ color: getChipTextColor(getDueDateColor(issue.dueDate)) }"
+            prepend-icon="mdi-calendar-clock"
+            class="metadata-chip"
+          >
+            {{ $t('issue.due', { date: formatDate(issue.dueDate) }) }}
+          </v-chip>
       </div>
       
       <!-- 説明文 -->
@@ -92,7 +95,8 @@ import {
   getDueDateColor, 
   formatDate,
   getProjectColor,
-  extractProjectKey
+  extractProjectKey,
+  getChipTextColor
 } from '../utils/issueHelpers'
 
 interface Props {
@@ -168,9 +172,7 @@ async function openInBrowser() {
 }
 
 /* カラーチップのテキストを白に */
-.metadata-chip :deep(.v-chip__content) {
-  color: white !important;
-}
+/* Text color for chips is now calculated dynamically */
 
 .description-text {
   display: -webkit-box;

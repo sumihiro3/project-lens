@@ -134,7 +134,7 @@ export function getProjectColor(issueKey: string | undefined): string {
     '#FFC107', // amber
   ]
 
-  return colors[Math.abs(hash) % colors.length]
+  return colors[Math.abs(hash) % colors.length]!
 }
 
 /**
