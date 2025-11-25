@@ -48,9 +48,7 @@ description: 変更されたファイルを分析して、論理的な単位で�
 
 <body>
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
+🤖 Generated with Antigravity
 ```
 
 - **type**: feat, refactor, docs, chore, fix など
