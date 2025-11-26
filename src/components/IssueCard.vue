@@ -160,7 +160,9 @@ async function openInBrowser() {
 }
 
 .issue-card:hover {
-  background-color: rgba(var(--v-theme-on-surface), 0.12);
+  background-color: rgba(var(--v-theme-primary), 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(-2px);
 }
 
 .project-chip {
