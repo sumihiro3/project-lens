@@ -8,10 +8,10 @@
     style="cursor: pointer;"
   >
     <template v-slot:prepend>
-      <v-icon>mdi-filter</v-icon>
+      <v-icon color="primary">mdi-filter</v-icon>
     </template>
     
-    <div class="text-body-2">{{ filterSummary }}</div>
+    <div class="text-body-2 text-primary">{{ filterSummary }}</div>
     
     <template v-slot:append>
       <div class="d-flex align-center">
