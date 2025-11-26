@@ -1,0 +1,63 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tealGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4DB699;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2C9A7A;stop-opacity:1" />
+    </linearGradient>
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.2"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="lensClip">
+      <circle cx="256" cy="256" r="90" />
+    </clipPath>
+  </defs>
+
+  <!-- Background: Rounded Rectangle (iOS/Mac style) -->
+  <rect x="32" y="32" width="448" height="448" rx="100" ry="100" fill="url(#tealGradient)" />
+
+  <!-- Magnifying Glass Icon Group -->
+  <g transform="translate(-20, -20)" filter="url(#dropShadow)">
+    
+    <!-- Handle -->
+    <path d="M326 326 L396 396 A 25 25 0 0 1 360 432 L290 362" fill="white" stroke="white" stroke-width="0"/>
+
+    <!-- Lens Rim -->
+    <circle cx="256" cy="256" r="105" fill="none" stroke="white" stroke-width="24" />
+
+    <!-- Lens Content Background (White/Light Teal inside) -->
+    <circle cx="256" cy="256" r="93" fill="#E6F7F2" />
+
+    <!-- Project Tasks / Kanban inside the lens -->
+    <g clip-path="url(#lensClip)">
+      <!-- Task Card 1 -->
+      <rect x="190" y="190" width="132" height="24" rx="4" fill="#2C9A7A" opacity="0.8" />
+      <rect x="200" y="196" width="80" height="12" rx="2" fill="white" opacity="0.9" />
+      
+      <!-- Task Card 2 -->
+      <rect x="190" y="225" width="132" height="24" rx="4" fill="#2C9A7A" opacity="0.6" />
+      <rect x="200" y="231" width="60" height="12" rx="2" fill="white" opacity="0.9" />
+
+      <!-- Task Card 3 -->
+      <rect x="190" y="260" width="132" height="24" rx="4" fill="#2C9A7A" opacity="0.6" />
+      <rect x="200" y="266" width="90" height="12" rx="2" fill="white" opacity="0.9" />
+
+      <!-- Task Card 4 -->
+      <rect x="190" y="295" width="132" height="24" rx="4" fill="#2C9A7A" opacity="0.4" />
+      <rect x="200" y="301" width="70" height="12" rx="2" fill="white" opacity="0.9" />
+      
+      <!-- Checkmark overlay (Subtle) -->
+      <path d="M300 202 L308 210 L324 194" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+    
+    <!-- Lens Glare/Reflection -->
+    <path d="M200 210 A 70 70 0 0 1 290 210" stroke="white" stroke-width="10" stroke-linecap="round" opacity="0.2" fill="none" />
+  </g>
+</svg>
