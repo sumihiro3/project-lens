@@ -1,4 +1,11 @@
 {
+  "common": {
+    "close": "閉じる",
+    "justNow": "たった今",
+    "minutesAgo": "{count}分前",
+    "hoursAgo": "{count}時間前",
+    "daysAgo": "{count}日前"
+  },
   "app": {
     "title": "ProjectLens",
     "lastSynced": "最終同期: {time}",
@@ -69,7 +76,9 @@
       "relevance_score": "関連度スコア",
       "dueDate": "期限日",
       "priority": "優先度",
-      "updated": "更新日"
+      "updated": "更新日",
+      "ascending": "昇順",
+      "descending": "降順"
     }
   },
   "issue": {

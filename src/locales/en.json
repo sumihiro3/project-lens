@@ -1,4 +1,11 @@
 {
+  "common": {
+    "close": "Close",
+    "justNow": "Just now",
+    "minutesAgo": "{count} min ago",
+    "hoursAgo": "{count} hr ago",
+    "daysAgo": "{count} days ago"
+  },
   "app": {
     "title": "ProjectLens",
     "lastSynced": "Last Synced: {time}",
@@ -69,7 +76,9 @@
       "relevance_score": "Relevance Score",
       "dueDate": "Due Date",
       "priority": "Priority",
-      "updated": "Updated Date"
+      "updated": "Updated Date",
+      "ascending": "Ascending",
+      "descending": "Descending"
     }
   },
   "issue": {

@@ -46,7 +46,7 @@
     >
       {{ snackbarText }}
       <template v-slot:actions>
-        <v-btn variant="text" @click="snackbar = false">Close</v-btn>
+        <v-btn variant="text" @click="snackbar = false">{{ $t('common.close') }}</v-btn>
       </template>
     </v-snackbar>
   </v-container>

@@ -58,7 +58,7 @@
                 <v-icon :icon="filters.sortOrder === 'asc' ? 'mdi-sort-ascending' : 'mdi-sort-descending'"></v-icon>
               </template>
               <v-list-item-title>
-                {{ filters.sortOrder === 'asc' ? '昇順' : '降順' }}
+                {{ filters.sortOrder === 'asc' ? $t('filters.sort.ascending') : $t('filters.sort.descending') }}
               </v-list-item-title>
             </v-list-item>
           </v-list>

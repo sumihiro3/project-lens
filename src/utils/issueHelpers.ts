@@ -170,7 +170,10 @@ export function getChipTextColor(bgColor: string): string {
 /**
  * 更新日時を相対時間で表示（例: "たった今", "1分前", "1時間前"）
  */
-export function formatRelativeTime(dateStr: string | undefined): string {
+export function formatRelativeTime(
+  dateStr: string | undefined,
+  t: (key: string, params?: any) => string
+): string {
   if (!dateStr) return ''
 
   const date = parseDueDate(dateStr)
@@ -184,13 +187,13 @@ export function formatRelativeTime(dateStr: string | undefined): string {
   const diffDay = Math.floor(diffHour / 24)
 
   if (diffSec < 60) {
-    return 'たった今'
+    return t('common.justNow')
   } else if (diffMin < 60) {
-    return `${diffMin}分前`
+    return t('common.minutesAgo', { count: diffMin })
   } else if (diffHour < 24) {
-    return `${diffHour}時間前`
+    return t('common.hoursAgo', { count: diffHour })
   } else if (diffDay < 7) {
-    return `${diffDay}日前`
+    return t('common.daysAgo', { count: diffDay })
   } else {
     // 1週間以上前は日付を表示
     return formatDate(dateStr)

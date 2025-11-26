@@ -93,7 +93,7 @@
             variant="text"
             color="grey-darken-1"
           >
-            {{ formatRelativeTime(issue.updated) }}
+            {{ formatRelativeTime(issue.updated, t) }}
           </v-chip>
       </div>
       
@@ -109,6 +109,7 @@
 import { computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
+import { useI18n } from 'vue-i18n'
 import type { Issue } from '../composables/useIssues'
 import { 
   getPriorityColor, 
@@ -126,6 +127,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 const projectColor = computed(() => getProjectColor(props.issue.issueKey))
 const projectKey = computed(() => extractProjectKey(props.issue.issueKey))
