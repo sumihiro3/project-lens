@@ -139,21 +139,47 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         }
     }
 
+    // トレイのツールチップを更新
+    let high_priority_count = issues.iter().filter(|i| i.relevance_score >= 80).count();
+    
+    // 言語設定を取得（デフォルトは日本語）
+    let lang = db.get_setting("language").await?.unwrap_or_else(|| "ja".to_string());
+    
+    if let Some(tray) = app.tray_by_id("main") {
+        let tooltip = if high_priority_count > 0 {
+            if lang == "ja" {
+                format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
+            } else {
+                format!("ProjectLens: {} important tickets", high_priority_count)
+            }
+        } else {
+            "ProjectLens".to_string()
+        };
+        let _ = tray.set_tooltip(Some(tooltip));
+    }
+
     // 3. データベースに保存
     db.save_issues(&issues, &synced_projects, &project_keys)
         .await?;
 
     // 4. 新しい高スコア課題があれば通知
     if !new_high_score_issues.is_empty() {
-        let body = if new_high_score_issues.len() == 1 {
-            // 1件の場合は課題名とスコアを表示
-            format!("New high priority issue: {}", new_high_score_issues[0])
+        let (title, body) = if lang == "ja" {
+            let title = "ProjectLens 通知";
+            let body = if new_high_score_issues.len() == 1 {
+                format!("新しい重要な課題: {}", new_high_score_issues[0])
+            } else {
+                format!("{}件の新しい重要な課題が見つかりました。", new_high_score_issues.len())
+            };
+            (title, body)
         } else {
-            // 複数件の場合は件数のみ表示
-            format!(
-                "{} new high priority issues found.",
-                new_high_score_issues.len()
-            )
+            let title = "ProjectLens Alert";
+            let body = if new_high_score_issues.len() == 1 {
+                format!("New high priority issue: {}", new_high_score_issues[0])
+            } else {
+                format!("{} new high priority issues found.", new_high_score_issues.len())
+            };
+            (title, body)
         };
 
         info!("Sending notification: {}", body);
@@ -170,7 +196,7 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         match app
             .notification()
             .builder()
-            .title("ProjectLens Alert")
+            .title(title)
             .body(&body)
             .show()
         {
