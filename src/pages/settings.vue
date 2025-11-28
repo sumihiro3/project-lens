@@ -73,6 +73,12 @@ const availableLocales = computed(() => {
 // Watch for locale changes and call setLocale
 watch(locale, async (newLocale) => {
   await setLocale(newLocale)
+  // Save language setting to backend to update tray icon tooltip immediately
+  try {
+    await invoke('save_settings', { key: 'language', value: newLocale })
+  } catch (e) {
+    console.error('Failed to save language setting:', e)
+  }
 })
 
 const domain = ref('')
@@ -90,11 +96,16 @@ onMounted(async () => {
     const d = await invoke<string | null>('get_settings', { key: 'domain' })
     const k = await invoke<string | null>('get_settings', { key: 'api_key' })
     const p = await invoke<string | null>('get_settings', { key: 'project_key' })
+    const l = await invoke<string | null>('get_settings', { key: 'language' })
+    
     if (d) domain.value = d
     if (k) apiKey.value = k
     if (p) {
       // カンマ区切り文字列を配列に変換
       projectKeys.value = p.split(',').map(k => k.trim()).filter(k => k.length > 0)
+    }
+    if (l) {
+      locale.value = l
     }
     
     // プロジェクト一覧を読み込み
@@ -137,6 +148,7 @@ async function saveSettings() {
     // 配列をカンマ区切り文字列に変換して保存
     const keysString = projectKeys.value.join(',')
     await invoke('save_settings', { key: 'project_key', value: keysString })
+    await invoke('save_settings', { key: 'language', value: locale.value })
     
     message.value = t('settings.saved')
     messageType.value = 'success'
