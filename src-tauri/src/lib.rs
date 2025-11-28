@@ -25,6 +25,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         // Shellプラグインを初期化（ブラウザでURLを開く用）
         .plugin(tauri_plugin_shell::init())
+        // Openerプラグインを初期化（URLを開く用）
+        .plugin(tauri_plugin_opener::init())
         // HTTPプラグインを初期化（Backlog API通信用）
         .plugin(tauri_plugin_http::init())
         // ログプラグインを初期化（デバッグ・エラーログ用）
@@ -51,7 +53,130 @@ pub fn run() {
         // アプリケーション起動時のセットアップ処理
         .setup(|app| {
             use tauri::Manager;
+            use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
+            use tauri::tray::TrayIconBuilder;
+
             let app_handle = app.handle();
+
+            // --- メニューの構築 ---
+            // 1. アプリケーションメニュー (ProjectLens)
+            let app_menu = Submenu::new(
+                app_handle,
+                "ProjectLens",
+                true,
+            )?;
+            // 標準的な項目を追加（About, Services, Hide, Quitなど）
+            // Note: PredefinedMenuItemを使うとOS標準の挙動が得られる
+            app_menu.append(&PredefinedMenuItem::about(app_handle, None, None)?)?;
+            app_menu.append(&PredefinedMenuItem::separator(app_handle)?)?;
+            app_menu.append(&PredefinedMenuItem::services(app_handle, None)?)?;
+            app_menu.append(&PredefinedMenuItem::separator(app_handle)?)?;
+            app_menu.append(&PredefinedMenuItem::hide(app_handle, None)?)?;
+            app_menu.append(&PredefinedMenuItem::hide_others(app_handle, None)?)?;
+            app_menu.append(&PredefinedMenuItem::show_all(app_handle, None)?)?;
+            app_menu.append(&PredefinedMenuItem::separator(app_handle)?)?;
+            app_menu.append(&PredefinedMenuItem::quit(app_handle, None)?)?;
+
+            // 2. 編集メニュー (Edit) - コピー＆ペースト用
+            let edit_menu = Submenu::with_items(
+                app_handle,
+                "Edit",
+                true,
+                &[
+                    &PredefinedMenuItem::undo(app_handle, None)?,
+                    &PredefinedMenuItem::redo(app_handle, None)?,
+                    &PredefinedMenuItem::separator(app_handle)?,
+                    &PredefinedMenuItem::cut(app_handle, None)?,
+                    &PredefinedMenuItem::copy(app_handle, None)?,
+                    &PredefinedMenuItem::paste(app_handle, None)?,
+                    &PredefinedMenuItem::select_all(app_handle, None)?,
+                ],
+            )?;
+
+            // 3. ウィンドウメニュー (Window)
+            let window_menu = Submenu::with_items(
+                app_handle,
+                "Window",
+                true,
+                &[
+                    &PredefinedMenuItem::minimize(app_handle, None)?,
+                    &PredefinedMenuItem::separator(app_handle)?,
+                    &PredefinedMenuItem::close_window(app_handle, None)?,
+                ],
+            )?;
+
+            // メニューバーを作成してセット
+            let menu = Menu::with_items(app_handle, &[&app_menu, &edit_menu, &window_menu])?;
+            app.set_menu(menu)?;
+
+            // --- システムトレイの構築 ---
+            let version = &app.package_info().version;
+            let info_text = format!("ProjectLens v{}", version);
+
+            let tray_menu = Menu::with_items(
+                app_handle,
+                &[
+                    &MenuItem::with_id(app_handle, "app_info", &info_text, false, None::<&str>)?,
+                    &PredefinedMenuItem::separator(app_handle)?,
+                    &MenuItem::with_id(app_handle, "open_lp", "Open Website", true, None::<&str>)?,
+                    &PredefinedMenuItem::separator(app_handle)?,
+                    &MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?,
+                ],
+            )?;
+
+            // トレイアイコンをファイルから読み込み（キャッシュ回避のため）
+            // dev環境では失敗する可能性があるため、失敗時はデフォルトアイコンを使用
+            let tray_icon = {
+                let icon_result = (|| -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
+                    let icon_path = app_handle
+                        .path()
+                        .resolve("icons/TrayIconTemplate.png", tauri::path::BaseDirectory::Resource)?;
+                    
+                    let img = image::open(&icon_path)?;
+                    let rgba = img.to_rgba8();
+                    let (width, height) = rgba.dimensions();
+                    Ok(tauri::image::Image::new_owned(rgba.into_raw(), width, height))
+                })();
+
+                match icon_result {
+                    Ok(icon) => icon,
+                    Err(_) => {
+                        // フォールバック: デフォルトウィンドウアイコンを使用
+                        app.default_window_icon().unwrap().clone()
+                    }
+                }
+            };
+
+            let _tray = TrayIconBuilder::with_id("main")
+                .icon(tray_icon)
+                .icon_as_template(true)
+                .tooltip("ProjectLens")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open_lp" => {
+                        use tauri_plugin_opener::OpenerExt;
+                        let _ = app.opener().open_url("https://project-lens.netlify.app", None::<&str>);
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(move |tray, event| {
+                    use tauri::tray::{TrayIconEvent, MouseButton};
+                    match event {
+                        TrayIconEvent::Click { button: MouseButton::Left, .. } => {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
 
             // アプリケーションデータディレクトリを取得・作成
             let app_data_dir = app_handle
