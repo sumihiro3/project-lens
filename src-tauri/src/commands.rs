@@ -41,9 +41,12 @@ pub async fn save_settings(
         let issues = db.get_issues().await.map_err(|e| e.to_string())?;
         let high_priority_count = issues.iter().filter(|i| i.relevance_score >= 80).count();
         
+        // 言語設定を取得（デフォルトは日本語）
+        let lang = value;
+
         if let Some(tray) = app.tray_by_id("main") {
             let tooltip = if high_priority_count > 0 {
-                if value == "ja" {
+                if lang == "ja" {
                     format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
                 } else {
                     format!("ProjectLens: {} important tickets", high_priority_count)
@@ -56,6 +59,29 @@ pub async fn save_settings(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_workspaces(db: State<'_, DbClient>) -> Result<Vec<crate::db::Workspace>, String> {
+    db.get_workspaces().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_workspace(
+    db: State<'_, DbClient>,
+    domain: String,
+    api_key: String,
+    project_keys: Vec<String>,
+) -> Result<(), String> {
+    let keys_str = project_keys.join(",");
+    db.save_workspace(&domain, &api_key, &keys_str)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_workspace(db: State<'_, DbClient>, id: i64) -> Result<(), String> {
+    db.delete_workspace(id).await.map_err(|e| e.to_string())
 }
 
 /// 設定を取得
@@ -92,60 +118,67 @@ pub async fn fetch_issues(
     app: tauri::AppHandle,
     db: State<'_, DbClient>,
 ) -> Result<usize, String> {
-    // 設定を取得
-    let domain = db
-        .get_setting("domain")
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("Domain not set")?;
-    let api_key = db
-        .get_setting("api_key")
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("API Key not set")?;
-    let project_key = db
-        .get_setting("project_key")
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("Project Key not set")?;
+    let workspaces = db.get_workspaces().await.map_err(|e| e.to_string())?;
+    let mut total_count = 0;
+    let mut all_issues_for_tooltip = Vec::new();
 
-    // Backlog APIクライアントを作成
-    let client = BacklogClient::new(&domain, &api_key);
+    for workspace in workspaces {
+        let domain = workspace.domain;
+        let api_key = workspace.api_key;
+        let project_key = workspace.project_keys;
 
-    // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
-    // 完了(4)は除外する
-    let target_status_ids = vec![1, 2, 3];
+        // Backlog APIクライアントを作成
+        let client = BacklogClient::new(&domain, &api_key);
 
-    // プロジェクトキー（カンマ区切り）を分割して処理
-    let project_keys: Vec<&str> = project_key
-        .split(',')
-        .map(|k| k.trim())
-        .filter(|k| !k.is_empty())
-        .collect();
-    let mut all_issues = Vec::new();
-    let mut synced_projects = Vec::new();
+        // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
+        let target_status_ids = vec![1, 2, 3];
 
-    for &key in &project_keys {
-        // 各プロジェクトの課題を取得
-        match client.get_issues(key, &target_status_ids).await {
-            Ok(mut issues) => {
-                all_issues.append(&mut issues);
-                synced_projects.push(key);
+        // プロジェクトキー（カンマ区切り）を分割して処理
+        let project_keys: Vec<&str> = project_key
+            .split(',')
+            .map(|k| k.trim())
+            .filter(|k| !k.is_empty())
+            .collect();
+        let mut workspace_issues = Vec::new();
+        let mut synced_projects = Vec::new();
+
+        for &key in &project_keys {
+            // 各プロジェクトの課題を取得
+            match client.get_issues(key, &target_status_ids).await {
+                Ok(mut issues) => {
+                    workspace_issues.append(&mut issues);
+                    synced_projects.push(key);
+                }
+                Err(e) => eprintln!("Failed to fetch issues for project {}: {}", key, e),
             }
-            Err(e) => eprintln!("Failed to fetch issues for project {}: {}", key, e),
         }
-    }
 
-    // 現在のユーザー情報を取得
-    let me = client.get_myself().await.map_err(|e| e.to_string())?;
+        // 現在のユーザー情報を取得
+        let me = match client.get_myself().await {
+            Ok(me) => me,
+            Err(e) => {
+                eprintln!("Failed to get myself for {}: {}", domain, e);
+                continue;
+            }
+        };
 
-    // 各課題のスコアを計算
-    for issue in &mut all_issues {
-        issue.relevance_score = crate::scoring::ScoringService::calculate_score(issue, &me);
+        // 各課題のスコアを計算
+        for issue in &mut workspace_issues {
+            issue.relevance_score = crate::scoring::ScoringService::calculate_score(issue, &me);
+            issue.workspace_id = workspace.id;
+        }
+
+        // データベースに保存
+        db.save_issues(workspace.id, &workspace_issues, &synced_projects, &project_keys)
+            .await
+            .map_err(|e| e.to_string())?;
+            
+        total_count += workspace_issues.len();
+        all_issues_for_tooltip.append(&mut workspace_issues);
     }
 
     // トレイのツールチップを更新
-    let high_priority_count = all_issues
+    let high_priority_count = all_issues_for_tooltip
         .iter()
         .filter(|i| i.relevance_score >= 80)
         .count();
@@ -166,13 +199,7 @@ pub async fn fetch_issues(
         let _ = tray.set_tooltip(Some(tooltip));
     }
 
-    // データベースに保存
-    let count = all_issues.len();
-    db.save_issues(&all_issues, &synced_projects, &project_keys)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(count)
+    Ok(total_count)
 }
 
 /// プロジェクト一覧を取得するコマンド
@@ -184,20 +211,9 @@ pub async fn fetch_issues(
 /// プロジェクト情報のベクタ（プロジェクトキーと名前）
 #[tauri::command]
 pub async fn fetch_projects(
-    db: tauri::State<'_, DbClient>,
+    domain: String,
+    api_key: String,
 ) -> Result<Vec<(String, String)>, String> {
-    // 設定を取得
-    let domain = db
-        .get_setting("domain")
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("Domain not set")?;
-    let api_key = db
-        .get_setting("api_key")
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("API Key not set")?;
-
     // Backlog APIクライアントを作成
     let client = BacklogClient::new(&domain, &api_key);
 
