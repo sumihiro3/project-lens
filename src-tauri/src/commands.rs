@@ -28,13 +28,34 @@ pub fn greet(name: &str) -> String {
 /// 成功時は`Ok(())`、失敗時はエラーメッセージ
 #[tauri::command]
 pub async fn save_settings(
+    app: tauri::AppHandle,
     key: String,
     value: String,
     db: State<'_, DbClient>,
 ) -> Result<(), String> {
     db.save_setting(&key, &value)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    if key == "language" {
+        let issues = db.get_issues().await.map_err(|e| e.to_string())?;
+        let high_priority_count = issues.iter().filter(|i| i.relevance_score >= 80).count();
+        
+        if let Some(tray) = app.tray_by_id("main") {
+            let tooltip = if high_priority_count > 0 {
+                if value == "ja" {
+                    format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
+                } else {
+                    format!("ProjectLens: {} important tickets", high_priority_count)
+                }
+            } else {
+                "ProjectLens".to_string()
+            };
+            let _ = tray.set_tooltip(Some(tooltip));
+        }
+    }
+
+    Ok(())
 }
 
 /// 設定を取得
@@ -67,7 +88,10 @@ pub async fn get_settings(key: String, db: State<'_, DbClient>) -> Result<Option
 /// # 戻り値
 /// 取得した課題の件数、またはエラーメッセージ
 #[tauri::command]
-pub async fn fetch_issues(db: State<'_, DbClient>) -> Result<usize, String> {
+pub async fn fetch_issues(
+    app: tauri::AppHandle,
+    db: State<'_, DbClient>,
+) -> Result<usize, String> {
     // 設定を取得
     let domain = db
         .get_setting("domain")
@@ -118,6 +142,28 @@ pub async fn fetch_issues(db: State<'_, DbClient>) -> Result<usize, String> {
     // 各課題のスコアを計算
     for issue in &mut all_issues {
         issue.relevance_score = crate::scoring::ScoringService::calculate_score(issue, &me);
+    }
+
+    // トレイのツールチップを更新
+    let high_priority_count = all_issues
+        .iter()
+        .filter(|i| i.relevance_score >= 80)
+        .count();
+    
+    // 言語設定を取得（デフォルトは日本語）
+    let lang = db.get_setting("language").await.unwrap_or(Some("ja".to_string())).unwrap_or("ja".to_string());
+
+    if let Some(tray) = app.tray_by_id("main") {
+        let tooltip = if high_priority_count > 0 {
+            if lang == "ja" {
+                format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
+            } else {
+                format!("ProjectLens: {} important tickets", high_priority_count)
+            }
+        } else {
+            "ProjectLens".to_string()
+        };
+        let _ = tray.set_tooltip(Some(tooltip));
     }
 
     // データベースに保存
