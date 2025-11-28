@@ -26,7 +26,14 @@
     "errorSaving": "設定の保存に失敗しました: {error}",
     "errorSyncing": "同期に失敗しました: {error}",
     "loadProjectsError": "プロジェクトの読み込みに失敗しました: {error}",
-    "language": "言語"
+    "language": "言語",
+    "workspaces": "ワークスペース",
+    "addWorkspace": "ワークスペースを追加",
+    "editWorkspace": "ワークスペースを編集",
+    "deleteWorkspace": "ワークスペースを削除",
+    "deleteWorkspaceConfirm": "このワークスペースを削除してもよろしいですか？",
+    "workspaceSaved": "ワークスペースを保存しました",
+    "workspaceDeleted": "ワークスペースを削除しました"
   },
   "dashboard": {
     "title": "ダッシュボード",

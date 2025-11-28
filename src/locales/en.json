@@ -26,7 +26,14 @@
     "errorSaving": "Error saving settings: {error}",
     "errorSyncing": "Error syncing issues: {error}",
     "loadProjectsError": "Failed to load projects: {error}",
-    "language": "Language"
+    "language": "Language",
+    "workspaces": "Workspaces",
+    "addWorkspace": "Add Workspace",
+    "editWorkspace": "Edit Workspace",
+    "deleteWorkspace": "Delete Workspace",
+    "deleteWorkspaceConfirm": "Are you sure you want to delete this workspace?",
+    "workspaceSaved": "Workspace saved",
+    "workspaceDeleted": "Workspace deleted"
   },
   "dashboard": {
     "title": "Dashboard",
