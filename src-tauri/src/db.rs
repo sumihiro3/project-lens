@@ -1,5 +1,6 @@
 use crate::backlog::Issue;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite, SqlitePool};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -11,11 +12,12 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 /// # 戻り値
 /// マイグレーション定義のベクタ
 pub fn get_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create_initial_tables",
-        kind: MigrationKind::Up,
-        sql: r#"
+    vec![
+        Migration {
+            version: 1,
+            description: "create_initial_tables",
+            kind: MigrationKind::Up,
+            sql: r#"
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -41,7 +43,61 @@ pub fn get_migrations() -> Vec<Migration> {
                 raw_data TEXT
             );
         "#,
-    }]
+        },
+        Migration {
+            version: 2,
+            description: "support_multiple_workspaces",
+            kind: MigrationKind::Up,
+            sql: r#"
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL,
+                api_key TEXT NOT NULL,
+                project_keys TEXT NOT NULL
+            );
+
+            -- Migrate existing settings to the first workspace
+            INSERT INTO workspaces (domain, api_key, project_keys)
+            SELECT
+                (SELECT value FROM settings WHERE key = 'domain'),
+                (SELECT value FROM settings WHERE key = 'api_key'),
+                COALESCE((SELECT value FROM settings WHERE key = 'project_key'), '')
+            WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'domain');
+
+            -- Clean up migrated settings
+            DELETE FROM settings WHERE key IN ('domain', 'api_key', 'project_key');
+
+            -- Recreate issues table with workspace_id
+            DROP TABLE IF EXISTS issues;
+            CREATE TABLE issues (
+                id INTEGER NOT NULL,
+                workspace_id INTEGER NOT NULL,
+                issue_key TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                description TEXT,
+                priority TEXT,
+                status TEXT,
+                assignee TEXT,
+                due_date TEXT,
+                updated_at TEXT,
+                relevance_score INTEGER DEFAULT 0,
+                ai_summary TEXT,
+                raw_data TEXT,
+                PRIMARY KEY (workspace_id, id),
+                FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+            );
+        "#,
+        },
+    ]
+}
+
+/// ワークスペース情報
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Workspace {
+    pub id: i64,
+    pub domain: String,
+    pub api_key: String,
+    pub project_keys: String,
 }
 
 /// データベースクライアント
@@ -80,39 +136,6 @@ impl DbClient {
     /// データベースクライアント、またはエラー
     pub async fn new_with_options(options: sqlx::sqlite::SqliteConnectOptions) -> Result<Self> {
         let pool = SqlitePool::connect_with(options).await?;
-
-        // マイグレーションを実行（テーブルが存在しない場合に作成）
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS sync_state (
-                project_id TEXT PRIMARY KEY,
-                last_synced_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS issues (
-                id INTEGER PRIMARY KEY,
-                issue_key TEXT UNIQUE NOT NULL,
-                summary TEXT NOT NULL,
-                description TEXT,
-                priority TEXT,
-                status TEXT,
-                assignee TEXT,
-                due_date TEXT,
-                updated_at TEXT,
-                relevance_score INTEGER DEFAULT 0,
-                ai_summary TEXT,
-                raw_data TEXT
-            );
-            "#,
-        )
-        .execute(&pool)
-        .await?;
-
         Ok(Self { pool })
     }
 
@@ -153,6 +176,52 @@ impl DbClient {
         Ok(row.map(|r| r.0))
     }
 
+    /// ワークスペース一覧を取得
+    pub async fn get_workspaces(&self) -> Result<Vec<Workspace>> {
+        let workspaces = sqlx::query_as::<_, Workspace>(
+            "SELECT id, domain, api_key, project_keys FROM workspaces ORDER BY id"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(workspaces)
+    }
+
+    /// ワークスペースを保存（新規作成または更新）
+    pub async fn save_workspace(&self, domain: &str, api_key: &str, project_keys: &str) -> Result<()> {
+        // ドメインが同じものがあれば更新、なければ新規作成
+        // ここではドメインをユニークキーのように扱う
+        let existing: Option<(i64,)> = sqlx::query_as("SELECT id FROM workspaces WHERE domain = ?")
+            .bind(domain)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some((id,)) = existing {
+            sqlx::query("UPDATE workspaces SET api_key = ?, project_keys = ? WHERE id = ?")
+                .bind(api_key)
+                .bind(project_keys)
+                .bind(id)
+                .execute(&self.pool)
+                .await?;
+        } else {
+            sqlx::query("INSERT INTO workspaces (domain, api_key, project_keys) VALUES (?, ?, ?)")
+                .bind(domain)
+                .bind(api_key)
+                .bind(project_keys)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// ワークスペースを削除
+    pub async fn delete_workspace(&self, id: i64) -> Result<()> {
+        sqlx::query("DELETE FROM workspaces WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// 課題を保存
     ///
     /// 課題のリストをデータベースに保存する。
@@ -170,6 +239,7 @@ impl DbClient {
     /// 成功時は`Ok(())`、失敗時はエラー
     pub async fn save_issues(
         &self,
+        workspace_id: i64,
         issues: &[Issue],
         synced_project_keys: &[&str],
         all_project_keys: &[&str],
@@ -189,11 +259,12 @@ impl DbClient {
             sqlx::query(
                 r#"
                 INSERT OR REPLACE INTO issues 
-                (id, issue_key, summary, description, priority, status, assignee, due_date, updated_at, raw_data, relevance_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, workspace_id, issue_key, summary, description, priority, status, assignee, due_date, updated_at, raw_data, relevance_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#
             )
             .bind(issue.id)
+            .bind(workspace_id)
             .bind(&issue.issue_key)
             .bind(&issue.summary)
             .bind(&issue.description)
@@ -213,7 +284,6 @@ impl DbClient {
         let new_issue_ids: Vec<i64> = issues.iter().map(|i| i.id).collect();
 
         // IDリストをカンマ区切りの文字列に変換（SQLのIN句用）
-        // 空の場合は "0" を入れて構文エラーを防ぐ（ID 0は通常存在しない）
         let id_list = if new_issue_ids.is_empty() {
             "0".to_string()
         } else {
@@ -226,13 +296,13 @@ impl DbClient {
 
         for project_key in synced_project_keys {
             // そのプロジェクトに属するが、新しいリストに含まれていない課題を削除
-            // issue_keyは "PROJECT-123" の形式なので、前方一致でプロジェクトを判定
             let sql = format!(
-                "DELETE FROM issues WHERE issue_key LIKE ? || '-%' AND id NOT IN ({})",
+                "DELETE FROM issues WHERE workspace_id = ? AND issue_key LIKE ? || '-%' AND id NOT IN ({})",
                 id_list
             );
 
             sqlx::query(&sql)
+                .bind(workspace_id)
                 .bind(project_key)
                 .execute(&mut *transaction)
                 .await?;
@@ -241,21 +311,21 @@ impl DbClient {
         // 3. 設定に含まれていないプロジェクトの課題を削除
         if !all_project_keys.is_empty() {
             // 設定されているプロジェクト以外の課題を削除
-            // issue_key NOT LIKE 'PRJ1-%' AND issue_key NOT LIKE 'PRJ2-%' ...
             let mut conditions = Vec::new();
             for _ in all_project_keys {
                 conditions.push("issue_key NOT LIKE ? || '-%'");
             }
-            let sql = format!("DELETE FROM issues WHERE {}", conditions.join(" AND "));
+            let sql = format!("DELETE FROM issues WHERE workspace_id = ? AND ({})", conditions.join(" AND "));
 
-            let mut query = sqlx::query(&sql);
+            let mut query = sqlx::query(&sql).bind(workspace_id);
             for key in all_project_keys {
                 query = query.bind(key);
             }
             query.execute(&mut *transaction).await?;
         } else {
-            // プロジェクトが一つも設定されていない場合は全削除
-            sqlx::query("DELETE FROM issues")
+            // プロジェクトが一つも設定されていない場合は、このワークスペースの課題を全削除
+            sqlx::query("DELETE FROM issues WHERE workspace_id = ?")
+                .bind(workspace_id)
                 .execute(&mut *transaction)
                 .await?;
         }
@@ -273,18 +343,19 @@ impl DbClient {
     /// 課題のベクタ（スコア降順）、またはエラー
     pub async fn get_issues(&self) -> Result<Vec<Issue>> {
         // raw_dataとスコアを取得し、スコア降順でソート
-        let rows: Vec<(String, i32)> = sqlx::query_as(
-            "SELECT raw_data, relevance_score FROM issues ORDER BY relevance_score DESC",
+        let rows: Vec<(String, i32, i64)> = sqlx::query_as(
+            "SELECT raw_data, relevance_score, workspace_id FROM issues ORDER BY relevance_score DESC",
         )
         .fetch_all(&self.pool)
         .await?;
 
-        // JSONをデシリアライズしてスコアを設定
+        // JSONをデシリアライズしてスコアとワークスペースIDを設定
         let issues = rows
             .into_iter()
-            .filter_map(|(json, score)| {
+            .filter_map(|(json, score, workspace_id)| {
                 let mut issue: Issue = serde_json::from_str(&json).ok()?;
                 issue.relevance_score = score;
+                issue.workspace_id = workspace_id;
                 Some(issue)
             })
             .collect();
