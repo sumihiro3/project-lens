@@ -53,94 +53,106 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     // データベースクライアントを取得
     let db = app.state::<DbClient>();
 
-    // 1. 設定を取得
-    let domain = db
-        .get_setting("domain")
-        .await?
-        .ok_or(anyhow::anyhow!("Domain not set"))?;
-    let api_key = db
-        .get_setting("api_key")
-        .await?
-        .ok_or(anyhow::anyhow!("API Key not set"))?;
-    let project_key = db
-        .get_setting("project_key")
-        .await?
-        .ok_or(anyhow::anyhow!("Project Key not set"))?;
-
-    // 2. Backlog APIから課題を取得してスコアリング
-    let client = BacklogClient::new(&domain, &api_key);
-
-    // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
-    // 完了(4)は除外する
-    let target_status_ids = vec![1, 2, 3];
-
-    // プロジェクトキー（カンマ区切り）を分割して処理
-    let project_keys: Vec<&str> = project_key
-        .split(',')
-        .map(|k| k.trim())
-        .filter(|k| !k.is_empty())
-        .collect();
-    let mut issues = Vec::new();
-    let mut synced_projects = Vec::new();
-
-    for &key in &project_keys {
-        // 各プロジェクトの課題を取得
-        match client.get_issues(key, &target_status_ids).await {
-            Ok(mut project_issues) => {
-                issues.append(&mut project_issues);
-                synced_projects.push(key);
-            }
-            Err(e) => error!("Failed to fetch issues for project {}: {}", key, e),
-        }
+    // 1. ワークスペース一覧を取得
+    let workspaces = db.get_workspaces().await?;
+    
+    if workspaces.is_empty() {
+        info!("Scheduler: No workspaces configured.");
+        return Ok(());
     }
-    let me = client
-        .get_myself()
-        .await
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     // 既存の課題IDとスコアを取得（通知判定用）
     let existing_issues = db.get_issues().await?;
     let mut existing_issue_map = std::collections::HashMap::new();
     for issue in existing_issues {
-        existing_issue_map.insert(issue.id, issue.relevance_score);
+        existing_issue_map.insert((issue.workspace_id, issue.id), issue.relevance_score);
     }
 
-    // 高スコア課題のリスト（通知用）
+    let mut all_issues_for_tooltip = Vec::new();
     let mut new_high_score_issues = Vec::new();
 
-    // 各課題のスコアを計算
-    for issue in &mut issues {
-        let score = ScoringService::calculate_score(issue, &me);
-        issue.relevance_score = score;
+    for workspace in workspaces {
+        let domain = workspace.domain;
+        let api_key = workspace.api_key;
+        let project_key = workspace.project_keys;
 
-        // デバッグログ: スコア計算結果
-        debug!(
-            "Issue {} ({}): Score {}",
-            issue.issue_key, issue.summary, score
-        );
+        // 2. Backlog APIから課題を取得してスコアリング
+        let client = BacklogClient::new(&domain, &api_key);
 
-        // スコアが80点以上の課題をチェック
-        if score >= 80 {
-            let should_notify = match existing_issue_map.get(&issue.id) {
-                Some(&old_score) => {
-                    // 既存の課題: 以前は80点未満だった場合のみ通知
-                    old_score < 80
+        // 取得対象のステータスID（未対応:1, 処理中:2, 処理済み:3）
+        let target_status_ids = vec![1, 2, 3];
+
+        // プロジェクトキー（カンマ区切り）を分割して処理
+        let project_keys: Vec<&str> = project_key
+            .split(',')
+            .map(|k| k.trim())
+            .filter(|k| !k.is_empty())
+            .collect();
+        let mut issues = Vec::new();
+        let mut synced_projects = Vec::new();
+
+        for &key in &project_keys {
+            // 各プロジェクトの課題を取得
+            match client.get_issues(key, &target_status_ids).await {
+                Ok(mut project_issues) => {
+                    issues.append(&mut project_issues);
+                    synced_projects.push(key);
                 }
-                None => {
-                    // 新規の課題: 無条件で通知
-                    true
-                }
-            };
-
-            if should_notify {
-                info!("-> Notification target: {}", issue.issue_key);
-                new_high_score_issues.push(format!("{} ({})", issue.summary, score));
+                Err(e) => error!("Failed to fetch issues for project {}: {}", key, e),
             }
+        }
+        
+        // ユーザー情報取得
+        let me = match client.get_myself().await {
+            Ok(me) => me,
+            Err(e) => {
+                error!("Failed to get myself for {}: {}", domain, e);
+                continue;
+            }
+        };
+
+        // 各課題のスコアを計算
+        for issue in &mut issues {
+            let score = ScoringService::calculate_score(issue, &me);
+            issue.relevance_score = score;
+            issue.workspace_id = workspace.id;
+
+            // デバッグログ: スコア計算結果
+            debug!(
+                "Issue {} ({}): Score {}",
+                issue.issue_key, issue.summary, score
+            );
+
+            // スコアが80点以上の課題をチェック
+            if score >= 80 {
+                let should_notify = match existing_issue_map.get(&(workspace.id, issue.id)) {
+                    Some(&old_score) => {
+                        // 既存の課題: 以前は80点未満だった場合のみ通知
+                        old_score < 80
+                    }
+                    None => {
+                        // 新規の課題: 無条件で通知
+                        true
+                    }
+                };
+
+                if should_notify {
+                    info!("-> Notification target: {}", issue.issue_key);
+                    new_high_score_issues.push(format!("{} ({})", issue.summary, score));
+                }
+            }
+        }
+        
+        all_issues_for_tooltip.append(&mut issues.clone());
+
+        // 3. データベースに保存
+        if let Err(e) = db.save_issues(workspace.id, &issues, &synced_projects, &project_keys).await {
+             error!("Failed to save issues for workspace {}: {}", domain, e);
         }
     }
 
     // トレイのツールチップを更新
-    let high_priority_count = issues.iter().filter(|i| i.relevance_score >= 80).count();
+    let high_priority_count = all_issues_for_tooltip.iter().filter(|i| i.relevance_score >= 80).count();
     
     // 言語設定を取得（デフォルトは日本語）
     let lang = db.get_setting("language").await?.unwrap_or_else(|| "ja".to_string());
@@ -157,10 +169,6 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         };
         let _ = tray.set_tooltip(Some(tooltip));
     }
-
-    // 3. データベースに保存
-    db.save_issues(&issues, &synced_projects, &project_keys)
-        .await?;
 
     // 4. 新しい高スコア課題があれば通知
     if !new_high_score_issues.is_empty() {
@@ -211,7 +219,7 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
 
     info!(
         "Scheduler: Sync complete. {} issues processed.",
-        issues.len()
+        all_issues_for_tooltip.len()
     );
 
     Ok(())
