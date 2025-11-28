@@ -19,7 +19,7 @@ pub struct BacklogClient {
 ///
 /// Backlog APIから取得した課題の情報を保持する構造体。
 /// JSON形式のレスポンスをデシリアライズして使用する。
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Issue {
     /// 課題ID
     pub id: i64,
@@ -47,31 +47,34 @@ pub struct Issue {
     /// 関連度スコア（デシリアライズ時はスキップ、後で計算して設定）
     #[serde(skip_deserializing, default)]
     pub relevance_score: i32,
+    /// ワークスペースID（DB保存時に設定）
+    #[serde(skip_deserializing, default)]
+    pub workspace_id: i64,
 }
 
 /// 優先度
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Priority {
     pub id: i64,
     pub name: String,
 }
 
 /// ステータス
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Status {
     pub id: i64,
     pub name: String,
 }
 
 /// 種別
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueType {
     pub id: i64,
     pub name: String,
 }
 
 /// ユーザー
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: i64,
     pub name: String,
