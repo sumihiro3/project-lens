@@ -48,7 +48,10 @@ pub fn run() {
             commands::get_settings,   // 設定取得
             commands::fetch_issues,   // Backlogから課題を取得してスコアリング
             commands::fetch_projects, // Backlogからプロジェクト一覧を取得
-            commands::get_issues      // 保存済み課題一覧を取得
+            commands::get_issues,     // 保存済み課題一覧を取得
+            commands::get_workspaces, // ワークスペース一覧を取得
+            commands::save_workspace, // ワークスペースを保存
+            commands::delete_workspace // ワークスペースを削除
         ])
         // アプリケーション起動時のセットアップ処理
         .setup(|app| {
