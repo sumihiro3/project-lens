@@ -10,6 +10,7 @@
     "title": "ProjectLens",
     "lastSynced": "Last Synced: {time}",
     "dashboard": "Dashboard",
+    "issueList": "Issue List",
     "settings": "Settings"
   },
   "settings": {
@@ -37,10 +38,28 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "description": "Get an overview of your project's health at a glance. Click on cards or charts to view detailed lists.",
     "welcome": "Welcome to ProjectLens.",
+    "welcomeTitle": "Let's Set Up Your Workspace",
+    "welcomeMessage": "Start by registering your Backlog domain and API key in the settings. Once you sync your projects, the dashboard will display your issue status.",
+    "goToSettings": "Go to Settings",
     "noIssues": "No issues found. Go to Settings to sync.",
     "noFilteredIssues": "No matching issues found.",
-    "refresh": "Refresh Issues"
+    "refresh": "Refresh Issues",
+    "overdue": "Overdue",
+    "overdueTooltip": "Number of issues past their due date. Click to view the list.",
+    "dueSoon": "Due Soon",
+    "dueSoonTooltip": "Number of issues due within the next 3 days. Click to view the list.",
+    "stagnant": "Stagnant",
+    "stagnantTooltip": "Number of incomplete issues not updated for 5+ days. Click to view the list.",
+    "statusDistribution": "Status Distribution",
+    "statusDistributionDescription": "Shows the number of issues for each status. Click on the chart to view the list for that status.",
+    "priorityDistribution": "Priority Distribution",
+    "priorityDistributionDescription": "Shows the number of issues for each priority. Click on the chart to view the list for that priority.",
+    "recentUpdates": "Recent Updates",
+    "recentUpdatesDescription": "Shows the 5 most recently updated issues. Click to open in browser.",
+    "noRecentUpdates": "No recent updates",
+    "noData": "No data available"
   },
   "filters": {
     "status": {

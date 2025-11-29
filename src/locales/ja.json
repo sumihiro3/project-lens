@@ -10,6 +10,7 @@
     "title": "ProjectLens",
     "lastSynced": "最終同期: {time}",
     "dashboard": "ダッシュボード",
+    "issueList": "課題一覧",
     "settings": "設定"
   },
   "settings": {
@@ -37,10 +38,28 @@
   },
   "dashboard": {
     "title": "ダッシュボード",
+    "description": "プロジェクトの健康状態を一目で確認できます。カードやグラフをクリックすると詳細な一覧が表示されます。",
     "welcome": "ProjectLensへようこそ。",
+    "welcomeTitle": "ワークスペースを設定しましょう",
+    "welcomeMessage": "まずは設定画面でBacklogのドメインとAPIキーを登録してください。プロジェクトを同期すると、ダッシュボードに課題の状況が表示されます。",
+    "goToSettings": "設定画面へ",
     "noIssues": "課題が見つかりません。設定画面で同期してください。",
     "noFilteredIssues": "フィルター条件に一致する課題がありません。",
-    "refresh": "最新の情報を取得"
+    "refresh": "最新の情報を取得",
+    "overdue": "期限切れ",
+    "overdueTooltip": "期限日を過ぎた課題の数です。クリックすると一覧を表示します。",
+    "dueSoon": "期限間近",
+    "dueSoonTooltip": "今日から3日以内に期限が来る課題の数です。クリックすると一覧を表示します。",
+    "stagnant": "放置チケット",
+    "stagnantTooltip": "5日以上更新されていない未完了の課題の数です。クリックすると一覧を表示します。",
+    "statusDistribution": "ステータス分布",
+    "statusDistributionDescription": "各ステータスの課題数を表示しています。グラフをクリックすると該当するステータスの一覧を表示します。",
+    "priorityDistribution": "優先度分布",
+    "priorityDistributionDescription": "各優先度の課題数を表示しています。グラフをクリックすると該当する優先度の一覧を表示します。",
+    "recentUpdates": "最近の更新",
+    "recentUpdatesDescription": "直近5件の更新された課題を表示しています。クリックするとブラウザで開きます。",
+    "noRecentUpdates": "最近の更新がありません",
+    "noData": "データがありません"
   },
   "filters": {
     "status": {
