@@ -135,12 +135,16 @@ const dueDateFilterOptions = computed(() => [
 function resetFilters() {
   emit('update:modelValue', {
     searchQuery: '',
-    statusFilter: 'hide_completed',
+    statusFilter: 'all',
     dueDateFilter: '',
+    dueSoonDays: null,
+    stagnantDays: null,
     minScore: 0,
     selectedPriorities: [],
     selectedAssignees: [],
-    selectedProjects: []
+    selectedProjects: [],
+    sortKey: 'relevance_score',
+    sortOrder: 'desc'
   })
 }
 
