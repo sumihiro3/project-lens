@@ -35,8 +35,15 @@
     "deleteWorkspaceConfirm": "Are you sure you want to delete this workspace?",
     "workspaceSaved": "Workspace saved",
     "workspaceDeleted": "Workspace deleted",
+    "workspaceEnabled": "Workspace enabled",
+    "workspaceDisabled": "Workspace disabled",
+    "apiUsage": "API Usage",
+    "reset": "Reset",
     "showOnlyMyIssues": "Show only my issues",
-    "syncRecommended": "Please sync now to apply settings"
+    "syncRecommended": "Please sync now to apply settings",
+    "logFiles": "Log Files",
+    "logDirectory": "Log Directory",
+    "openLogDirectory": "Open Directory"
   },
   "dashboard": {
     "title": "Dashboard",

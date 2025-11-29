@@ -35,8 +35,15 @@
     "deleteWorkspaceConfirm": "このワークスペースを削除してもよろしいですか？",
     "workspaceSaved": "ワークスペースを保存しました",
     "workspaceDeleted": "ワークスペースを削除しました",
+    "workspaceEnabled": "ワークスペースを有効にしました",
+    "workspaceDisabled": "ワークスペースを無効にしました",
+    "apiUsage": "API使用量",
+    "reset": "リセット",
     "showOnlyMyIssues": "自分の課題のみ表示",
-    "syncRecommended": "設定を反映するため、今すぐ同期を実行してください"
+    "syncRecommended": "設定を反映するため、今すぐ同期を実行してください",
+    "logFiles": "ログファイル",
+    "logDirectory": "ログディレクトリ",
+    "openLogDirectory": "ディレクトリを開く"
   },
   "dashboard": {
     "title": "ダッシュボード",

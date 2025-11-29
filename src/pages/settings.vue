@@ -36,15 +36,44 @@
 
         <v-list v-if="workspaces.length > 0" border rounded>
           <template v-for="(ws, index) in workspaces" :key="ws.id">
-            <v-list-item>
+            <v-list-item :class="{ 'text-grey': !ws.enabled }">
               <template v-slot:prepend>
-                <v-avatar color="primary" variant="tonal">
+                <v-avatar :color="ws.enabled ? 'primary' : 'grey'" variant="tonal">
                   <v-icon>mdi-domain</v-icon>
                 </v-avatar>
               </template>
-              <v-list-item-title class="font-weight-bold">{{ ws.domain }}</v-list-item-title>
-              <v-list-item-subtitle>{{ ws.project_keys }}</v-list-item-subtitle>
+              <v-list-item-title class="font-weight-bold">
+                {{ ws.domain }}
+              </v-list-item-title>
+              <v-list-item-subtitle>
+                {{ ws.project_keys }}
+              </v-list-item-subtitle>
+              
+              <div v-if="ws.api_limit && ws.api_remaining" class="mt-2 mb-1 pr-16" style="max-width: 90%;">
+                <div class="d-flex justify-space-between text-caption mb-1">
+                  <span>{{ $t('settings.apiUsage') }}</span>
+                  <span>{{ ws.api_remaining }} / {{ ws.api_limit }}</span>
+                </div>
+                <v-progress-linear
+                  :model-value="(ws.api_remaining / ws.api_limit) * 100"
+                  :color="getApiUsageColor(ws.api_remaining, ws.api_limit)"
+                  height="6"
+                  rounded
+                ></v-progress-linear>
+                <div v-if="ws.api_reset" class="text-caption text-grey text-right mt-1">
+                  {{ $t('settings.reset') }}: {{ formatResetTime(ws.api_reset) }}
+                </div>
+              </div>
+
               <template v-slot:append>
+                <v-switch
+                  v-model="ws.enabled"
+                  @change="toggleWorkspace(ws)"
+                  color="primary"
+                  hide-details
+                  density="compact"
+                  class="mr-2"
+                ></v-switch>
                 <v-btn icon="mdi-pencil" variant="text" size="small" @click="openDialog(ws)"></v-btn>
                 <v-btn icon="mdi-delete" variant="text" color="error" size="small" @click="confirmDelete(ws)"></v-btn>
               </template>
@@ -55,6 +84,30 @@
         <v-alert v-else type="info" variant="tonal" class="mb-4">
           {{ $t('dashboard.noIssues') }}
         </v-alert>
+
+        <v-divider class="my-4"></v-divider>
+
+        <!-- Log Files Section -->
+        <h3 class="text-h6 mb-2">{{ $t('settings.logFiles') }}</h3>
+        <v-card variant="outlined" class="mb-4">
+          <v-card-text>
+            <div class="d-flex align-center justify-space-between">
+              <div>
+                <div class="text-caption text-grey">{{ $t('settings.logDirectory') }}</div>
+                <div class="text-body-2 font-mono">{{ logDirectory || 'Loading...' }}</div>
+              </div>
+              <v-btn
+                color="primary"
+                variant="tonal"
+                prepend-icon="mdi-folder-open"
+                @click="openLogDir"
+                :disabled="!logDirectory"
+              >
+                {{ $t('settings.openLogDirectory') }}
+              </v-btn>
+            </div>
+          </v-card-text>
+        </v-card>
 
         <v-divider class="my-4"></v-divider>
 
@@ -156,6 +209,10 @@ interface Workspace {
   project_keys: string
   user_id?: number
   user_name?: string
+  enabled: boolean
+  api_limit?: number
+  api_remaining?: number
+  api_reset?: string
 }
 
 const { t, locale, locales, setLocale } = useI18n()
@@ -198,6 +255,7 @@ const deleting = ref(false)
 const syncing = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error' | 'info' | 'warning'>('success')
+const logDirectory = ref<string>('')
 
 const isInitialized = ref(false)
 
@@ -225,6 +283,13 @@ onMounted(async () => {
     const s = await invoke<string | null>('get_settings', { key: 'show_only_my_issues' })
     if (s) {
       showOnlyMyIssues.value = s === 'true'
+    }
+    
+    // ログディレクトリのパスを取得
+    try {
+      logDirectory.value = await invoke<string>('get_log_directory')
+    } catch (e) {
+      console.error('Failed to get log directory:', e)
     }
     
     // 初期値設定が完了したら、次の更新サイクルから監視を有効にする
@@ -353,11 +418,70 @@ async function syncIssues() {
     const count = await invoke<number>('fetch_issues')
     message.value = t('settings.synced', { count })
     messageType.value = 'success'
+    
+    // 同期後に最新のワークスペース情報（API使用状況など）を再読み込み
+    await loadWorkspaces()
   } catch (e) {
     message.value = t('settings.errorSyncing', { error: e })
     messageType.value = 'error'
   } finally {
     syncing.value = false
+  }
+}
+
+async function toggleWorkspace(workspace: Workspace) {
+  try {
+    await invoke('toggle_workspace_enabled', {
+      workspaceId: workspace.id,
+      enabled: workspace.enabled
+    })
+    message.value = workspace.enabled 
+      ? t('settings.workspaceEnabled') 
+      : t('settings.workspaceDisabled')
+    messageType.value = 'success'
+  } catch (e) {
+    console.error('Failed to toggle workspace:', e)
+    // エラー時は元に戻す
+    workspace.enabled = !workspace.enabled
+    message.value = `Failed to toggle workspace: ${e}`
+    messageType.value = 'error'
+  }
+}
+
+async function openLogDir() {
+  try {
+    await invoke('open_log_directory')
+  } catch (e) {
+    console.error('Failed to open log directory:', e)
+    message.value = `Failed to open log directory: ${e}`
+    messageType.value = 'error'
+  }
+}
+
+function getApiUsageColor(remaining: number, limit: number): string {
+  const percentage = remaining / limit
+  if (percentage < 0.2) return 'error'
+  if (percentage < 0.5) return 'warning'
+  return 'success'
+}
+
+function formatResetTime(dateStr: string): string {
+  try {
+    // Unixタイムスタンプ（秒）かどうかをチェック
+    // 数字のみで構成されている場合はUnixタイムスタンプとみなす
+    if (/^\d+$/.test(dateStr)) {
+      const timestamp = parseInt(dateStr, 10)
+      const date = new Date(timestamp * 1000) // ミリ秒に変換
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) {
+      return dateStr // パース失敗時はそのまま表示
+    }
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch (e) {
+    return dateStr
   }
 }
 </script>
