@@ -66,6 +66,13 @@ pub async fn get_workspaces(db: State<'_, DbClient>) -> Result<Vec<crate::db::Wo
     db.get_workspaces().await.map_err(|e| e.to_string())
 }
 
+/// ワークスペースIDからワークスペース情報を取得
+#[tauri::command]
+pub async fn get_workspace_by_id(db: State<'_, DbClient>, workspace_id: i64) -> Result<Option<crate::db::Workspace>, String> {
+    let workspaces = db.get_workspaces().await.map_err(|e| e.to_string())?;
+    Ok(workspaces.into_iter().find(|w| w.id == workspace_id))
+}
+
 #[tauri::command]
 pub async fn save_workspace(
     db: State<'_, DbClient>,
