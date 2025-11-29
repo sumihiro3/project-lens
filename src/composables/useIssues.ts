@@ -13,6 +13,7 @@ export interface Issue {
   dueDate?: string
   updated?: string
   relevance_score: number
+  workspace_id: number
 }
 
 /**

@@ -137,15 +137,24 @@ const projectKey = computed(() => extractProjectKey(props.issue.issueKey))
  */
 async function openInBrowser() {
   try {
-    // ドメインを取得
-    const domain = await invoke<string | null>('get_settings', { key: 'domain' })
-    if (!domain) {
-      console.error('Domain not configured')
+    if (!props.issue.workspace_id) {
+      console.error('No workspace_id provided')
+      return
+    }
+
+    // ワークスペース情報を取得
+    const workspace = await invoke<{ id: number; domain: string; api_key: string; project_keys: string } | null>(
+      'get_workspace_by_id',
+      { workspaceId: props.issue.workspace_id }
+    )
+    
+    if (!workspace || !workspace.domain) {
+      console.error('Workspace not found or domain not configured')
       return
     }
     
     // BacklogのチケットURLを構築
-    const url = `https://${domain}/view/${props.issue.issueKey}`
+    const url = `https://${workspace.domain}/view/${props.issue.issueKey}`
     
     // デフォルトブラウザで開く
     await open(url)
