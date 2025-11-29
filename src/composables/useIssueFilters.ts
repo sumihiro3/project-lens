@@ -9,6 +9,8 @@ export interface FilterState {
   searchQuery: string
   statusFilter: string
   dueDateFilter: string
+  dueSoonDays: number | null
+  stagnantDays: number | null
   minScore: number
   selectedPriorities: string[]
   selectedAssignees: string[]
@@ -25,6 +27,8 @@ const filters = ref<FilterState>({
   searchQuery: '',
   statusFilter: 'all', // デフォルト：すべて表示（完了はAPIで除外済み）
   dueDateFilter: '',
+  dueSoonDays: null,
+  stagnantDays: null,
   minScore: 0,
   selectedPriorities: [],
   selectedAssignees: [],
@@ -86,7 +90,7 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
       // ----------------------------------------------------------------
       // 1. ステータスフィルター
       // ----------------------------------------------------------------
-      if (filters.value.statusFilter) {
+      if (filters.value.statusFilter && filters.value.statusFilter !== 'all') {
         const statusName = issue.status?.name
 
         // 'unprocessed': 未処理の課題のみ表示
@@ -110,14 +114,20 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
             return false
           }
         }
+        // 特定のステータス名でのフィルタリング (チャートからのドリルダウン用)
+        else {
+          if (!statusName || statusName !== filters.value.statusFilter) {
+            return false
+          }
+        }
       }
 
       // ----------------------------------------------------------------
       // 2. 期限フィルター
       // ----------------------------------------------------------------
-      if (filters.value.dueDateFilter) {
-        const dueDate = parseDueDate(issue.dueDate)
+      const dueDate = parseDueDate(issue.dueDate)
 
+      if (filters.value.dueDateFilter) {
         // 'no_due_date': 期限なし
         if (filters.value.dueDateFilter === 'no_due_date') {
           if (dueDate !== null) return false
@@ -137,6 +147,48 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
         // 'this_month': 今月が期限
         else if (filters.value.dueDateFilter === 'this_month') {
           if (!dueDate || !isThisMonth(dueDate)) return false
+        }
+      }
+
+      // ----------------------------------------------------------------
+      // 2.5. 期限間近フィルター (日数指定)
+      // ----------------------------------------------------------------
+      if (filters.value.dueSoonDays !== null) {
+        if (!dueDate) return false
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        const targetDate = new Date(today)
+        targetDate.setDate(targetDate.getDate() + filters.value.dueSoonDays)
+
+        // 今日 〜 指定日数の範囲内かどうか
+        // 期限切れは含めない（期限切れは別カードで管理するため）
+        if (dueDate < today || dueDate > targetDate) {
+          return false
+        }
+      }
+
+      // ----------------------------------------------------------------
+      // 2.6. 放置チケットフィルター (日数指定)
+      // ----------------------------------------------------------------
+      if (filters.value.stagnantDays !== null) {
+        const updated = parseDueDate(issue.updated)
+        if (!updated) return false
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        const thresholdDate = new Date(today)
+        thresholdDate.setDate(thresholdDate.getDate() - filters.value.stagnantDays)
+
+        // 最終更新日が閾値より前（古い）なら放置とみなす
+        // かつ、完了ステータスでないこと
+        const statusName = issue.status?.name
+        const isCompleted = statusName && (completedStatuses.some(s => statusName.includes(s)) || resolvedStatuses.some(s => statusName.includes(s)))
+
+        if (updated >= thresholdDate || isCompleted) {
+          return false
         }
       }
 
