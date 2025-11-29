@@ -14,6 +14,7 @@
     <v-navigation-drawer expand-on-hover rail>
       <v-list>
         <v-list-item prepend-icon="mdi-view-dashboard" :title="$t('app.dashboard')" to="/"></v-list-item>
+        <v-list-item prepend-icon="mdi-format-list-bulleted" :title="$t('app.issueList')" to="/issues"></v-list-item>
         <v-list-item prepend-icon="mdi-cog" :title="$t('app.settings')" to="/settings"></v-list-item>
       </v-list>
     </v-navigation-drawer>
