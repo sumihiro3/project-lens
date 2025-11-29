@@ -17,7 +17,7 @@ mod scoring; // スコアリングサービス
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // データベースマイグレーション定義を取得
-    let migrations = db::get_migrations();
+    // let migrations = db::get_migrations();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
@@ -36,9 +36,10 @@ pub fn run() {
                 .build(),
         )
         // SQLプラグインを初期化（データベースマイグレーション実行）
+        // Note: マイグレーションはDbClientで手動実行するため、ここでは空の状態で初期化するか、
+        // フロントエンドからのアクセスが不要なら削除しても良いが、念のため残しておく。
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:projectlens.db", migrations)
                 .build(),
         )
         // フロントエンドから呼び出せるコマンドを登録
@@ -208,6 +209,10 @@ pub fn run() {
                 let db_client = db::DbClient::new_with_options(options)
                     .await
                     .expect("failed to init db client");
+                
+                // マイグレーションを実行
+                db_client.migrate().await.expect("failed to migrate db");
+                
                 app_handle.manage(db_client);
 
                 // バックグラウンドスケジューラーを初期化

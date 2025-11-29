@@ -28,48 +28,16 @@ pub fn get_migrations() -> Vec<Migration> {
                 last_synced_at TEXT NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS issues (
-                id INTEGER PRIMARY KEY,
-                issue_key TEXT UNIQUE NOT NULL,
-                summary TEXT NOT NULL,
-                description TEXT,
-                priority TEXT,
-                status TEXT,
-                assignee TEXT,
-                due_date TEXT,
-                updated_at TEXT,
-                relevance_score INTEGER DEFAULT 0,
-                ai_summary TEXT,
-                raw_data TEXT
-            );
-        "#,
-        },
-        Migration {
-            version: 2,
-            description: "support_multiple_workspaces",
-            kind: MigrationKind::Up,
-            sql: r#"
             CREATE TABLE IF NOT EXISTS workspaces (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 domain TEXT NOT NULL,
                 api_key TEXT NOT NULL,
-                project_keys TEXT NOT NULL
+                project_keys TEXT NOT NULL,
+                user_id INTEGER,
+                user_name TEXT
             );
 
-            -- Migrate existing settings to the first workspace
-            INSERT INTO workspaces (domain, api_key, project_keys)
-            SELECT
-                (SELECT value FROM settings WHERE key = 'domain'),
-                (SELECT value FROM settings WHERE key = 'api_key'),
-                COALESCE((SELECT value FROM settings WHERE key = 'project_key'), '')
-            WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'domain');
-
-            -- Clean up migrated settings
-            DELETE FROM settings WHERE key IN ('domain', 'api_key', 'project_key');
-
-            -- Recreate issues table with workspace_id
-            DROP TABLE IF EXISTS issues;
-            CREATE TABLE issues (
+            CREATE TABLE IF NOT EXISTS issues (
                 id INTEGER NOT NULL,
                 workspace_id INTEGER NOT NULL,
                 issue_key TEXT NOT NULL,
@@ -98,6 +66,8 @@ pub struct Workspace {
     pub domain: String,
     pub api_key: String,
     pub project_keys: String,
+    pub user_id: Option<i64>,
+    pub user_name: Option<String>,
 }
 
 /// データベースクライアント
@@ -137,6 +107,65 @@ impl DbClient {
     pub async fn new_with_options(options: sqlx::sqlite::SqliteConnectOptions) -> Result<Self> {
         let pool = SqlitePool::connect_with(options).await?;
         Ok(Self { pool })
+    }
+
+    /// データベースのマイグレーションを実行
+    ///
+    /// テーブルが存在しない場合に作成する。
+    /// アプリケーション起動時に呼び出される。
+    pub async fn migrate(&self) -> Result<()> {
+        // テーブル作成のSQLを順次実行
+        
+        // settings table
+        sqlx::query(r#"
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+        "#).execute(&self.pool).await?;
+
+        // sync_state table
+        sqlx::query(r#"
+            CREATE TABLE IF NOT EXISTS sync_state (
+                project_id TEXT PRIMARY KEY,
+                last_synced_at TEXT NOT NULL
+            );
+        "#).execute(&self.pool).await?;
+
+        // workspaces table
+        sqlx::query(r#"
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL,
+                api_key TEXT NOT NULL,
+                project_keys TEXT NOT NULL,
+                user_id INTEGER,
+                user_name TEXT
+            );
+        "#).execute(&self.pool).await?;
+
+        // issues table
+        sqlx::query(r#"
+            CREATE TABLE IF NOT EXISTS issues (
+                id INTEGER NOT NULL,
+                workspace_id INTEGER NOT NULL,
+                issue_key TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                description TEXT,
+                priority TEXT,
+                status TEXT,
+                assignee TEXT,
+                due_date TEXT,
+                updated_at TEXT,
+                relevance_score INTEGER DEFAULT 0,
+                ai_summary TEXT,
+                raw_data TEXT,
+                PRIMARY KEY (workspace_id, id),
+                FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+            );
+        "#).execute(&self.pool).await?;
+
+        Ok(())
     }
 
     /// 設定を保存
@@ -179,7 +208,7 @@ impl DbClient {
     /// ワークスペース一覧を取得
     pub async fn get_workspaces(&self) -> Result<Vec<Workspace>> {
         let workspaces = sqlx::query_as::<_, Workspace>(
-            "SELECT id, domain, api_key, project_keys FROM workspaces ORDER BY id"
+            "SELECT id, domain, api_key, project_keys, user_id, user_name FROM workspaces ORDER BY id"
         )
         .fetch_all(&self.pool)
         .await?;
@@ -187,7 +216,14 @@ impl DbClient {
     }
 
     /// ワークスペースを保存（新規作成または更新）
-    pub async fn save_workspace(&self, domain: &str, api_key: &str, project_keys: &str) -> Result<()> {
+    pub async fn save_workspace(
+        &self, 
+        domain: &str, 
+        api_key: &str, 
+        project_keys: &str,
+        user_id: Option<i64>,
+        user_name: Option<String>
+    ) -> Result<()> {
         // ドメインが同じものがあれば更新、なければ新規作成
         // ここではドメインをユニークキーのように扱う
         let existing: Option<(i64,)> = sqlx::query_as("SELECT id FROM workspaces WHERE domain = ?")
@@ -196,17 +232,21 @@ impl DbClient {
             .await?;
 
         if let Some((id,)) = existing {
-            sqlx::query("UPDATE workspaces SET api_key = ?, project_keys = ? WHERE id = ?")
+            sqlx::query("UPDATE workspaces SET api_key = ?, project_keys = ?, user_id = ?, user_name = ? WHERE id = ?")
                 .bind(api_key)
                 .bind(project_keys)
+                .bind(user_id)
+                .bind(user_name)
                 .bind(id)
                 .execute(&self.pool)
                 .await?;
         } else {
-            sqlx::query("INSERT INTO workspaces (domain, api_key, project_keys) VALUES (?, ?, ?)")
+            sqlx::query("INSERT INTO workspaces (domain, api_key, project_keys, user_id, user_name) VALUES (?, ?, ?, ?, ?)")
                 .bind(domain)
                 .bind(api_key)
                 .bind(project_keys)
+                .bind(user_id)
+                .bind(user_name)
                 .execute(&self.pool)
                 .await?;
         }
