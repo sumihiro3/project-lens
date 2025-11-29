@@ -4,6 +4,8 @@ mod commands; // Tauriコマンド（フロントエンドから呼び出され�
 mod db; // データベースクライアント
 mod scheduler; // バックグラウンドスケジューラー
 mod scoring; // スコアリングサービス
+mod log_commands; // ログ関連コマンド
+pub mod rate_limit; // レートリミット情報
 
 /// アプリケーションのメインエントリポイント
 ///
@@ -33,6 +35,8 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Info)
+                .max_file_size(10_000_000) // 10MB
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .build(),
         )
         // SQLプラグインを初期化（データベースマイグレーション実行）
@@ -53,7 +57,10 @@ pub fn run() {
             commands::get_workspaces, // ワークスペース一覧を取得
             commands::get_workspace_by_id, // ワークスペースIDから取得
             commands::save_workspace, // ワークスペースを保存
-            commands::delete_workspace // ワークスペースを削除
+            commands::delete_workspace, // ワークスペースを削除
+            commands::toggle_workspace_enabled, // ワークスペースの有効・無効を切り替え
+            log_commands::get_log_directory, // ログディレクトリのパスを取得
+            log_commands::open_log_directory // ログディレクトリを開く
         ])
         // アプリケーション起動時のセットアップ処理
         .setup(|app| {
@@ -205,7 +212,7 @@ pub fn run() {
                     .expect("failed to parse db url")
                     .create_if_missing(true);
 
-                // データベースクライアントを作成してアプリケーション状態に登録
+            // データベースクライアントを作成してアプリケーション状態に登録
                 let db_client = db::DbClient::new_with_options(options)
                     .await
                     .expect("failed to init db client");
@@ -218,6 +225,9 @@ pub fn run() {
                 // バックグラウンドスケジューラーを初期化
                 // データベース準備完了後に起動
                 scheduler::init(app_handle.clone());
+                
+                // 起動ログを出力（ログファイル生成のため）
+                log::info!("Application initialized successfully");
             });
 
             Ok(())

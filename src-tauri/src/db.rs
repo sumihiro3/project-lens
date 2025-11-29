@@ -68,6 +68,16 @@ pub struct Workspace {
     pub project_keys: String,
     pub user_id: Option<i64>,
     pub user_name: Option<String>,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    pub api_limit: Option<i64>,
+    pub api_remaining: Option<i64>,
+    pub api_reset: Option<String>,
+}
+
+/// デフォルトでenabledはtrue
+fn default_enabled() -> bool {
+    true
 }
 
 /// データベースクライアント
@@ -140,9 +150,25 @@ impl DbClient {
                 api_key TEXT NOT NULL,
                 project_keys TEXT NOT NULL,
                 user_id INTEGER,
-                user_name TEXT
+                user_name TEXT,
+                enabled INTEGER DEFAULT 1,
+                api_limit INTEGER,
+                api_remaining INTEGER,
+                api_reset TEXT
             );
         "#).execute(&self.pool).await?;
+
+        // 既存のworkspacesテーブルに新しいカラムを追加（存在しない場合のみ）
+        // SQLiteはALTER TABLE ADD COLUMN IF NOT EXISTSをサポートしていないため、
+        // エラーを無視する方法で対応
+        let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN enabled INTEGER DEFAULT 1")
+            .execute(&self.pool).await;
+        let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN api_limit INTEGER")
+            .execute(&self.pool).await;
+        let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN api_remaining INTEGER")
+            .execute(&self.pool).await;
+        let _ = sqlx::query("ALTER TABLE workspaces ADD COLUMN api_reset TEXT")
+            .execute(&self.pool).await;
 
         // issues table
         sqlx::query(r#"
@@ -208,7 +234,9 @@ impl DbClient {
     /// ワークスペース一覧を取得
     pub async fn get_workspaces(&self) -> Result<Vec<Workspace>> {
         let workspaces = sqlx::query_as::<_, Workspace>(
-            "SELECT id, domain, api_key, project_keys, user_id, user_name FROM workspaces ORDER BY id"
+            "SELECT id, domain, api_key, project_keys, user_id, user_name, 
+             COALESCE(enabled, 1) as enabled, api_limit, api_remaining, api_reset 
+             FROM workspaces ORDER BY id"
         )
         .fetch_all(&self.pool)
         .await?;
@@ -222,7 +250,11 @@ impl DbClient {
         api_key: &str, 
         project_keys: &str,
         user_id: Option<i64>,
-        user_name: Option<String>
+        user_name: Option<String>,
+        enabled: bool,
+        api_limit: Option<i64>,
+        api_remaining: Option<i64>,
+        api_reset: Option<String>
     ) -> Result<()> {
         // ドメインが同じものがあれば更新、なければ新規作成
         // ここではドメインをユニークキーのように扱う
@@ -232,21 +264,29 @@ impl DbClient {
             .await?;
 
         if let Some((id,)) = existing {
-            sqlx::query("UPDATE workspaces SET api_key = ?, project_keys = ?, user_id = ?, user_name = ? WHERE id = ?")
+            sqlx::query("UPDATE workspaces SET api_key = ?, project_keys = ?, user_id = ?, user_name = ?, enabled = ?, api_limit = ?, api_remaining = ?, api_reset = ? WHERE id = ?")
                 .bind(api_key)
                 .bind(project_keys)
                 .bind(user_id)
                 .bind(user_name)
+                .bind(enabled as i64)
+                .bind(api_limit)
+                .bind(api_remaining)
+                .bind(api_reset)
                 .bind(id)
                 .execute(&self.pool)
                 .await?;
         } else {
-            sqlx::query("INSERT INTO workspaces (domain, api_key, project_keys, user_id, user_name) VALUES (?, ?, ?, ?, ?)")
+            sqlx::query("INSERT INTO workspaces (domain, api_key, project_keys, user_id, user_name, enabled, api_limit, api_remaining, api_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
                 .bind(domain)
                 .bind(api_key)
                 .bind(project_keys)
                 .bind(user_id)
                 .bind(user_name)
+                .bind(enabled as i64)
+                .bind(api_limit)
+                .bind(api_remaining)
+                .bind(api_reset)
                 .execute(&self.pool)
                 .await?;
         }
@@ -259,6 +299,26 @@ impl DbClient {
             .bind(id)
             .execute(&self.pool)
             .await?;
+        Ok(())
+    }
+
+    /// ワークスペースのAPI使用状況を更新
+    pub async fn save_workspace_usage(
+        &self,
+        workspace_id: i64,
+        limit: Option<i64>,
+        remaining: Option<i64>,
+        reset: Option<String>,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE workspaces SET api_limit = ?, api_remaining = ?, api_reset = ? WHERE id = ?"
+        )
+        .bind(limit)
+        .bind(remaining)
+        .bind(reset)
+        .bind(workspace_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -374,9 +434,18 @@ impl DbClient {
         Ok(())
     }
 
+    /// 指定されたワークスペースの課題をすべて削除
+    pub async fn delete_workspace_issues(&self, workspace_id: i64) -> Result<()> {
+        sqlx::query("DELETE FROM issues WHERE workspace_id = ?")
+            .bind(workspace_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// 課題一覧を取得
     ///
-    /// データベースに保存されている課題を関連度スコアの降順で取得する。
+    /// データベースに保存されている全ての課題を取得する。関連度スコアの降順で取得する。
     /// スコアが高い（重要度が高い）課題が先頭に来る。
     ///
     /// # 戻り値

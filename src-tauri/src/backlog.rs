@@ -115,49 +115,43 @@ impl BacklogClient {
     ///
     /// # 戻り値
     /// プロジェクトID、またはエラー
-    async fn get_project_id(&self, project_id_or_key: &str) -> Result<i64, Box<dyn Error>> {
+    /// プロジェクトキーからプロジェクトIDを取得
+    /// プロジェクトキーからプロジェクトIDを取得
+    async fn get_project_id(&self, project_id_or_key: &str) -> Result<i64, Box<dyn Error + Send + Sync>> {
+        // すでに数値の場合はそのまま返す
+        if let Ok(id) = project_id_or_key.parse::<i64>() {
+            return Ok(id);
+        }
+
+        // プロジェクト情報を取得してIDを特定
         let url = format!("{}/projects/{}", self.base_url, project_id_or_key);
         let response = self
             .client
             .get(&url)
             .query(&[("apiKey", &self.api_key)])
             .send()
-            .await?;
+            .await
+            .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
 
         if !response.status().is_success() {
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read response body".to_string());
-            return Err(format!("Failed to get project: {} - {}", status, body).into());
+            return Err(format!(
+                "Failed to get project info for {}: {}",
+                project_id_or_key,
+                response.status()
+            )
+            .into());
         }
 
-        #[derive(Deserialize)]
-        struct Project {
-            id: i64,
-        }
-
-        let project = response.json::<Project>().await?;
+        let project = response.json::<Project>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
         Ok(project.id)
     }
 
     /// プロジェクトの課題一覧を取得
-    ///
-    /// 指定されたプロジェクトの課題を最大100件取得する。
-    /// 更新日時の降順でソートされる。
-    ///
-    /// # 引数
-    /// * `project_id_or_key` - プロジェクトIDまたはプロジェクトキー
-    /// * `status_ids` - 取得対象のステータスIDのリスト（空の場合はすべて取得）
-    ///
-    /// # 戻り値
-    /// 課題のベクタ、またはエラー
     pub async fn get_issues(
         &self,
         project_id_or_key: &str,
         status_ids: &[i64],
-    ) -> Result<Vec<Issue>, Box<dyn Error>> {
+    ) -> Result<(Vec<Issue>, crate::rate_limit::RateLimitInfo), Box<dyn Error + Send + Sync>> {
         // プロジェクトキーからIDを取得
         let project_id = self.get_project_id(project_id_or_key).await?;
 
@@ -174,7 +168,7 @@ impl BacklogClient {
             query.push(("statusId[]", status_id.to_string()));
         }
 
-        let response = self.client.get(&url).query(&query).send().await?;
+        let response = self.client.get(&url).query(&query).send().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
 
         // レスポンスステータスの確認
         if !response.status().is_success() {
@@ -186,55 +180,48 @@ impl BacklogClient {
             return Err(format!("API request failed: {} - {}", status, body).into());
         }
 
-        let issues = response.json::<Vec<Issue>>().await?;
-        Ok(issues)
+        // ヘッダーからレートリミット情報を取得
+        let rate_limit = crate::rate_limit::RateLimitInfo::from_headers(response.headers());
+
+        let issues = response.json::<Vec<Issue>>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
+        Ok((issues, rate_limit))
     }
 
     /// 自分のユーザー情報を取得
-    ///
-    /// APIキーに紐づくユーザーの情報を取得する。
-    /// スコアリング時に「自分が担当者」かどうかを判定するために使用。
-    ///
-    /// # 戻り値
-    /// ユーザー情報、またはエラー
-    pub async fn get_myself(&self) -> Result<User, Box<dyn Error>> {
+    pub async fn get_myself(&self) -> Result<User, Box<dyn Error + Send + Sync>> {
         let url = format!("{}/users/myself", self.base_url);
         let response = self
             .client
             .get(&url)
             .query(&[("apiKey", &self.api_key)])
             .send()
-            .await?;
+            .await
+            .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
 
         if !response.status().is_success() {
-            return Err(format!("API request failed: {}", response.status()).into());
+            return Err(format!("Failed to get myself: {}", response.status()).into());
         }
 
-        let user = response.json::<User>().await?;
+        let user = response.json::<User>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
         Ok(user)
     }
 
-    /// ユーザーがアクセス可能なプロジェクト一覧を取得
-    ///
-    /// APIキーに紐づくユーザーがアクセスできるプロジェクトの一覧を取得する。
-    /// 設定画面でプロジェクトを選択する際に使用。
-    ///
-    /// # 戻り値
-    /// プロジェクト情報のベクタ、またはエラー
-    pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
+    /// プロジェクト一覧を取得
+    pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error + Send + Sync>> {
         let url = format!("{}/projects", self.base_url);
         let response = self
             .client
             .get(&url)
             .query(&[("apiKey", &self.api_key)])
             .send()
-            .await?;
+            .await
+            .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
 
         if !response.status().is_success() {
-            return Err(format!("API request failed: {}", response.status()).into());
+            return Err(format!("Failed to get projects: {}", response.status()).into());
         }
 
-        let projects = response.json::<Vec<Project>>().await?;
+        let projects = response.json::<Vec<Project>>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
         Ok(projects)
     }
 }

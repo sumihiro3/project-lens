@@ -94,11 +94,13 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         for &key in &project_keys {
             // 各プロジェクトの課題を取得
             match client.get_issues(key, &target_status_ids).await {
-                Ok(mut project_issues) => {
+                Ok((mut project_issues, _rate_limit)) => {
                     issues.append(&mut project_issues);
-                    synced_projects.push(key);
+                    synced_projects.push(key.to_string());
                 }
-                Err(e) => error!("Failed to fetch issues for project {}: {}", key, e),
+                Err(e) => {
+                    log::error!("Failed to fetch issues for project {}: {}", key, e);
+                }
             }
         }
         
@@ -146,7 +148,10 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         all_issues_for_tooltip.append(&mut issues.clone());
 
         // 3. データベースに保存
-        if let Err(e) = db.save_issues(workspace.id, &issues, &synced_projects, &project_keys).await {
+        // Vec<String> を Vec<&str> に変換
+        let synced_projects_refs: Vec<&str> = synced_projects.iter().map(|s| s.as_str()).collect();
+        
+        if let Err(e) = db.save_issues(workspace.id, &issues, &synced_projects_refs, &project_keys).await {
              error!("Failed to save issues for workspace {}: {}", domain, e);
         }
     }

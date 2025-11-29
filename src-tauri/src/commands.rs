@@ -85,9 +85,38 @@ pub async fn save_workspace(
     let me = client.get_myself().await.map_err(|e| e.to_string())?;
 
     let keys_str = project_keys.join(",");
-    db.save_workspace(&domain, &api_key, &keys_str, Some(me.id), Some(me.name))
+    // 新規ワークスペースはデフォルトで有効
+    db.save_workspace(&domain, &api_key, &keys_str, Some(me.id), Some(me.name), true, None, None, None)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// ワークスペースの有効・無効を切り替え
+#[tauri::command]
+pub async fn toggle_workspace_enabled(
+    db: State<'_, DbClient>,
+    workspace_id: i64,
+    enabled: bool,
+) -> Result<(), String> {
+    let workspaces = db.get_workspaces().await.map_err(|e| e.to_string())?;
+    let workspace = workspaces
+        .into_iter()
+        .find(|w| w.id == workspace_id)
+        .ok_or_else(|| "Workspace not found".to_string())?;
+
+    db.save_workspace(
+        &workspace.domain,
+        &workspace.api_key,
+        &workspace.project_keys,
+        workspace.user_id,
+        workspace.user_name,
+        enabled,
+        workspace.api_limit,
+        workspace.api_remaining,
+        workspace.api_reset,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -134,6 +163,14 @@ pub async fn fetch_issues(
     let mut all_issues_for_tooltip = Vec::new();
 
     for workspace in workspaces {
+        // 無効なワークスペースはスキップし、関連する課題を削除
+        if !workspace.enabled {
+            if let Err(e) = db.delete_workspace_issues(workspace.id).await {
+                eprintln!("Failed to delete issues for disabled workspace {}: {}", workspace.id, e);
+            }
+            continue;
+        }
+
         let domain = workspace.domain;
         let api_key = workspace.api_key;
         let project_key = workspace.project_keys;
@@ -154,17 +191,29 @@ pub async fn fetch_issues(
         let mut synced_projects = Vec::new();
 
         for &key in &project_keys {
-            // 各プロジェクトの課題を取得
+            // プロジェクトごとに課題を取得
             match client.get_issues(key, &target_status_ids).await {
-                Ok(mut issues) => {
-                    workspace_issues.append(&mut issues);
-                    synced_projects.push(key);
+                Ok((issues, rate_limit)) => {
+                    workspace_issues.extend(issues);
+                    synced_projects.push(key.to_string());
+                    
+                    // API使用状況を保存
+                    // 複数のプロジェクトを取得する場合、最後のレスポンスの情報で更新する
+                    if let Err(e) = db.save_workspace_usage(
+                        workspace.id,
+                        rate_limit.limit,
+                        rate_limit.remaining,
+                        rate_limit.reset
+                    ).await {
+                        eprintln!("Failed to save workspace usage: {}", e);
+                    }
                 }
-                Err(e) => eprintln!("Failed to fetch issues for project {}: {}", key, e),
+                Err(e) => {
+                    eprintln!("Failed to fetch issues for project {}: {}", key, e);
+                    // エラーが発生しても他のプロジェクトの取得は継続
+                }
             }
         }
-
-        // 現在のユーザー情報を取得
         let me = match client.get_myself().await {
             Ok(me) => me,
             Err(e) => {
@@ -175,7 +224,17 @@ pub async fn fetch_issues(
 
         // ユーザー情報を更新（まだ保存されていない場合のために）
         if workspace.user_id.is_none() || workspace.user_name.is_none() {
-            let _ = db.save_workspace(&domain, &api_key, &project_key, Some(me.id), Some(me.name.clone())).await;
+            let _ = db.save_workspace(
+                &domain, 
+                &api_key, 
+                &project_key, 
+                Some(me.id), 
+                Some(me.name.clone()),
+                workspace.enabled,
+                workspace.api_limit,
+                workspace.api_remaining,
+                workspace.api_reset,
+            ).await;
         }
 
         // 各課題のスコアを計算
@@ -185,7 +244,10 @@ pub async fn fetch_issues(
         }
 
         // データベースに保存
-        db.save_issues(workspace.id, &workspace_issues, &synced_projects, &project_keys)
+        // Vec<String> を Vec<&str> に変換
+        let synced_projects_refs: Vec<&str> = synced_projects.iter().map(|s| s.as_str()).collect();
+        
+        db.save_issues(workspace.id, &workspace_issues, &synced_projects_refs, &project_keys)
             .await
             .map_err(|e| e.to_string())?;
             
