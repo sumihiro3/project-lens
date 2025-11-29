@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ProjectLens",
   "version": "0.1.0",
-  "identifier": "com.projectlens.app",
+  "identifier": "com.tep-lab.project-lens",
   "build": {
     "frontendDist": "../.output/public"
   },
