@@ -27,19 +27,22 @@
         </div>
 
         <v-list v-if="workspaces.length > 0" border rounded>
-          <v-list-item v-for="ws in workspaces" :key="ws.id">
-            <template v-slot:prepend>
-              <v-avatar color="primary" variant="tonal">
-                <v-icon>mdi-domain</v-icon>
-              </v-avatar>
-            </template>
-            <v-list-item-title class="font-weight-bold">{{ ws.domain }}</v-list-item-title>
-            <v-list-item-subtitle>{{ ws.project_keys }}</v-list-item-subtitle>
-            <template v-slot:append>
-              <v-btn icon="mdi-pencil" variant="text" size="small" @click="openDialog(ws)"></v-btn>
-              <v-btn icon="mdi-delete" variant="text" color="error" size="small" @click="confirmDelete(ws)"></v-btn>
-            </template>
-          </v-list-item>
+          <template v-for="(ws, index) in workspaces" :key="ws.id">
+            <v-list-item>
+              <template v-slot:prepend>
+                <v-avatar color="primary" variant="tonal">
+                  <v-icon>mdi-domain</v-icon>
+                </v-avatar>
+              </template>
+              <v-list-item-title class="font-weight-bold">{{ ws.domain }}</v-list-item-title>
+              <v-list-item-subtitle>{{ ws.project_keys }}</v-list-item-subtitle>
+              <template v-slot:append>
+                <v-btn icon="mdi-pencil" variant="text" size="small" @click="openDialog(ws)"></v-btn>
+                <v-btn icon="mdi-delete" variant="text" color="error" size="small" @click="confirmDelete(ws)"></v-btn>
+              </template>
+            </v-list-item>
+            <v-divider v-if="index < workspaces.length - 1" />
+          </template>
         </v-list>
         <v-alert v-else type="info" variant="tonal" class="mb-4">
           {{ $t('dashboard.noIssues') }}
@@ -188,8 +191,8 @@ const messageType = ref<'success' | 'error'>('success')
 onMounted(async () => {
   try {
     const l = await invoke<string | null>('get_settings', { key: 'language' })
-    if (l) {
-      locale.value = l
+    if (l && (l === 'en' || l === 'ja')) {
+      locale.value = l as 'en' | 'ja'
     }
     await loadWorkspaces()
   } catch (e) {
