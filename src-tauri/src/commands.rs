@@ -80,8 +80,12 @@ pub async fn save_workspace(
     api_key: String,
     project_keys: Vec<String>,
 ) -> Result<(), String> {
+    // Backlog APIクライアントを作成してユーザー情報を取得
+    let client = BacklogClient::new(&domain, &api_key);
+    let me = client.get_myself().await.map_err(|e| e.to_string())?;
+
     let keys_str = project_keys.join(",");
-    db.save_workspace(&domain, &api_key, &keys_str)
+    db.save_workspace(&domain, &api_key, &keys_str, Some(me.id), Some(me.name))
         .await
         .map_err(|e| e.to_string())
 }
@@ -168,6 +172,11 @@ pub async fn fetch_issues(
                 continue;
             }
         };
+
+        // ユーザー情報を更新（まだ保存されていない場合のために）
+        if workspace.user_id.is_none() || workspace.user_name.is_none() {
+            let _ = db.save_workspace(&domain, &api_key, &project_key, Some(me.id), Some(me.name.clone())).await;
+        }
 
         // 各課題のスコアを計算
         for issue in &mut workspace_issues {
