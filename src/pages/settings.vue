@@ -16,6 +16,14 @@
           class="mb-4"
         ></v-select>
 
+        <v-switch
+          v-model="showOnlyMyIssues"
+          :label="$t('settings.showOnlyMyIssues')"
+          color="primary"
+          hide-details
+          class="mb-4"
+        ></v-switch>
+
         <v-divider class="my-4"></v-divider>
 
         <!-- Workspaces List -->
@@ -137,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 
@@ -146,6 +154,8 @@ interface Workspace {
   domain: string
   api_key: string
   project_keys: string
+  user_id?: number
+  user_name?: string
 }
 
 const { t, locale, locales, setLocale } = useI18n()
@@ -172,6 +182,7 @@ const dialog = ref(false)
 const deleteDialog = ref(false)
 const isEditing = ref(false)
 const workspaceToDelete = ref<Workspace | null>(null)
+const showOnlyMyIssues = ref(false)
 
 const editedWorkspace = ref({
   id: 0,
@@ -186,7 +197,23 @@ const saving = ref(false)
 const deleting = ref(false)
 const syncing = ref(false)
 const message = ref('')
-const messageType = ref<'success' | 'error'>('success')
+const messageType = ref<'success' | 'error' | 'info' | 'warning'>('success')
+
+const isInitialized = ref(false)
+
+// Watch for showOnlyMyIssues changes and save
+watch(showOnlyMyIssues, async (newValue) => {
+  if (!isInitialized.value) return
+  
+  try {
+    await invoke('save_settings', { key: 'show_only_my_issues', value: newValue.toString() })
+    // 同期を促すメッセージを表示
+    message.value = t('settings.syncRecommended')
+    messageType.value = 'info'
+  } catch (e) {
+    console.error('Failed to save show_only_my_issues setting:', e)
+  }
+})
 
 onMounted(async () => {
   try {
@@ -194,6 +221,16 @@ onMounted(async () => {
     if (l && (l === 'en' || l === 'ja')) {
       locale.value = l as 'en' | 'ja'
     }
+    
+    const s = await invoke<string | null>('get_settings', { key: 'show_only_my_issues' })
+    if (s) {
+      showOnlyMyIssues.value = s === 'true'
+    }
+    
+    // 初期値設定が完了したら、次の更新サイクルから監視を有効にする
+    await nextTick()
+    isInitialized.value = true
+    
     await loadWorkspaces()
   } catch (e) {
     console.error(e)
@@ -273,7 +310,8 @@ async function saveWorkspace() {
       projectKeys: editedProjectKeys.value
     })
     
-    message.value = t('settings.workspaceSaved')
+    // 保存成功メッセージの後に同期推奨メッセージを表示
+    message.value = `${t('settings.workspaceSaved')}. ${t('settings.syncRecommended')}`
     messageType.value = 'success'
     closeDialog()
     await loadWorkspaces()

@@ -1,6 +1,7 @@
-import { ref, computed, type Ref } from 'vue'
+import { ref, computed, type Ref, watchEffect } from 'vue'
 import type { Issue } from './useIssues'
 import { parseDueDate, isOverdue, isToday, isThisWeek, isThisMonth } from '../utils/issueHelpers'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * フィルター状態を保持するインターフェース
@@ -19,9 +20,11 @@ export interface FilterState {
   sortOrder: 'asc' | 'desc'
 }
 
-/**
- * 課題フィルタリング機能を提供するComposable
- */
+interface Workspace {
+  id: number
+  user_name?: string
+}
+
 // グローバルステートとしてフィルター状態を保持（画面遷移しても維持される）
 const filters = ref<FilterState>({
   searchQuery: '',
@@ -37,12 +40,25 @@ const filters = ref<FilterState>({
   sortOrder: 'desc'
 })
 
+// 「自分の課題のみ表示」設定（グローバルステート）
+const showOnlyMyIssues = ref(false)
+const workspaces = ref<Workspace[]>([])
+
+// 設定とワークスペース情報の読み込み
+invoke<string | null>('get_settings', { key: 'show_only_my_issues' }).then(s => {
+  if (s) {
+    showOnlyMyIssues.value = s === 'true'
+  }
+})
+
+invoke<Workspace[]>('get_workspaces').then(ws => {
+  workspaces.value = ws
+})
+
 /**
  * 課題フィルタリング機能を提供するComposable
  */
 export function useIssueFilters(issues: Ref<Issue[]>) {
-  // フィルター状態（グローバルステートを使用）
-
   // ステータス定義
   const completedStatuses = ['完了', 'Closed', 'Done']
   const resolvedStatuses = ['処理済み', 'Resolved']
@@ -84,9 +100,31 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
     return Array.from(projects).sort()
   })
 
-  // フィルター適用後の課題リスト
+  // 自分の課題のみフィルター適用後のベースリスト
+  // ダッシュボードのKPI計算などはこのリストを基に行うべき
+  const baseIssues = computed(() => {
+    if (!showOnlyMyIssues.value) {
+      return issues.value
+    }
+
+    return issues.value.filter(issue => {
+      // ワークスペース情報を取得
+      const workspace = workspaces.value.find(w => w.id === issue.workspace_id)
+      if (!workspace || !workspace.user_name) {
+        return true // ユーザー情報がない場合は除外しない（安全策）
+      }
+
+      // 担当者が自分かどうか判定
+      return issue.assignee?.name === workspace.user_name
+    })
+  })
+
+  // 全てのフィルター適用後の課題リスト
   const filteredIssues = computed(() => {
-    const result = issues.value.filter(issue => {
+    // まずベースフィルター（自分の課題のみ）を適用
+    const sourceIssues = baseIssues.value
+
+    const result = sourceIssues.filter(issue => {
       // ----------------------------------------------------------------
       // 1. ステータスフィルター
       // ----------------------------------------------------------------
@@ -311,9 +349,25 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
     })
   })
 
+  // 設定変更を監視して再読み込み
+  watchEffect(() => {
+    invoke<string | null>('get_settings', { key: 'show_only_my_issues' }).then(s => {
+      if (s) {
+        showOnlyMyIssues.value = s === 'true'
+      }
+    })
+
+    // ワークスペース情報も再読み込み（ユーザー情報更新のため）
+    invoke<Workspace[]>('get_workspaces').then(ws => {
+      workspaces.value = ws
+    })
+  })
+
   return {
     filters,
     filteredIssues,
+    baseIssues,
+    showOnlyMyIssues,
     availablePriorities,
     availableAssignees,
     availableProjects
