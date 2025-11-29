@@ -28,7 +28,7 @@
         <v-col cols="12">
           <h1 class="text-h4 font-weight-bold mb-2">{{ $t('dashboard.title') }}</h1>
           <p class="text-body-1 text-medium-emphasis">
-            {{ $t('dashboard.description') }}
+            {{ showOnlyMyIssues ? $t('dashboard.descriptionMyIssues') : $t('dashboard.description') }}
           </p>
         </v-col>
       </v-row>
@@ -90,7 +90,7 @@
       <!-- Recent Updates -->
       <v-row>
         <v-col cols="12">
-          <RecentUpdates :issues="issues" />
+          <RecentUpdates :issues="baseIssues" />
         </v-col>
       </v-row>
     </template>
@@ -115,7 +115,7 @@ const router = useRouter()
 const { issues, loadIssues } = useIssues()
 
 // フィルター管理（グローバルステートにアクセスするため）
-const { filters } = useIssueFilters(issues)
+const { filters, baseIssues, showOnlyMyIssues } = useIssueFilters(issues)
 
 // 自動更新イベントのリスナー解除関数
 let unlisten: (() => void) | null = null
@@ -143,7 +143,7 @@ const resolvedStatuses = ['処理済み', 'Resolved']
 
 // 期限切れチケット数
 const overdueCount = computed(() => {
-  return issues.value.filter(issue => {
+  return baseIssues.value.filter(issue => {
     const dueDate = parseDueDate(issue.dueDate)
     return dueDate && isOverdue(dueDate)
   }).length
@@ -157,7 +157,7 @@ const dueSoonCount = computed(() => {
   const targetDate = new Date(today)
   targetDate.setDate(targetDate.getDate() + 3)
   
-  return issues.value.filter(issue => {
+  return baseIssues.value.filter(issue => {
     const dueDate = parseDueDate(issue.dueDate)
     if (!dueDate) return false
     
@@ -174,7 +174,7 @@ const stagnantCount = computed(() => {
   const thresholdDate = new Date(today)
   thresholdDate.setDate(thresholdDate.getDate() - 5)
   
-  return issues.value.filter(issue => {
+  return baseIssues.value.filter(issue => {
     const updated = parseDueDate(issue.updated)
     if (!updated) return false
     
@@ -192,7 +192,7 @@ const stagnantCount = computed(() => {
 const statusCounts = computed(() => {
   const counts: Record<string, number> = {}
   
-  issues.value.forEach(issue => {
+  baseIssues.value.forEach(issue => {
     const status = issue.status?.name || '不明'
     counts[status] = (counts[status] || 0) + 1
   })
@@ -204,7 +204,7 @@ const statusCounts = computed(() => {
 const priorityCounts = computed(() => {
   const counts: Record<string, number> = {}
   
-  issues.value.forEach(issue => {
+  baseIssues.value.forEach(issue => {
     const priority = issue.priority?.name || '不明'
     counts[priority] = (counts[priority] || 0) + 1
   })
