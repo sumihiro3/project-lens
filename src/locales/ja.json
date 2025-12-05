@@ -11,7 +11,11 @@
     "lastSynced": "最終同期: {time}",
     "dashboard": "ダッシュボード",
     "issueList": "課題一覧",
-    "settings": "設定"
+    "settings": "設定",
+    "toggleMenu": "メニューを開閉",
+    "goToDashboard": "ダッシュボードへ",
+    "goToIssueList": "課題一覧へ",
+    "goToSettings": "設定へ"
   },
   "settings": {
     "title": "設定",
@@ -43,7 +47,11 @@
     "syncRecommended": "設定を反映するため、今すぐ同期を実行してください",
     "logFiles": "ログファイル",
     "logDirectory": "ログディレクトリ",
-    "openLogDirectory": "ディレクトリを開く"
+    "openLogDirectory": "ディレクトリを開く",
+    "enableDisableWorkspace": "ワークスペースを有効/無効にする",
+    "editWorkspaceTooltip": "ワークスペースを編集",
+    "deleteWorkspaceTooltip": "ワークスペースを削除",
+    "backToDashboard": "ダッシュボードに戻る"
   },
   "dashboard": {
     "title": "ダッシュボード",
@@ -69,7 +77,8 @@
     "recentUpdates": "最近の更新",
     "recentUpdatesDescription": "直近5件の更新された課題を表示しています。クリックするとブラウザで開きます。",
     "noRecentUpdates": "最近の更新がありません",
-    "noData": "データがありません"
+    "noData": "データがありません",
+    "clickToOpenIssue": "クリックしてブラウザで開く"
   },
   "filters": {
     "status": {
@@ -114,8 +123,19 @@
       "priority": "優先度",
       "updated": "更新日",
       "ascending": "昇順",
-      "descending": "降順"
-    }
+      "descending": "降順",
+      "tooltips": {
+        "relevance_score": "関連度スコアで並び替えます",
+        "dueDate": "期限日で並び替えます",
+        "priority": "優先度で並び替えます",
+        "updated": "更新日で並び替えます",
+        "order": "昇順・降順を切り替えます"
+      }
+    },
+    "clickToOpenFilter": "クリックしてフィルター設定を開く",
+    "refreshProjects": "プロジェクトリストを更新",
+    "resetFiltersTooltip": "すべてのフィルターをリセット",
+    "applyFiltersTooltip": "フィルターを適用"
   },
   "issue": {
     "score": "スコア: {score}",

@@ -2,7 +2,11 @@
   <v-app>
     <v-app-bar color="primary">
       <template v-slot:prepend>
-        <v-app-bar-nav-icon v-if="!mdAndUp" @click="drawer = !drawer" class="mr-2"></v-app-bar-nav-icon>
+        <v-tooltip v-if="!mdAndUp" :text="$t('app.toggleMenu')" location="bottom">
+          <template v-slot:activator="{ props }">
+            <v-app-bar-nav-icon v-bind="props" @click="drawer = !drawer" class="mr-2"></v-app-bar-nav-icon>
+          </template>
+        </v-tooltip>
         <img :src="logoUrl" alt="ProjectLens" width="48" height="48" class="ml-2 mr-0" />
       </template>
       <v-app-bar-title class="font-weight-black ml-1">{{ $t('app.title') }}</v-app-bar-title>
@@ -18,24 +22,39 @@
       :expand-on-hover="mdAndUp"
     >
       <v-list>
-        <v-list-item 
-          prepend-icon="mdi-view-dashboard" 
-          :title="$t('app.dashboard')" 
-          to="/"
-          @click="onNavigate"
-        ></v-list-item>
-        <v-list-item 
-          prepend-icon="mdi-format-list-bulleted" 
-          :title="$t('app.issueList')" 
-          to="/issues"
-          @click="onNavigate"
-        ></v-list-item>
-        <v-list-item 
-          prepend-icon="mdi-cog" 
-          :title="$t('app.settings')" 
-          to="/settings"
-          @click="onNavigate"
-        ></v-list-item>
+        <v-tooltip :text="$t('app.goToDashboard')" location="right">
+          <template v-slot:activator="{ props }">
+            <v-list-item 
+              v-bind="props"
+              prepend-icon="mdi-view-dashboard" 
+              :title="$t('app.dashboard')" 
+              to="/"
+              @click="onNavigate"
+            ></v-list-item>
+          </template>
+        </v-tooltip>
+        <v-tooltip :text="$t('app.goToIssueList')" location="right">
+          <template v-slot:activator="{ props }">
+            <v-list-item 
+              v-bind="props"
+              prepend-icon="mdi-format-list-bulleted" 
+              :title="$t('app.issueList')" 
+              to="/issues"
+              @click="onNavigate"
+            ></v-list-item>
+          </template>
+        </v-tooltip>
+        <v-tooltip :text="$t('app.goToSettings')" location="right">
+          <template v-slot:activator="{ props }">
+            <v-list-item 
+              v-bind="props"
+              prepend-icon="mdi-cog" 
+              :title="$t('app.settings')" 
+              to="/settings"
+              @click="onNavigate"
+            ></v-list-item>
+          </template>
+        </v-tooltip>
       </v-list>
     </v-navigation-drawer>
 

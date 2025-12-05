@@ -11,7 +11,11 @@
     "lastSynced": "Last Synced: {time}",
     "dashboard": "Dashboard",
     "issueList": "Issue List",
-    "settings": "Settings"
+    "settings": "Settings",
+    "toggleMenu": "Toggle menu",
+    "goToDashboard": "Go to dashboard",
+    "goToIssueList": "Go to issue list",
+    "goToSettings": "Go to settings"
   },
   "settings": {
     "title": "Settings",
@@ -43,7 +47,11 @@
     "syncRecommended": "Please sync now to apply settings",
     "logFiles": "Log Files",
     "logDirectory": "Log Directory",
-    "openLogDirectory": "Open Directory"
+    "openLogDirectory": "Open Directory",
+    "enableDisableWorkspace": "Enable/disable workspace",
+    "editWorkspaceTooltip": "Edit workspace",
+    "deleteWorkspaceTooltip": "Delete workspace",
+    "backToDashboard": "Back to dashboard"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -69,7 +77,8 @@
     "recentUpdates": "Recent Updates",
     "recentUpdatesDescription": "Shows the 5 most recently updated issues. Click to open in browser.",
     "noRecentUpdates": "No recent updates",
-    "noData": "No data available"
+    "noData": "No data available",
+    "clickToOpenIssue": "Click to open in browser"
   },
   "filters": {
     "status": {
@@ -114,8 +123,19 @@
       "priority": "Priority",
       "updated": "Updated Date",
       "ascending": "Ascending",
-      "descending": "Descending"
-    }
+      "descending": "Descending",
+      "tooltips": {
+        "relevance_score": "Sort by relevance score",
+        "dueDate": "Sort by due date",
+        "priority": "Sort by priority",
+        "updated": "Sort by updated date",
+        "order": "Toggle sort order"
+      }
+    },
+    "clickToOpenFilter": "Click to open filter settings",
+    "refreshProjects": "Refresh project list",
+    "resetFiltersTooltip": "Reset all filters",
+    "applyFiltersTooltip": "Apply filters"
   },
   "issue": {
     "score": "Score: {score}",

@@ -78,8 +78,16 @@
 
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text @click="resetFilters">{{ $t('filters.reset') }}</v-btn>
-          <v-btn color="primary" @click="dialog = false">{{ $t('filters.apply') }}</v-btn>
+          <v-tooltip :text="$t('filters.resetFiltersTooltip')" location="bottom">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" text @click="resetFilters">{{ $t('filters.reset') }}</v-btn>
+            </template>
+          </v-tooltip>
+          <v-tooltip :text="$t('filters.applyFiltersTooltip')" location="bottom">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" color="primary" @click="dialog = false">{{ $t('filters.apply') }}</v-btn>
+            </template>
+          </v-tooltip>
         </v-card-actions>
       </v-card>
     </v-dialog>

@@ -2,7 +2,11 @@
   <v-container>
     <v-card>
       <v-card-title class="d-flex align-center">
-        <v-btn icon="mdi-arrow-left" @click="$router.push('/')" class="mr-2"></v-btn>
+        <v-tooltip :text="$t('settings.backToDashboard')" location="bottom">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon="mdi-arrow-left" @click="$router.push('/')" class="mr-2"></v-btn>
+          </template>
+        </v-tooltip>
         {{ $t('settings.title') }}
       </v-card-title>
       <v-card-text>
@@ -66,16 +70,29 @@
               </div>
 
               <template v-slot:append>
-                <v-switch
-                  v-model="ws.enabled"
-                  @change="toggleWorkspace(ws)"
-                  color="primary"
-                  hide-details
-                  density="compact"
-                  class="mr-2"
-                ></v-switch>
-                <v-btn icon="mdi-pencil" variant="text" size="small" @click="openDialog(ws)"></v-btn>
-                <v-btn icon="mdi-delete" variant="text" color="error" size="small" @click="confirmDelete(ws)"></v-btn>
+                <v-tooltip :text="$t('settings.enableDisableWorkspace')" location="bottom">
+                  <template v-slot:activator="{ props }">
+                    <v-switch
+                      v-bind="props"
+                      v-model="ws.enabled"
+                      @change="toggleWorkspace(ws)"
+                      color="primary"
+                      hide-details
+                      density="compact"
+                      class="mr-2"
+                    ></v-switch>
+                  </template>
+                </v-tooltip>
+                <v-tooltip :text="$t('settings.editWorkspaceTooltip')" location="bottom">
+                  <template v-slot:activator="{ props }">
+                    <v-btn v-bind="props" icon="mdi-pencil" variant="text" size="small" @click="openDialog(ws)"></v-btn>
+                  </template>
+                </v-tooltip>
+                <v-tooltip :text="$t('settings.deleteWorkspaceTooltip')" location="bottom">
+                  <template v-slot:activator="{ props }">
+                    <v-btn v-bind="props" icon="mdi-delete" variant="text" color="error" size="small" @click="confirmDelete(ws)"></v-btn>
+                  </template>
+                </v-tooltip>
               </template>
             </v-list-item>
             <v-divider v-if="index < workspaces.length - 1" />
@@ -157,15 +174,20 @@
               required
             >
               <template v-slot:prepend>
-                <v-btn 
-                  icon="mdi-refresh" 
-                  size="small" 
-                  variant="text"
-                  @click="loadProjects"
-                  :loading="loadingProjects"
-                  :disabled="!editedWorkspace.domain || !editedWorkspace.api_key"
-                  color="primary"
-                ></v-btn>
+                <v-tooltip :text="$t('filters.refreshProjects')" location="bottom">
+                  <template v-slot:activator="{ props }">
+                    <v-btn 
+                      v-bind="props"
+                      icon="mdi-refresh" 
+                      size="small" 
+                      variant="text"
+                      @click="loadProjects"
+                      :loading="loadingProjects"
+                      :disabled="!editedWorkspace.domain || !editedWorkspace.api_key"
+                      color="primary"
+                    ></v-btn>
+                  </template>
+                </v-tooltip>
               </template>
             </v-autocomplete>
           </v-form>
