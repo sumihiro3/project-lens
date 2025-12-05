@@ -26,7 +26,21 @@
       <!-- Welcome Section -->
       <v-row class="mb-2">
         <v-col cols="12">
-          <h1 class="text-h4 font-weight-bold mb-2">{{ $t('dashboard.title') }}</h1>
+          <div class="d-flex align-center justify-space-between mb-2">
+            <h1 class="text-h4 font-weight-bold">{{ $t('dashboard.title') }}</h1>
+            <v-tooltip :text="$t('dashboard.refresh')" location="bottom">
+              <template v-slot:activator="{ props }">
+                <v-btn 
+                  v-bind="props"
+                  icon="mdi-refresh" 
+                  @click="handleRefresh" 
+                  :loading="loading" 
+                  variant="text" 
+                  size="small"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+          </div>
           <p class="text-body-1 text-medium-emphasis">
             {{ showOnlyMyIssues ? $t('dashboard.descriptionMyIssues') : $t('dashboard.description') }}
           </p>
@@ -94,11 +108,23 @@
         </v-col>
       </v-row>
     </template>
+
+    <!-- Snackbar -->
+    <v-snackbar
+      v-model="snackbar"
+      :color="snackbarColor"
+      timeout="3000"
+    >
+      {{ snackbarText }}
+      <template v-slot:actions>
+        <v-btn variant="text" @click="snackbar = false">{{ $t('common.close') }}</v-btn>
+      </template>
+    </v-snackbar>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIssues } from '../composables/useIssues'
 import { useIssueFilters } from '../composables/useIssueFilters'
@@ -108,11 +134,32 @@ import StatusChart from '../components/dashboard/StatusChart.vue'
 import PriorityChart from '../components/dashboard/PriorityChart.vue'
 import RecentUpdates from '../components/dashboard/RecentUpdates.vue'
 import { listen } from '@tauri-apps/api/event'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const router = useRouter()
 
 // 課題データ管理
-const { issues, loadIssues } = useIssues()
+const { issues, loading, loadIssues, syncIssues } = useIssues()
+
+// スナックバー管理
+const snackbar = ref(false)
+const snackbarText = ref('')
+const snackbarColor = ref('success')
+
+// 手動同期ハンドラ
+async function handleRefresh() {
+  try {
+    await syncIssues()
+    snackbarText.value = t('settings.synced', { count: issues.value.length })
+    snackbarColor.value = 'success'
+    snackbar.value = true
+  } catch (e) {
+    snackbarText.value = t('settings.errorSyncing', { error: e })
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  }
+}
 
 // フィルター管理（グローバルステートにアクセスするため）
 const { filters, baseIssues, showOnlyMyIssues } = useIssueFilters(issues)
