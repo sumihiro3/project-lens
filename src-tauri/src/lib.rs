@@ -7,6 +7,9 @@ mod scoring; // スコアリングサービス
 mod log_commands; // ログ関連コマンド
 pub mod rate_limit; // レートリミット情報
 
+#[cfg(test)]
+mod sample_test; // テスト環境確認用
+
 /// アプリケーションのメインエントリポイント
 ///
 /// Tauriアプリケーションの初期化と起動を行う。

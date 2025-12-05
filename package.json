@@ -30,7 +30,11 @@
     "version-prepatch": "npm version prepatch --preid=beta",
     "version-prerelease": "npm version prerelease --preid=beta",
     "version": "node scripts/sync-version.js",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:rust": "cargo test --manifest-path=src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
@@ -53,11 +57,21 @@
     "@nuxtjs/i18n": "^10.2.1",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/cli": "^2.9.4",
+    "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vue/test-utils": "^2.4.6",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "prettier": "^3.7.2"
+    "happy-dom": "^15.11.7",
+    "prettier": "^3.7.2",
+    "vite": "^6.0.11",
+    "vitest": "^2.1.8"
+  },
+  "overrides": {
+    "vite": "^6.0.11"
   }
 }
