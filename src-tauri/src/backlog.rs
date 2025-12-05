@@ -237,3 +237,162 @@ pub struct Project {
     /// プロジェクト名
     pub name: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// BacklogClientの初期化が正しく行われることを確認
+    #[test]
+    fn test_backlog_client_new() {
+        let client = BacklogClient::new("example.backlog.com", "test-api-key");
+        
+        assert_eq!(client.base_url, "https://example.backlog.com/api/v2");
+        assert_eq!(client.api_key, "test-api-key");
+    }
+
+    /// User構造体のJSONデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_user_deserialization() {
+        let json = r#"{"id": 123, "name": "Test User"}"#;
+        let user: User = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(user.id, 123);
+        assert_eq!(user.name, "Test User");
+    }
+
+    /// Priority構造体のJSONデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_priority_deserialization() {
+        let json = r#"{"id": 2, "name": "高"}"#;
+        let priority: Priority = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(priority.id, 2);
+        assert_eq!(priority.name, "高");
+    }
+
+    /// Status構造体のJSONデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_status_deserialization() {
+        let json = r#"{"id": 1, "name": "未対応"}"#;
+        let status: Status = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(status.id, 1);
+        assert_eq!(status.name, "未対応");
+    }
+
+    /// IssueType構造体のJSONデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_issue_type_deserialization() {
+        let json = r#"{"id": 3, "name": "バグ"}"#;
+        let issue_type: IssueType = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(issue_type.id, 3);
+        assert_eq!(issue_type.name, "バグ");
+    }
+
+    /// 最小限のフィールドのみを持つIssueのデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_issue_deserialization_minimal() {
+        let json = r#"{
+            "id": 456,
+            "issueKey": "PROJ-123",
+            "summary": "Test Issue"
+        }"#;
+        let issue: Issue = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(issue.id, 456);
+        assert_eq!(issue.issue_key, "PROJ-123");
+        assert_eq!(issue.summary, "Test Issue");
+        assert!(issue.description.is_none());
+        assert!(issue.priority.is_none());
+        assert!(issue.status.is_none());
+        assert!(issue.issue_type.is_none());
+        assert!(issue.assignee.is_none());
+    }
+
+    /// すべてのフィールドを持つIssueのデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_issue_deserialization_full() {
+        let json = r#"{
+            "id": 789,
+            "issueKey": "PROJ-456",
+            "summary": "Full Test Issue",
+            "description": "This is a test issue",
+            "priority": {"id": 3, "name": "高"},
+            "status": {"id": 2, "name": "処理中"},
+            "issueType": {"id": 1, "name": "タスク"},
+            "assignee": {"id": 100, "name": "山田太郎"},
+            "dueDate": "2024-12-31",
+            "updated": "2024-12-05T10:00:00Z"
+        }"#;
+        let issue: Issue = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(issue.id, 789);
+        assert_eq!(issue.issue_key, "PROJ-456");
+        assert_eq!(issue.summary, "Full Test Issue");
+        assert_eq!(issue.description, Some("This is a test issue".to_string()));
+        
+        let priority = issue.priority.unwrap();
+        assert_eq!(priority.id, 3);
+        assert_eq!(priority.name, "高");
+        
+        let status = issue.status.unwrap();
+        assert_eq!(status.id, 2);
+        assert_eq!(status.name, "処理中");
+        
+        let issue_type = issue.issue_type.unwrap();
+        assert_eq!(issue_type.id, 1);
+        assert_eq!(issue_type.name, "タスク");
+        
+        let assignee = issue.assignee.unwrap();
+        assert_eq!(assignee.id, 100);
+        assert_eq!(assignee.name, "山田太郎");
+        
+        assert_eq!(issue.due_date, Some("2024-12-31".to_string()));
+        assert_eq!(issue.updated, Some("2024-12-05T10:00:00Z".to_string()));
+    }
+
+    /// Project構造体のJSONデシリアライズが正しく動作することを確認
+    #[test]
+    fn test_project_deserialization() {
+        let json = r#"{
+            "id": 999,
+            "projectKey": "TESTPROJ",
+            "name": "Test Project"
+        }"#;
+        let project: Project = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(project.id, 999);
+        assert_eq!(project.project_key, "TESTPROJ");
+        assert_eq!(project.name, "Test Project");
+    }
+
+    /// Issueのrelevance_scoreフィールドがデフォルト値（0）になることを確認
+    #[test]
+    fn test_issue_relevance_score_default() {
+        let json = r#"{
+            "id": 1,
+            "issueKey": "TEST-1",
+            "summary": "Test"
+        }"#;
+        let issue: Issue = serde_json::from_str(json).unwrap();
+        
+        // デシリアライズ時はスコアはデフォルト値（0）
+        assert_eq!(issue.relevance_score, 0);
+    }
+
+    /// Issueのworkspace_idフィールドがデフォルト値（0）になることを確認
+    #[test]
+    fn test_issue_workspace_id_default() {
+        let json = r#"{
+            "id": 1,
+            "issueKey": "TEST-1",
+            "summary": "Test"
+        }"#;
+        let issue: Issue = serde_json::from_str(json).unwrap();
+        
+        // デシリアライズ時はworkspace_idはデフォルト値（0）
+        assert_eq!(issue.workspace_id, 0);
+    }
+}
