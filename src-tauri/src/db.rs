@@ -2,62 +2,6 @@ use crate::backlog::Issue;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite, SqlitePool};
-use tauri_plugin_sql::{Migration, MigrationKind};
-
-/// データベースマイグレーション定義を取得
-///
-/// アプリケーション起動時に実行されるSQLiteのマイグレーションを定義する。
-/// テーブル構造の初期化を行う。
-///
-/// # 戻り値
-/// マイグレーション定義のベクタ
-pub fn get_migrations() -> Vec<Migration> {
-    vec![
-        Migration {
-            version: 1,
-            description: "create_initial_tables",
-            kind: MigrationKind::Up,
-            sql: r#"
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS sync_state (
-                project_id TEXT PRIMARY KEY,
-                last_synced_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS workspaces (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                domain TEXT NOT NULL,
-                api_key TEXT NOT NULL,
-                project_keys TEXT NOT NULL,
-                user_id INTEGER,
-                user_name TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS issues (
-                id INTEGER NOT NULL,
-                workspace_id INTEGER NOT NULL,
-                issue_key TEXT NOT NULL,
-                summary TEXT NOT NULL,
-                description TEXT,
-                priority TEXT,
-                status TEXT,
-                assignee TEXT,
-                due_date TEXT,
-                updated_at TEXT,
-                relevance_score INTEGER DEFAULT 0,
-                ai_summary TEXT,
-                raw_data TEXT,
-                PRIMARY KEY (workspace_id, id),
-                FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
-            );
-        "#,
-        },
-    ]
-}
 
 /// ワークスペース情報
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
