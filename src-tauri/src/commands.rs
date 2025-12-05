@@ -320,3 +320,40 @@ pub async fn fetch_projects(
 pub async fn get_issues(db: State<'_, DbClient>) -> Result<Vec<crate::backlog::Issue>, String> {
     db.get_issues().await.map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// greet関数が正しいメッセージを返すことを確認
+    #[test]
+    fn test_greet() {
+        let result = greet("World");
+        assert_eq!(result, "Hello, World! You've been greeted from Rust!");
+    }
+
+    /// greet関数が空文字列でも動作することを確認
+    #[test]
+    fn test_greet_empty_name() {
+        let result = greet("");
+        assert_eq!(result, "Hello, ! You've been greeted from Rust!");
+    }
+
+    /// greet関数が日本語でも動作することを確認
+    #[test]
+    fn test_greet_japanese() {
+        let result = greet("世界");
+        assert_eq!(result, "Hello, 世界! You've been greeted from Rust!");
+    }
+}
+
+// Note: Tauriコマンドの完全な統合テストは、AppHandleやStateのモックが必要で非常に複雑です。
+// これらのコマンドの大部分はdb.rsとbacklog.rsの機能を呼び出しており、
+// それらは既に包括的にテストされています。
+// したがって、このテストモジュールではState不要の純粋関数（greet）のみをテストしています。
+//
+// コマンド層の他の部分は以下の理由でテスト済みと見なせます：
+// - save_settings, get_settings, get_workspaces, save_workspace, delete_workspace等は
+//   DbClientのメソッドを直接呼び出しており、db.rsで既にテスト済み
+// - fetch_issuesとfetch_projectsはBacklogClientを使用しており、backlog.rsで基本動作を確認済み
+// - エラーハンドリングは.map_err(|e| e.to_string())で統一されているため、シンプルで明確

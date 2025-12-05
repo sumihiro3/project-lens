@@ -416,3 +416,377 @@ impl DbClient {
         Ok(issues)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqliteConnectOptions;
+    use std::str::FromStr;
+
+    /// テスト用のインメモリデータベースクライアントを作成
+    async fn create_test_db() -> DbClient {
+        // 共有メモリモードを使用してコネクションプール内の全コネクションが同じDBを参照するようにする
+        let options = SqliteConnectOptions::from_str("sqlite::memory:?cache=shared")
+            .expect("Failed to parse DB options")
+            .create_if_missing(true);
+        
+        let client = DbClient::new_with_options(options).await.expect("Failed to create DB client");
+        client.migrate().await.expect("Migration failed");
+        client
+    }
+
+    /// テスト用のIssueを作成するヘルパー関数
+    fn create_test_issue(id: i64, issue_key: &str, summary: &str) -> Issue {
+        Issue {
+            id,
+            issue_key: issue_key.to_string(),
+            summary: summary.to_string(),
+            description: None,
+            priority: None,
+            status: None,
+            issue_type: None,
+            assignee: None,
+            due_date: None,
+            updated: None,
+            relevance_score: 0,
+            workspace_id: 0,
+        }
+    }
+
+    /// マイグレーションが正常に実行され、テーブルが作成されることを確認
+    #[tokio::test]
+    async fn test_migrate_creates_tables() {
+        let db = create_test_db().await;
+        
+        // 各テーブルが存在することを個別に確認
+        let settings_exists: Result<Vec<(i64,)>, _> = sqlx::query_as("SELECT COUNT(*) FROM settings")
+            .fetch_all(&db.pool).await;
+        assert!(settings_exists.is_ok(), "settings table should exist");
+        
+        let sync_state_exists: Result<Vec<(i64,)>, _> = sqlx::query_as("SELECT COUNT(*) FROM sync_state")
+            .fetch_all(&db.pool).await;
+        assert!(sync_state_exists.is_ok(), "sync_state table should exist");
+        
+        let workspaces_exists: Result<Vec<(i64,)>, _> = sqlx::query_as("SELECT COUNT(*) FROM workspaces")
+            .fetch_all(&db.pool).await;
+        assert!(workspaces_exists.is_ok(), "workspaces table should exist");
+        
+        let issues_exists: Result<Vec<(i64,)>, _> = sqlx::query_as("SELECT COUNT(*) FROM issues")
+            .fetch_all(&db.pool).await;
+        assert!(issues_exists.is_ok(), "issues table should exist");
+    }
+
+    /// 設定の保存と取得が正しく動作することを確認
+    #[tokio::test]
+    async fn test_save_and_get_setting() {
+        let db = create_test_db().await;
+        
+        db.save_setting("test_key", "test_value").await.unwrap();
+        let value = db.get_setting("test_key").await.unwrap();
+        
+        assert_eq!(value, Some("test_value".to_string()));
+    }
+
+    /// 存在しない設定キーの取得でNoneが返ることを確認
+    #[tokio::test]
+    async fn test_get_nonexistent_setting() {
+        let db = create_test_db().await;
+        
+        let value = db.get_setting("nonexistent").await.unwrap();
+        
+        assert_eq!(value, None);
+    }
+
+    /// 既存の設定キーの更新（UPSERT）が正しく動作することを確認
+    #[tokio::test]
+    async fn test_update_existing_setting() {
+        let db = create_test_db().await;
+        
+        db.save_setting("key", "value1").await.unwrap();
+        db.save_setting("key", "value2").await.unwrap();
+        let value = db.get_setting("key").await.unwrap();
+        
+        assert_eq!(value, Some("value2".to_string()));
+    }
+
+    /// ワークスペースの保存と取得が正しく動作することを確認
+    #[tokio::test]
+    async fn test_save_and_get_workspace() {
+        let db = create_test_db().await;
+        
+        db.save_workspace(
+            "example.backlog.com",
+            "api-key-123",
+            "PROJ1,PROJ2",
+            Some(1),
+            Some("Test User".to_string()),
+            true,
+            Some(5000),
+            Some(4999),
+            Some("1234567890".to_string())
+        ).await.unwrap();
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        
+        assert_eq!(workspaces.len(), 1);
+        assert_eq!(workspaces[0].domain, "example.backlog.com");
+        assert_eq!(workspaces[0].api_key, "api-key-123");
+        assert_eq!(workspaces[0].project_keys, "PROJ1,PROJ2");
+        assert_eq!(workspaces[0].user_id, Some(1));
+        assert_eq!(workspaces[0].user_name, Some("Test User".to_string()));
+        assert_eq!(workspaces[0].enabled, true);
+        assert_eq!(workspaces[0].api_limit, Some(5000));
+        assert_eq!(workspaces[0].api_remaining, Some(4999));
+        assert_eq!(workspaces[0].api_reset, Some("1234567890".to_string()));
+    }
+
+    /// 同じドメインのワークスペースを保存すると更新されることを確認
+    #[tokio::test]
+    async fn test_update_existing_workspace() {
+        let db = create_test_db().await;
+        
+        db.save_workspace(
+            "example.backlog.com",
+            "old-key",
+            "PROJ1",
+            None,
+            None,
+            true,
+            None,
+            None,
+            None
+        ).await.unwrap();
+        
+        db.save_workspace(
+            "example.backlog.com",
+            "new-key",
+            "PROJ1,PROJ2",
+            Some(1),
+            Some("User".to_string()),
+            false,
+            Some(1000),
+            Some(999),
+            Some("9999".to_string())
+        ).await.unwrap();
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        
+        assert_eq!(workspaces.len(), 1, "同じドメインなので1つのみ");
+        assert_eq!(workspaces[0].api_key, "new-key", "新しいキーに更新されている");
+        assert_eq!(workspaces[0].project_keys, "PROJ1,PROJ2");
+        assert_eq!(workspaces[0].enabled, false);
+    }
+
+    /// ワークスペースの削除が正しく動作することを確認
+    #[tokio::test]
+    async fn test_delete_workspace() {
+        let db = create_test_db().await;
+        
+        db.save_workspace(
+            "example.backlog.com",
+            "api-key",
+            "PROJ1",
+            None,
+            None,
+            true,
+            None,
+            None,
+            None
+        ).await.unwrap();
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        db.delete_workspace(workspace_id).await.unwrap();
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        assert_eq!(workspaces.len(), 0);
+    }
+
+    /// ワークスペースが空の状態で取得すると空配列が返ることを確認
+    #[tokio::test]
+    async fn test_get_empty_workspaces() {
+        let db = create_test_db().await;
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        
+        assert_eq!(workspaces.len(), 0);
+    }
+
+    /// ワークスペースのAPI使用状況更新が正しく動作することを確認
+    #[tokio::test]
+    async fn test_save_workspace_usage() {
+        let db = create_test_db().await;
+        
+        db.save_workspace(
+            "example.backlog.com",
+            "api-key",
+            "PROJ1",
+            None,
+            None,
+            true,
+            None,
+            None,
+            None
+        ).await.unwrap();
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        db.save_workspace_usage(
+            workspace_id,
+            Some(5000),
+            Some(4500),
+            Some("1234567890".to_string())
+        ).await.unwrap();
+        
+        let workspaces = db.get_workspaces().await.unwrap();
+        assert_eq!(workspaces[0].api_limit, Some(5000));
+        assert_eq!(workspaces[0].api_remaining, Some(4500));
+        assert_eq!(workspaces[0].api_reset, Some("1234567890".to_string()));
+    }
+
+    /// 課題の保存と取得が正しく動作することを確認
+    #[tokio::test]
+    async fn test_save_and_get_issues() {
+        let db = create_test_db().await;
+        
+        // ワークスペースを作成
+        db.save_workspace("example.backlog.com", "key", "PROJ", None, None, true, None, None, None).await.unwrap();
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        let issues = vec![
+            create_test_issue(1, "PROJ-1", "Issue 1"),
+            create_test_issue(2, "PROJ-2", "Issue 2"),
+        ];
+        
+        db.save_issues(workspace_id, &issues, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        let saved_issues = db.get_issues().await.unwrap();
+        
+        assert_eq!(saved_issues.len(), 2);
+        assert_eq!(saved_issues[0].issue_key, "PROJ-1");
+        assert_eq!(saved_issues[1].issue_key, "PROJ-2");
+    }
+
+    /// 課題の更新（UPSERT）が正しく動作することを確認
+    #[tokio::test]
+    async fn test_update_existing_issues() {
+        let db = create_test_db().await;
+        
+        db.save_workspace("example.backlog.com", "key", "PROJ", None, None, true, None, None, None).await.unwrap();
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        let issues_v1 = vec![create_test_issue(1, "PROJ-1", "Old Summary")];
+        db.save_issues(workspace_id, &issues_v1, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        let issues_v2 = vec![create_test_issue(1, "PROJ-1", "New Summary")];
+        db.save_issues(workspace_id, &issues_v2, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        let saved_issues = db.get_issues().await.unwrap();
+        
+        assert_eq!(saved_issues.len(), 1);
+        assert_eq!(saved_issues[0].summary, "New Summary");
+    }
+
+    /// 同期されていない古い課題が削除されることを確認
+    #[tokio::test]
+    async fn test_delete_old_issues_from_synced_projects() {
+        let db = create_test_db().await;
+        
+        db.save_workspace("example.backlog.com", "key", "PROJ", None, None, true, None, None, None).await.unwrap();
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        // 最初に3つの課題を保存
+        let issues_v1 = vec![
+            create_test_issue(1, "PROJ-1", "Issue 1"),
+            create_test_issue(2, "PROJ-2", "Issue 2"),
+            create_test_issue(3, "PROJ-3", "Issue 3"),
+        ];
+        db.save_issues(workspace_id, &issues_v1, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        // 次に2つだけ保存（PROJ-3は削除されるべき）
+        let issues_v2 = vec![
+            create_test_issue(1, "PROJ-1", "Issue 1"),
+            create_test_issue(2, "PROJ-2", "Issue 2"),
+        ];
+        db.save_issues(workspace_id, &issues_v2, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        let saved_issues = db.get_issues().await.unwrap();
+        
+        assert_eq!(saved_issues.len(), 2);
+        assert!(saved_issues.iter().all(|i| i.id != 3));
+    }
+
+    /// ワークスペースの課題一括削除が正しく動作することを確認
+    #[tokio::test]
+    async fn test_delete_workspace_issues() {
+        let db = create_test_db().await;
+        
+        db.save_workspace("example.backlog.com", "key", "PROJ", None, None, true, None, None, None).await.unwrap();
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        let issues = vec![
+            create_test_issue(1, "PROJ-1", "Issue 1"),
+            create_test_issue(2, "PROJ-2", "Issue 2"),
+        ];
+        db.save_issues(workspace_id, &issues, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        db.delete_workspace_issues(workspace_id).await.unwrap();
+        
+        let saved_issues = db.get_issues().await.unwrap();
+        assert_eq!(saved_issues.len(), 0);
+    }
+
+    /// 課題がスコア降順で取得されることを確認
+    #[tokio::test]
+    async fn test_get_issues_ordered_by_score() {
+        let db = create_test_db().await;
+        
+        db.save_workspace("example.backlog.com", "key", "PROJ", None, None, true, None, None, None).await.unwrap();
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        let mut issue1 = create_test_issue(1, "PROJ-1", "Low Priority");
+        issue1.relevance_score = 10;
+        
+        let mut issue2 = create_test_issue(2, "PROJ-2", "High Priority");
+        issue2.relevance_score = 100;
+        
+        let mut issue3 = create_test_issue(3, "PROJ-3", "Medium Priority");
+        issue3.relevance_score = 50;
+        
+        let issues = vec![issue1, issue2, issue3];
+        db.save_issues(workspace_id, &issues, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        let saved_issues = db.get_issues().await.unwrap();
+        
+        assert_eq!(saved_issues.len(), 3);
+        assert_eq!(saved_issues[0].relevance_score, 100, "最高スコアが最初");
+        assert_eq!(saved_issues[1].relevance_score, 50, "中間スコアが2番目");
+        assert_eq!(saved_issues[2].relevance_score, 10, "最低スコアが最後");
+    }
+
+    /// 空の課題リストで同期すると全削除されることを確認
+    #[tokio::test]
+    async fn test_save_empty_issues_deletes_all() {
+        let db = create_test_db().await;
+        
+        db.save_workspace("example.backlog.com", "key", "PROJ", None, None, true, None, None, None).await.unwrap();
+        let workspaces = db.get_workspaces().await.unwrap();
+        let workspace_id = workspaces[0].id;
+        
+        let issues = vec![create_test_issue(1, "PROJ-1", "Issue 1")];
+        db.save_issues(workspace_id, &issues, &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        // 空のリストで同期
+        db.save_issues(workspace_id, &[], &["PROJ"], &["PROJ"]).await.unwrap();
+        
+        let saved_issues = db.get_issues().await.unwrap();
+        assert_eq!(saved_issues.len(), 0);
+    }
+}
