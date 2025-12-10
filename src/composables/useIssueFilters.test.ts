@@ -75,7 +75,7 @@ describe('useIssueFilters (課題フィルター)', () => {
   it('検索クエリでフィルタリングできること', () => {
     filters.value.searchQuery = 'One'
     expect(filteredIssues.value.length).toBe(1)
-    expect(filteredIssues.value[0].issueKey).toBe('PROJ-1')
+    expect(filteredIssues.value[0]?.issueKey).toBe('PROJ-1')
   })
 
   it('未処理ステータスでフィルタリングできること', () => {
@@ -85,27 +85,27 @@ describe('useIssueFilters (課題フィルター)', () => {
     // PROJ-2: In Progress (excluded)
     // PROJ-3: Done (excluded)
     expect(filteredIssues.value.length).toBe(1)
-    expect(filteredIssues.value[0].issueKey).toBe('PROJ-1')
+    expect(filteredIssues.value[0]?.issueKey).toBe('PROJ-1')
   })
 
   it('最小スコアでフィルタリングできること', () => {
     filters.value.minScore = 60
     expect(filteredIssues.value.length).toBe(1)
-    expect(filteredIssues.value[0].issueKey).toBe('PROJ-2')
+    expect(filteredIssues.value[0]?.issueKey).toBe('PROJ-2')
   })
 
   it('デフォルトでスコア降順にソートされること', () => {
-    expect(filteredIssues.value[0].issueKey).toBe('PROJ-2') // 90
-    expect(filteredIssues.value[1].issueKey).toBe('PROJ-3') // 50
-    expect(filteredIssues.value[2].issueKey).toBe('PROJ-1') // 10
+    expect(filteredIssues.value[0]?.issueKey).toBe('PROJ-2') // 90
+    expect(filteredIssues.value[1]?.issueKey).toBe('PROJ-3') // 50
+    expect(filteredIssues.value[2]?.issueKey).toBe('PROJ-1') // 10
   })
 
   it('優先度でソートされること', () => {
     filters.value.sortKey = 'priority'
     filters.value.sortOrder = 'desc'
     // High > Normal > Low
-    expect(filteredIssues.value[0].issueKey).toBe('PROJ-2') // High
-    expect(filteredIssues.value[1].issueKey).toBe('PROJ-3') // Normal
-    expect(filteredIssues.value[2].issueKey).toBe('PROJ-1') // Low
+    expect(filteredIssues.value[0]?.issueKey).toBe('PROJ-2') // High
+    expect(filteredIssues.value[1]?.issueKey).toBe('PROJ-3') // Normal
+    expect(filteredIssues.value[2]?.issueKey).toBe('PROJ-1') // Low
   })
 })
