@@ -357,3 +357,26 @@ mod tests {
 //   DbClientのメソッドを直接呼び出しており、db.rsで既にテスト済み
 // - fetch_issuesとfetch_projectsはBacklogClientを使用しており、backlog.rsで基本動作を確認済み
 // - エラーハンドリングは.map_err(|e| e.to_string())で統一されているため、シンプルで明確
+
+use crate::{create_app_menu, create_tray_menu};
+use std::collections::HashMap;
+
+/// フロントエンドからメニューの翻訳を受け取り、ネイティブメニューを更新する
+#[tauri::command]
+pub async fn update_menu(
+    app: tauri::AppHandle,
+    labels: HashMap<String, String>,
+) -> Result<(), String> {
+    println!("Updating menu with {} labels", labels.len());
+    // アプリケーションメニューを更新
+    let menu = create_app_menu(&app, &labels).map_err(|e| e.to_string())?;
+    app.set_menu(menu).map_err(|e| e.to_string())?;
+
+    // システムトレイメニューを更新
+    if let Some(tray) = app.tray_by_id("main") {
+        let tray_menu = create_tray_menu(&app, &labels).map_err(|e| e.to_string())?;
+        tray.set_menu(Some(tray_menu)).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}

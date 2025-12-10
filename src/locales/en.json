@@ -141,5 +141,45 @@
     "score": "Score: {score}",
     "due": "Due: {date}",
     "openInBrowser": "Open in Browser"
+  },
+  "menu": {
+    "app": {
+      "about": "About {app}",
+      "services": "Services",
+      "hide": "Hide {app}",
+      "hideOthers": "Hide Others",
+      "showAll": "Show All",
+      "quit": "Quit {app}",
+      "settings": "Settings..."
+    },
+    "file": {
+      "label": "File",
+      "closeWindow": "Close Window"
+    },
+    "edit": {
+      "label": "Edit",
+      "undo": "Undo",
+      "redo": "Redo",
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All"
+    },
+    "window": {
+      "label": "Window",
+      "minimize": "Minimize",
+      "zoom": "Zoom",
+      "close": "Close"
+    },
+    "help": {
+      "label": "Help",
+      "openWebsite": "Open Website",
+      "website": "Open Website"
+    },
+    "tray": {
+      "open": "Open",
+      "quit": "Quit",
+      "openWebsite": "Open Website"
+    }
   }
 }

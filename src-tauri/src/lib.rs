@@ -63,81 +63,24 @@ pub fn run() {
             commands::delete_workspace, // ワークスペースを削除
             commands::toggle_workspace_enabled, // ワークスペースの有効・無効を切り替え
             log_commands::get_log_directory, // ログディレクトリのパスを取得
-            log_commands::open_log_directory // ログディレクトリを開く
+            log_commands::open_log_directory, // ログディレクトリを開く
+            commands::update_menu, // メニュー翻訳を更新
         ])
         // アプリケーション起動時のセットアップ処理
         .setup(|app| {
             use tauri::Manager;
-            use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
+
             use tauri::tray::TrayIconBuilder;
 
             let app_handle = app.handle();
 
-            // --- メニューの構築 ---
-            // 1. アプリケーションメニュー (ProjectLens)
-            let app_menu = Submenu::new(
-                app_handle,
-                "ProjectLens",
-                true,
-            )?;
-            // 標準的な項目を追加（About, Services, Hide, Quitなど）
-            // Note: PredefinedMenuItemを使うとOS標準の挙動が得られる
-            app_menu.append(&PredefinedMenuItem::about(app_handle, None, None)?)?;
-            app_menu.append(&PredefinedMenuItem::separator(app_handle)?)?;
-            app_menu.append(&PredefinedMenuItem::services(app_handle, None)?)?;
-            app_menu.append(&PredefinedMenuItem::separator(app_handle)?)?;
-            app_menu.append(&PredefinedMenuItem::hide(app_handle, None)?)?;
-            app_menu.append(&PredefinedMenuItem::hide_others(app_handle, None)?)?;
-            app_menu.append(&PredefinedMenuItem::show_all(app_handle, None)?)?;
-            app_menu.append(&PredefinedMenuItem::separator(app_handle)?)?;
-            app_menu.append(&PredefinedMenuItem::quit(app_handle, None)?)?;
-
-            // 2. 編集メニュー (Edit) - コピー＆ペースト用
-            let edit_menu = Submenu::with_items(
-                app_handle,
-                "Edit",
-                true,
-                &[
-                    &PredefinedMenuItem::undo(app_handle, None)?,
-                    &PredefinedMenuItem::redo(app_handle, None)?,
-                    &PredefinedMenuItem::separator(app_handle)?,
-                    &PredefinedMenuItem::cut(app_handle, None)?,
-                    &PredefinedMenuItem::copy(app_handle, None)?,
-                    &PredefinedMenuItem::paste(app_handle, None)?,
-                    &PredefinedMenuItem::select_all(app_handle, None)?,
-                ],
-            )?;
-
-            // 3. ウィンドウメニュー (Window)
-            let window_menu = Submenu::with_items(
-                app_handle,
-                "Window",
-                true,
-                &[
-                    &PredefinedMenuItem::minimize(app_handle, None)?,
-                    &PredefinedMenuItem::separator(app_handle)?,
-                    &PredefinedMenuItem::close_window(app_handle, None)?,
-                ],
-            )?;
-
             // メニューバーを作成してセット
-            let menu = Menu::with_items(app_handle, &[&app_menu, &edit_menu, &window_menu])?;
+            let labels = std::collections::HashMap::new();
+            let menu = create_app_menu(app_handle, &labels)?;
             app.set_menu(menu)?;
 
             // --- システムトレイの構築 ---
-            let version = &app.package_info().version;
-            let info_text = format!("ProjectLens v{}", version);
-
-            let tray_menu = Menu::with_items(
-                app_handle,
-                &[
-                    &MenuItem::with_id(app_handle, "app_info", &info_text, false, None::<&str>)?,
-                    &PredefinedMenuItem::separator(app_handle)?,
-                    &MenuItem::with_id(app_handle, "open_lp", "Open Website", true, None::<&str>)?,
-                    &PredefinedMenuItem::separator(app_handle)?,
-                    &MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>)?,
-                ],
-            )?;
+            let tray_menu = create_tray_menu(app_handle, &labels)?;
 
             // トレイアイコンをファイルから読み込み（キャッシュ回避のため）
             // dev環境では失敗する可能性があるため、失敗時はデフォルトアイコンを使用
@@ -193,6 +136,37 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            // アプリケーションメニューのイベントハンドリング
+            app.on_menu_event(|app, event| {
+                 match event.id.as_ref() {
+                     "about" => {
+                        use tauri::Manager;
+                        if let Some(window) = app.get_webview_window("about") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        } else {
+                            let _ = tauri::WebviewWindowBuilder::new(
+                                app,
+                                "about",
+                                tauri::WebviewUrl::App("about".into()),
+                            )
+                            .title("About ProjectLens")
+                            .inner_size(400.0, 500.0)
+                            .resizable(false)
+                            .minimizable(false)
+                            .maximizable(false)
+                            .center()
+                            .build();
+                        }
+                     }
+                     "open_lp_menu" => {
+                         use tauri_plugin_opener::OpenerExt;
+                         let _ = app.opener().open_url("https://project-lens.netlify.app", None::<&str>);
+                     }
+                     _ => {}
+                 }
+            });
+
             // アプリケーションデータディレクトリを取得・作成
             let app_data_dir = app_handle
                 .path()
@@ -238,4 +212,153 @@ pub fn run() {
         // アプリケーションを起動
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+use tauri::{AppHandle, menu::{Menu, MenuItem, Submenu, PredefinedMenuItem}};
+use std::collections::HashMap;
+
+pub fn create_app_menu(handle: &AppHandle, labels: &HashMap<String, String>) -> tauri::Result<Menu<tauri::Wry>> {
+    let get_label = |key: &str, default: &str| -> String {
+        labels.get(key).cloned().unwrap_or_else(|| default.to_string())
+    };
+
+    // 1. アプリケーションメニュー (ProjectLens)
+    // タイトルはmacOSではアプリ名になるが、サブメニュー作成時は指定が必要
+    let app_menu = Submenu::new(
+        handle,
+        "ProjectLens",
+        true,
+    )?;
+    
+    // About
+    // Custom About menu item to show our own window with icon and link
+    app_menu.append(&MenuItem::with_id(
+        handle,
+        "about",
+        &get_label("menu.app.about", "About ProjectLens"),
+        true,
+        None::<&str>,
+    )?)?;
+    app_menu.append(&PredefinedMenuItem::separator(handle)?)?;
+    app_menu.append(&PredefinedMenuItem::services(
+        handle, 
+        Some(get_label("menu.app.services", "Services").as_str())
+    )?)?;
+    app_menu.append(&PredefinedMenuItem::separator(handle)?)?;
+    app_menu.append(&PredefinedMenuItem::hide(
+        handle, 
+        Some(get_label("menu.app.hide", "Hide ProjectLens").as_str())
+    )?)?;
+    app_menu.append(&PredefinedMenuItem::hide_others(
+        handle, 
+        Some(get_label("menu.app.hideOthers", "Hide Others").as_str())
+    )?)?;
+    app_menu.append(&PredefinedMenuItem::show_all(
+        handle, 
+        Some(get_label("menu.app.showAll", "Show All").as_str())
+    )?)?;
+    app_menu.append(&PredefinedMenuItem::separator(handle)?)?;
+    app_menu.append(&PredefinedMenuItem::quit(
+        handle, 
+        Some(get_label("menu.app.quit", "Quit ProjectLens").as_str())
+    )?)?;
+
+    // 2. 編集メニュー (Edit)
+    let edit_menu = Submenu::new(
+        handle,
+        get_label("menu.edit.label", "Edit"),
+        true,
+    )?;
+    edit_menu.append(&PredefinedMenuItem::undo(
+        handle, 
+        Some(get_label("menu.edit.undo", "Undo").as_str())
+    )?)?;
+    edit_menu.append(&PredefinedMenuItem::redo(
+        handle, 
+        Some(get_label("menu.edit.redo", "Redo").as_str())
+    )?)?;
+    edit_menu.append(&PredefinedMenuItem::separator(handle)?)?;
+    edit_menu.append(&PredefinedMenuItem::cut(
+        handle, 
+        Some(get_label("menu.edit.cut", "Cut").as_str())
+    )?)?;
+    edit_menu.append(&PredefinedMenuItem::copy(
+        handle, 
+        Some(get_label("menu.edit.copy", "Copy").as_str())
+    )?)?;
+    edit_menu.append(&PredefinedMenuItem::paste(
+        handle, 
+        Some(get_label("menu.edit.paste", "Paste").as_str())
+    )?)?;
+    edit_menu.append(&PredefinedMenuItem::select_all(
+        handle, 
+        Some(get_label("menu.edit.selectAll", "Select All").as_str())
+    )?)?;
+
+    // 3. ウィンドウメニュー (Window)
+    let window_menu = Submenu::new(
+        handle,
+        get_label("menu.window.label", "Window"),
+        true,
+    )?;
+    window_menu.append(&PredefinedMenuItem::minimize(
+        handle, 
+        Some(get_label("menu.window.minimize", "Minimize").as_str())
+    )?)?;
+    window_menu.append(&PredefinedMenuItem::separator(handle)?)?;
+    window_menu.append(&PredefinedMenuItem::close_window(
+        handle, 
+        Some(get_label("menu.window.close", "Close Window").as_str())
+    )?)?;
+
+    // 4. ヘルプメニュー (Help)
+    let help_menu = Submenu::new(
+        handle,
+        get_label("menu.help.label", "Help"),
+        true,
+    )?;
+    help_menu.append(&MenuItem::with_id(
+        handle,
+        "open_lp_menu",
+        &get_label("menu.help.openWebsite", "Open Website"),
+        true,
+        None::<&str>,
+    )?)?;
+
+    Menu::with_items(handle, &[&app_menu, &edit_menu, &window_menu, &help_menu])
+}
+
+pub fn create_tray_menu(handle: &AppHandle, labels: &HashMap<String, String>) -> tauri::Result<Menu<tauri::Wry>> {
+    let get_label = |key: &str, default: &str| -> String {
+        labels.get(key).cloned().unwrap_or_else(|| default.to_string())
+    };
+
+    let version = &handle.package_info().version;
+    let info_text = format!("ProjectLens v{}", version);
+
+    // Note: info_text is dynamic so probably doesn't need translation currently, 
+    // but if we wanted "Version x.x.x" we would need it.
+
+    Menu::with_items(
+        handle,
+        &[
+            &MenuItem::with_id(handle, "app_info", &info_text, false, None::<&str>)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &MenuItem::with_id(
+                handle, 
+                "open_lp", 
+                &get_label("menu.tray.openWebsite", "Open Website"), 
+                true, 
+                None::<&str>
+            )?,
+            &PredefinedMenuItem::separator(handle)?,
+            &MenuItem::with_id(
+                handle, 
+                "quit", 
+                &get_label("menu.tray.quit", "Quit"), 
+                true, 
+                None::<&str>
+            )?,
+        ],
+    )
 }
