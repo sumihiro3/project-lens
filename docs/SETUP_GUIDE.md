@@ -52,7 +52,19 @@ ProjectLens を使用するには、あなたの Backlog アカウントの API 
 
 ![ワークスペース設定画面](images/setup_guide/workspace_settings_screen.png)
 
-## 4. 設定完了
+## 4. 通知設定
+
+### macOS での通知の有効化
+
+macOS で通知を受け取るためには、以下の手順で通知の有効化が必要です。
+
+1. macOS の「システム設定」を開きます。
+2. 「通知」を選択します。
+3. ProjectLens アプリの通知を有効にします。
+
+![macOS 通知設定](images/setup_guide/macos_notification_settings.png)
+
+## 5. 設定完了
 
 同期が完了すると、ダッシュボードや課題一覧に課題が表示されます。
 
