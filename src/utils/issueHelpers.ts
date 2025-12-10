@@ -90,6 +90,7 @@ export function isThisWeek(dueDate: Date): boolean {
   today.setHours(0, 0, 0, 0)
   const weekEnd = new Date(today)
   weekEnd.setDate(weekEnd.getDate() + (7 - today.getDay()))
+  weekEnd.setHours(23, 59, 59, 999)
   return dueDate >= today && dueDate <= weekEnd
 }
 
@@ -99,6 +100,7 @@ export function isThisWeek(dueDate: Date): boolean {
 export function isThisMonth(dueDate: Date): boolean {
   const today = new Date()
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  monthEnd.setHours(23, 59, 59, 999)
   return dueDate >= today && dueDate <= monthEnd
 }
 
