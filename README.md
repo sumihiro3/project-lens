@@ -7,42 +7,50 @@
 ## Key Features
 
 ### 📊 Smart Scoring
+
 - AI-driven relevance scoring system
 - Considers factors such as priority, due date, and assignee
 - Automatic notification for high-score issues (80+ points)
 
 ### 🎯 Advanced Filtering & Sorting
+
 - Filter by status, priority, assignee, and project
 - Filter by due date (Overdue, Today, This Week, This Month)
 - Multiple sorting options (Relevance Score, Due Date, Priority, Updated Date)
 - Weighted priority sorting (High -> Normal -> Low)
 
 ### 🎨 Intuitive UI
+
 - Color-coded ribbons for each project
 - Relative time display (e.g., "Just now", "1 hour ago")
 - Dark mode support
 - Open Backlog ticket in browser with one click
 
 ### 🔄 Automatic Sync
+
 - Background synchronization every 5 minutes
 - Simultaneous management of multiple projects (up to 5)
 - Automatic restoration of window size and position
 
 ### 🌐 Multi-language Support
+
 - Japanese and English interface
 - Language switching capability
 
 ### 🏢 Workspace Management
+
 - Enable/Disable toggle for each workspace
 - Temporarily hide unnecessary issues
 
 ### 📊 System Observability
+
 - Visualization of Backlog API usage (Progress Bar)
 - Log file management and easy access
 
 ## Tech Stack
 
 ### Frontend
+
 - **Nuxt 4** - Vue.js Framework
 - **Vue 3** - Reactive UI Framework
 - **Vuetify 3** - Material Design Component Library
@@ -50,12 +58,14 @@
 - **vue-i18n** - Internationalization support
 
 ### Backend
+
 - **Tauri 2** - Desktop Application Framework
 - **Rust** - Fast and safe backend processing
 - **SQLite** - Local database
 - **reqwest** - HTTP client (Backlog API)
 
 ### Plugins
+
 - `tauri-plugin-sql` - Database management
 - `tauri-plugin-notification` - System notifications
 - `tauri-plugin-shell` - Browser integration
@@ -64,26 +74,28 @@
 ## Setup
 
 ### Prerequisites
+
 - Node.js 18+
 - Rust 1.77.2+
-- npm or pnpm
+- pnpm
 
 ### Installation
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run tauri:dev
+pnpm run tauri:dev
 
 # Production build
-npm run tauri:build
+pnpm run tauri:build
 ```
 
 ## Usage
 
 ### Initial Setup
+
 1. Launch the app and open Settings (⚙️ icon)
 2. Enter your Backlog domain (e.g., `example.backlog.com`)
 3. Enter your API Key (Get it from your Backlog personal settings)
@@ -91,12 +103,14 @@ npm run tauri:build
 5. Save and sync
 
 ### Viewing Issues
+
 - Issues are displayed on the dashboard sorted by relevance score
 - Narrow down conditions with the filter bar
 - Change sort order with the sort button
 - Open the Backlog ticket page by clicking the ticket title or "Open" button
 
 ### Notifications
+
 - Notifications appear when new high-priority issues (score 80+) are detected
 - Notification sound plays (macOS)
 
@@ -144,17 +158,20 @@ This project is intended for personal use.
 ## Developer Information
 
 ### Debugging
+
 - Frontend: Use browser developer tools
 - Backend: Logs are output via `tauri-plugin-log`
 
 ### Database
+
 - SQLite database is stored at `~/Library/Application Support/com.tep-lab.project-lens/projectlens.db` (macOS)
 
 ### Build
+
 ```bash
 # Development build (with debug info)
-npm run tauri:dev
+pnpm run tauri:dev
 
 # Release build (optimized)
-npm run tauri:build
+pnpm run tauri:build
 ```

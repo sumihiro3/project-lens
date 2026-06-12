@@ -3,10 +3,13 @@
     <v-card-title class="text-subtitle-1 font-weight-bold">
       {{ $t('dashboard.priorityDistribution') }}
     </v-card-title>
-    <v-card-subtitle class="text-caption text-medium-emphasis pb-0" style="white-space: normal;">
+    <v-card-subtitle class="text-caption text-medium-emphasis pb-0" style="white-space: normal">
       {{ $t('dashboard.priorityDistributionDescription') }}
     </v-card-subtitle>
-    <v-card-text class="d-flex align-center justify-center" style="height: 300px; position: relative;">
+    <v-card-text
+      class="d-flex align-center justify-center"
+      style="height: 300px; position: relative"
+    >
       <Doughnut v-if="hasData" :data="chartData" :options="chartOptions" />
       <div v-else class="text-center text-medium-emphasis">
         {{ $t('dashboard.noData') }}
@@ -17,7 +20,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, type ChartData, type ChartOptions } from 'chart.js'
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  type ChartData,
+  type ChartOptions,
+} from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import { useTheme } from 'vuetify'
 
@@ -35,7 +45,10 @@ const emit = defineEmits<{
 const theme = useTheme()
 
 const hasData = computed(() => {
-  return Object.keys(props.priorityCounts).length > 0 && Object.values(props.priorityCounts).some(v => v > 0)
+  return (
+    Object.keys(props.priorityCounts).length > 0 &&
+    Object.values(props.priorityCounts).some(v => v > 0)
+  )
 })
 
 // 優先度ごとの色定義（優しいパステルカラー）
@@ -59,9 +72,9 @@ const chartData = computed<ChartData<'doughnut'>>(() => {
         data,
         backgroundColor,
         borderWidth: 2,
-        borderColor: theme.global.current.value.dark ? '#1E1E1E' : '#FFFFFF'
-      }
-    ]
+        borderColor: theme.global.current.value.dark ? '#1E1E1E' : '#FFFFFF',
+      },
+    ],
   }
 })
 
@@ -75,10 +88,10 @@ const chartOptions = computed<ChartOptions<'doughnut'>>(() => {
         labels: {
           color: theme.global.current.value.dark ? '#FFFFFF' : '#000000',
           font: {
-            family: 'Inter, sans-serif'
-          }
-        }
-      }
+            family: 'Inter, sans-serif',
+          },
+        },
+      },
     },
     onHover: (event, elements) => {
       const target = event.native?.target as HTMLElement
@@ -97,7 +110,7 @@ const chartOptions = computed<ChartOptions<'doughnut'>>(() => {
           }
         }
       }
-    }
+    },
   }
 })
 </script>

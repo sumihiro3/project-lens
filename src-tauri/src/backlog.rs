@@ -87,7 +87,7 @@ impl BacklogClient {
     /// * `domain` - Backlogのドメイン (例: example.backlog.com)
     /// * `api_key` - BacklogのAPIキー
     pub fn new(domain: &str, api_key: &str) -> Self {
-        let base_url = format!("https://{}/api/v2", domain);
+        let base_url = format!("https://{domain}/api/v2");
         Self {
             api_key: api_key.to_string(),
             base_url,
@@ -117,7 +117,10 @@ impl BacklogClient {
     /// プロジェクトID、またはエラー
     /// プロジェクトキーからプロジェクトIDを取得
     /// プロジェクトキーからプロジェクトIDを取得
-    async fn get_project_id(&self, project_id_or_key: &str) -> Result<i64, Box<dyn Error + Send + Sync>> {
+    async fn get_project_id(
+        &self,
+        project_id_or_key: &str,
+    ) -> Result<i64, Box<dyn Error + Send + Sync>> {
         // すでに数値の場合はそのまま返す
         if let Ok(id) = project_id_or_key.parse::<i64>() {
             return Ok(id);
@@ -131,7 +134,9 @@ impl BacklogClient {
             .query(&[("apiKey", &self.api_key)])
             .send()
             .await
-            .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
+            .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                format!("Request failed: {e}").into()
+            })?;
 
         if !response.status().is_success() {
             return Err(format!(
@@ -142,7 +147,13 @@ impl BacklogClient {
             .into());
         }
 
-        let project = response.json::<Project>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
+        let project =
+            response
+                .json::<Project>()
+                .await
+                .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                    format!("JSON parse failed: {e}").into()
+                })?;
         Ok(project.id)
     }
 
@@ -168,7 +179,9 @@ impl BacklogClient {
             query.push(("statusId[]", status_id.to_string()));
         }
 
-        let response = self.client.get(&url).query(&query).send().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
+        let response = self.client.get(&url).query(&query).send().await.map_err(
+            |e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {e}").into() },
+        )?;
 
         // レスポンスステータスの確認
         if !response.status().is_success() {
@@ -177,13 +190,19 @@ impl BacklogClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unable to read response body".to_string());
-            return Err(format!("API request failed: {} - {}", status, body).into());
+            return Err(format!("API request failed: {status} - {body}").into());
         }
 
         // ヘッダーからレートリミット情報を取得
         let rate_limit = crate::rate_limit::RateLimitInfo::from_headers(response.headers());
 
-        let issues = response.json::<Vec<Issue>>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
+        let issues =
+            response
+                .json::<Vec<Issue>>()
+                .await
+                .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                    format!("JSON parse failed: {e}").into()
+                })?;
         Ok((issues, rate_limit))
     }
 
@@ -196,13 +215,20 @@ impl BacklogClient {
             .query(&[("apiKey", &self.api_key)])
             .send()
             .await
-            .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
+            .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                format!("Request failed: {e}").into()
+            })?;
 
         if !response.status().is_success() {
             return Err(format!("Failed to get myself: {}", response.status()).into());
         }
 
-        let user = response.json::<User>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
+        let user = response
+            .json::<User>()
+            .await
+            .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                format!("JSON parse failed: {e}").into()
+            })?;
         Ok(user)
     }
 
@@ -215,13 +241,21 @@ impl BacklogClient {
             .query(&[("apiKey", &self.api_key)])
             .send()
             .await
-            .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("Request failed: {}", e).into() })?;
+            .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                format!("Request failed: {e}").into()
+            })?;
 
         if !response.status().is_success() {
             return Err(format!("Failed to get projects: {}", response.status()).into());
         }
 
-        let projects = response.json::<Vec<Project>>().await.map_err(|e| -> Box<dyn Error + Send + Sync> { format!("JSON parse failed: {}", e).into() })?;
+        let projects =
+            response
+                .json::<Vec<Project>>()
+                .await
+                .map_err(|e| -> Box<dyn Error + Send + Sync> {
+                    format!("JSON parse failed: {e}").into()
+                })?;
         Ok(projects)
     }
 }

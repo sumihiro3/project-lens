@@ -2,10 +2,10 @@
 mod backlog; // Backlog APIクライアント
 mod commands; // Tauriコマンド（フロントエンドから呼び出される関数）
 mod db; // データベースクライアント
-mod scheduler; // バックグラウンドスケジューラー
-mod scoring; // スコアリングサービス
 mod log_commands; // ログ関連コマンド
 pub mod rate_limit; // レートリミット情報
+mod scheduler; // バックグラウンドスケジューラー
+mod scoring; // スコアリングサービス
 
 /// アプリケーションのメインエントリポイント
 ///
@@ -18,9 +18,6 @@ pub mod rate_limit; // レートリミット情報
 /// 5. アプリケーションの起動
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // データベースマイグレーション定義を取得
-    // let migrations = db::get_migrations();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         // 通知プラグインを初期化（システムトレイ通知用）
@@ -42,41 +39,34 @@ pub fn run() {
         // SQLプラグインを初期化（データベースマイグレーション実行）
         // Note: マイグレーションはDbClientで手動実行するため、ここでは空の状態で初期化するか、
         // フロントエンドからのアクセスが不要なら削除しても良いが、念のため残しておく。
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .build(),
-        )
+        .plugin(tauri_plugin_sql::Builder::default().build())
         // フロントエンドから呼び出せるコマンドを登録
         .invoke_handler(tauri::generate_handler![
-            commands::greet,          // テスト用挨拶コマンド
-            commands::save_settings,  // 設定保存
-            commands::get_settings,   // 設定取得
-            commands::fetch_issues,   // Backlogから課題を取得してスコアリング
-            commands::fetch_projects, // Backlogからプロジェクト一覧を取得
-            commands::get_issues,     // 保存済み課題一覧を取得
-            commands::get_workspaces, // ワークスペース一覧を取得
-            commands::get_workspace_by_id, // ワークスペースIDから取得
-            commands::save_workspace, // ワークスペースを保存
-            commands::delete_workspace, // ワークスペースを削除
+            commands::greet,                    // テスト用挨拶コマンド
+            commands::save_settings,            // 設定保存
+            commands::get_settings,             // 設定取得
+            commands::fetch_issues,             // Backlogから課題を取得してスコアリング
+            commands::fetch_projects,           // Backlogからプロジェクト一覧を取得
+            commands::get_issues,               // 保存済み課題一覧を取得
+            commands::get_workspaces,           // ワークスペース一覧を取得
+            commands::get_workspace_by_id,      // ワークスペースIDから取得
+            commands::save_workspace,           // ワークスペースを保存
+            commands::delete_workspace,         // ワークスペースを削除
             commands::toggle_workspace_enabled, // ワークスペースの有効・無効を切り替え
-            log_commands::get_log_directory, // ログディレクトリのパスを取得
-            log_commands::open_log_directory // ログディレクトリを開く
+            log_commands::get_log_directory,    // ログディレクトリのパスを取得
+            log_commands::open_log_directory    // ログディレクトリを開く
         ])
         // アプリケーション起動時のセットアップ処理
         .setup(|app| {
-            use tauri::Manager;
-            use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
+            use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
             use tauri::tray::TrayIconBuilder;
+            use tauri::Manager;
 
             let app_handle = app.handle();
 
             // --- メニューの構築 ---
             // 1. アプリケーションメニュー (ProjectLens)
-            let app_menu = Submenu::new(
-                app_handle,
-                "ProjectLens",
-                true,
-            )?;
+            let app_menu = Submenu::new(app_handle, "ProjectLens", true)?;
             // 標準的な項目を追加（About, Services, Hide, Quitなど）
             // Note: PredefinedMenuItemを使うとOS標準の挙動が得られる
             app_menu.append(&PredefinedMenuItem::about(app_handle, None, None)?)?;
@@ -123,7 +113,7 @@ pub fn run() {
 
             // --- システムトレイの構築 ---
             let version = &app.package_info().version;
-            let info_text = format!("ProjectLens v{}", version);
+            let info_text = format!("ProjectLens v{version}");
 
             let tray_menu = Menu::with_items(
                 app_handle,
@@ -139,16 +129,22 @@ pub fn run() {
             // トレイアイコンをファイルから読み込み（キャッシュ回避のため）
             // dev環境では失敗する可能性があるため、失敗時はデフォルトアイコンを使用
             let tray_icon = {
-                let icon_result = (|| -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
-                    let icon_path = app_handle
-                        .path()
-                        .resolve("icons/TrayIconTemplate.png", tauri::path::BaseDirectory::Resource)?;
-                    
-                    let img = image::open(&icon_path)?;
-                    let rgba = img.to_rgba8();
-                    let (width, height) = rgba.dimensions();
-                    Ok(tauri::image::Image::new_owned(rgba.into_raw(), width, height))
-                })();
+                let icon_result =
+                    (|| -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
+                        let icon_path = app_handle.path().resolve(
+                            "icons/TrayIconTemplate.png",
+                            tauri::path::BaseDirectory::Resource,
+                        )?;
+
+                        let img = image::open(&icon_path)?;
+                        let rgba = img.to_rgba8();
+                        let (width, height) = rgba.dimensions();
+                        Ok(tauri::image::Image::new_owned(
+                            rgba.into_raw(),
+                            width,
+                            height,
+                        ))
+                    })();
 
                 match icon_result {
                     Ok(icon) => icon,
@@ -168,7 +164,9 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open_lp" => {
                         use tauri_plugin_opener::OpenerExt;
-                        let _ = app.opener().open_url("https://project-lens.netlify.app", None::<&str>);
+                        let _ = app
+                            .opener()
+                            .open_url("https://project-lens.netlify.app", None::<&str>);
                     }
                     "quit" => {
                         app.exit(0);
@@ -176,16 +174,17 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(move |tray, event| {
-                    use tauri::tray::{TrayIconEvent, MouseButton};
-                    match event {
-                        TrayIconEvent::Click { button: MouseButton::Left, .. } => {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                    use tauri::tray::{MouseButton, TrayIconEvent};
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
                         }
-                        _ => {}
                     }
                 })
                 .build(app)?;
@@ -212,20 +211,20 @@ pub fn run() {
                     .expect("failed to parse db url")
                     .create_if_missing(true);
 
-            // データベースクライアントを作成してアプリケーション状態に登録
+                // データベースクライアントを作成してアプリケーション状態に登録
                 let db_client = db::DbClient::new_with_options(options)
                     .await
                     .expect("failed to init db client");
-                
+
                 // マイグレーションを実行
                 db_client.migrate().await.expect("failed to migrate db");
-                
+
                 app_handle.manage(db_client);
 
                 // バックグラウンドスケジューラーを初期化
                 // データベース準備完了後に起動
                 scheduler::init(app_handle.clone());
-                
+
                 // 起動ログを出力（ログファイル生成のため）
                 log::info!("Application initialized successfully");
             });

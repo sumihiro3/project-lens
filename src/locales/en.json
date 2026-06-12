@@ -47,6 +47,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "unknown": "Unknown",
     "description": "Get an overview of your project's health at a glance. Click on cards or charts to view detailed lists.",
     "descriptionMyIssues": "Showing the status of issues assigned to you. Click on cards or charts to see detailed lists.",
     "welcome": "Welcome to ProjectLens.",

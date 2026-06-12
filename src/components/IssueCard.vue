@@ -2,11 +2,16 @@
   <v-card class="issue-card" :style="{ borderLeft: `4px solid ${projectColor}` }">
     <v-card-title class="d-flex align-center justify-space-between pa-3 pb-2">
       <div class="d-flex align-center flex-grow-1 overflow-hidden">
-        <v-chip :color="projectColor" size="small" variant="flat" class="project-chip flex-shrink-0">
+        <v-chip
+          :color="projectColor"
+          size="small"
+          variant="flat"
+          class="project-chip flex-shrink-0"
+        >
           {{ projectKey }}
         </v-chip>
-        <span 
-          class="text-h6 font-weight-bold issue-title text-truncate clickable-title" 
+        <span
+          class="text-h6 font-weight-bold issue-title text-truncate clickable-title"
           @click="openInBrowser"
         >
           {{ issue.issueKey }} {{ issue.summary }}
@@ -17,7 +22,7 @@
           {{ $t('issue.score', { score: issue.relevance_score }) }}
         </v-chip>
         <v-tooltip :text="$t('issue.openInBrowser')" location="bottom">
-          <template v-slot:activator="{ props: tooltipProps }">
+          <template #activator="{ props: tooltipProps }">
             <v-btn
               v-bind="tooltipProps"
               icon="mdi-open-in-new"
@@ -29,74 +34,69 @@
         </v-tooltip>
       </div>
     </v-card-title>
-    
+
     <v-card-text class="px-3 pt-2 pb-3">
       <!-- メタデータ -->
       <div class="d-flex gap-2 mb-3 align-center flex-wrap">
-        <v-chip 
-            v-if="issue.issueType" 
-            size="small" 
-            color="indigo"
-            prepend-icon="mdi-tag"
-            class="metadata-chip"
-          >
-            {{ issue.issueType?.name }}
-          </v-chip>
-
-        <v-chip 
-            v-if="issue.priority" 
-            size="small" 
-            :color="getPriorityColor(issue.priority?.name)"
-            :style="{ color: getChipTextColor(getPriorityColor(issue.priority?.name)) }"
-            prepend-icon="mdi-flag"
-            class="metadata-chip"
-          >
-            {{ issue.priority?.name }}
-          </v-chip>
-        
-        <v-chip 
-            v-if="issue.status" 
-            size="small" 
-            :color="getStatusColor(issue.status?.name)"
-            :style="{ color: getChipTextColor(getStatusColor(issue.status?.name)) }"
-            prepend-icon="mdi-progress-check"
-            class="metadata-chip"
-          >
-            {{ issue.status?.name }}
-          </v-chip>
-        
         <v-chip
-    v-if="issue.assignee"
-    size="small"
-    prepend-icon="mdi-account"
-    class="metadata-chip"
-  >
-    {{ issue.assignee.name }}
-  </v-chip>
-        
-        <v-chip 
-            v-if="issue.dueDate" 
-            size="small" 
-            :color="getDueDateColor(issue.dueDate)"
-            :style="{ color: getChipTextColor(getDueDateColor(issue.dueDate)) }"
-            prepend-icon="mdi-calendar-clock"
-            class="metadata-chip"
-          >
-            {{ $t('issue.due', { date: formatDate(issue.dueDate) }) }}
-          </v-chip>
+          v-if="issue.issueType"
+          size="small"
+          color="indigo"
+          prepend-icon="mdi-tag"
+          class="metadata-chip"
+        >
+          {{ issue.issueType?.name }}
+        </v-chip>
 
-        <v-chip 
-            v-if="issue.updated" 
-            size="small" 
-            prepend-icon="mdi-update"
-            class="metadata-chip"
-            variant="text"
-            color="grey-darken-1"
-          >
-            {{ formatRelativeTime(issue.updated, t) }}
-          </v-chip>
+        <v-chip
+          v-if="issue.priority"
+          size="small"
+          :color="getPriorityColor(issue.priority?.name)"
+          :style="{ color: getChipTextColor(getPriorityColor(issue.priority?.name)) }"
+          prepend-icon="mdi-flag"
+          class="metadata-chip"
+        >
+          {{ issue.priority?.name }}
+        </v-chip>
+
+        <v-chip
+          v-if="issue.status"
+          size="small"
+          :color="getStatusColor(issue.status?.name)"
+          :style="{ color: getChipTextColor(getStatusColor(issue.status?.name)) }"
+          prepend-icon="mdi-progress-check"
+          class="metadata-chip"
+        >
+          {{ issue.status?.name }}
+        </v-chip>
+
+        <v-chip v-if="issue.assignee" size="small" prepend-icon="mdi-account" class="metadata-chip">
+          {{ issue.assignee.name }}
+        </v-chip>
+
+        <v-chip
+          v-if="issue.dueDate"
+          size="small"
+          :color="getDueDateColor(issue.dueDate)"
+          :style="{ color: getChipTextColor(getDueDateColor(issue.dueDate)) }"
+          prepend-icon="mdi-calendar-clock"
+          class="metadata-chip"
+        >
+          {{ $t('issue.due', { date: formatDate(issue.dueDate) }) }}
+        </v-chip>
+
+        <v-chip
+          v-if="issue.updated"
+          size="small"
+          prepend-icon="mdi-update"
+          class="metadata-chip"
+          variant="text"
+          color="grey-darken-1"
+        >
+          {{ formatRelativeTime(issue.updated, t) }}
+        </v-chip>
       </div>
-      
+
       <!-- 説明文 -->
       <div v-if="issue.description" class="text-body-2 text-medium-emphasis description-text">
         {{ issue.description }}
@@ -111,15 +111,15 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
 import { useI18n } from 'vue-i18n'
 import type { Issue } from '../composables/useIssues'
-import { 
-  getPriorityColor, 
-  getStatusColor, 
-  getDueDateColor, 
+import {
+  getPriorityColor,
+  getStatusColor,
+  getDueDateColor,
   formatDate,
   getProjectColor,
   extractProjectKey,
   getChipTextColor,
-  formatRelativeTime
+  formatRelativeTime,
 } from '../utils/issueHelpers'
 
 interface Props {
@@ -143,19 +143,21 @@ async function openInBrowser() {
     }
 
     // ワークスペース情報を取得
-    const workspace = await invoke<{ id: number; domain: string; api_key: string; project_keys: string } | null>(
-      'get_workspace_by_id',
-      { workspaceId: props.issue.workspace_id }
-    )
-    
+    const workspace = await invoke<{
+      id: number
+      domain: string
+      api_key: string
+      project_keys: string
+    } | null>('get_workspace_by_id', { workspaceId: props.issue.workspace_id })
+
     if (!workspace || !workspace.domain) {
       console.error('Workspace not found or domain not configured')
       return
     }
-    
+
     // BacklogのチケットURLを構築
     const url = `https://${workspace.domain}/view/${props.issue.issueKey}`
-    
+
     // デフォルトブラウザで開く
     await open(url)
   } catch (e) {

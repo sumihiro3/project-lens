@@ -9,12 +9,7 @@
           <p class="text-body-1 text-medium-emphasis mb-6">
             {{ $t('dashboard.welcomeMessage') }}
           </p>
-          <v-btn
-            color="primary"
-            size="x-large"
-            prepend-icon="mdi-cog"
-            to="/settings"
-          >
+          <v-btn color="primary" size="x-large" prepend-icon="mdi-cog" to="/settings">
             {{ $t('dashboard.goToSettings') }}
           </v-btn>
         </v-card>
@@ -28,7 +23,9 @@
         <v-col cols="12">
           <h1 class="text-h4 font-weight-bold mb-2">{{ $t('dashboard.title') }}</h1>
           <p class="text-body-1 text-medium-emphasis">
-            {{ showOnlyMyIssues ? $t('dashboard.descriptionMyIssues') : $t('dashboard.description') }}
+            {{
+              showOnlyMyIssues ? $t('dashboard.descriptionMyIssues') : $t('dashboard.description')
+            }}
           </p>
         </v-col>
       </v-row>
@@ -67,23 +64,16 @@
         </v-col>
       </v-row>
 
-
       <!-- Charts and Recent Updates -->
       <v-row>
         <!-- Status Distribution Chart -->
         <v-col cols="12" md="6">
-          <StatusChart
-            :status-counts="statusCounts"
-            @click-segment="navigateToStatus"
-          />
+          <StatusChart :status-counts="statusCounts" @click-segment="navigateToStatus" />
         </v-col>
-        
+
         <!-- Priority Distribution Chart -->
         <v-col cols="12" md="6">
-          <PriorityChart
-            :priority-counts="priorityCounts"
-            @click-segment="navigateToPriority"
-          />
+          <PriorityChart :priority-counts="priorityCounts" @click-segment="navigateToPriority" />
         </v-col>
       </v-row>
 
@@ -108,8 +98,10 @@ import StatusChart from '../components/dashboard/StatusChart.vue'
 import PriorityChart from '../components/dashboard/PriorityChart.vue'
 import RecentUpdates from '../components/dashboard/RecentUpdates.vue'
 import { listen } from '@tauri-apps/api/event'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // 課題データ管理
 const { issues, loadIssues } = useIssues()
@@ -123,7 +115,7 @@ let unlisten: (() => void) | null = null
 // 初期データ読み込み
 onMounted(async () => {
   await loadIssues()
-  
+
   // バックグラウンド同期完了イベントを監視
   unlisten = await listen('refresh-issues', () => {
     console.log('Received refresh-issues event, reloading...')
@@ -153,14 +145,14 @@ const overdueCount = computed(() => {
 const dueSoonCount = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   const targetDate = new Date(today)
   targetDate.setDate(targetDate.getDate() + 3)
-  
+
   return baseIssues.value.filter(issue => {
     const dueDate = parseDueDate(issue.dueDate)
     if (!dueDate) return false
-    
+
     // 期限切れは除外（別カードで管理）
     return dueDate >= today && dueDate <= targetDate
   }).length
@@ -170,20 +162,20 @@ const dueSoonCount = computed(() => {
 const stagnantCount = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   const thresholdDate = new Date(today)
   thresholdDate.setDate(thresholdDate.getDate() - 5)
-  
+
   return baseIssues.value.filter(issue => {
     const updated = parseDueDate(issue.updated)
     if (!updated) return false
-    
+
     const statusName = issue.status?.name
-    const isCompleted = statusName && (
-      completedStatuses.some(s => statusName.includes(s)) ||
-      resolvedStatuses.some(s => statusName.includes(s))
-    )
-    
+    const isCompleted =
+      statusName &&
+      (completedStatuses.some(s => statusName.includes(s)) ||
+        resolvedStatuses.some(s => statusName.includes(s)))
+
     return updated < thresholdDate && !isCompleted
   }).length
 })
@@ -191,24 +183,24 @@ const stagnantCount = computed(() => {
 // ステータス別カウント
 const statusCounts = computed(() => {
   const counts: Record<string, number> = {}
-  
+
   baseIssues.value.forEach(issue => {
-    const status = issue.status?.name || '不明'
+    const status = issue.status?.name || t('dashboard.unknown')
     counts[status] = (counts[status] || 0) + 1
   })
-  
+
   return counts
 })
 
 // 優先度別カウント
 const priorityCounts = computed(() => {
   const counts: Record<string, number> = {}
-  
+
   baseIssues.value.forEach(issue => {
-    const priority = issue.priority?.name || '不明'
+    const priority = issue.priority?.name || t('dashboard.unknown')
     counts[priority] = (counts[priority] || 0) + 1
   })
-  
+
   return counts
 })
 

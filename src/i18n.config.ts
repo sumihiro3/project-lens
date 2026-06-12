@@ -9,6 +9,6 @@ export default defineI18nConfig(() => ({
   fallbackLocale: 'ja',
   messages: {
     en,
-    ja
-  }
+    ja,
+  },
 }))

@@ -1,5 +1,5 @@
 use crate::backlog::BacklogClient;
-use crate::db::DbClient;
+use crate::db::{DbClient, WorkspaceInput};
 use tauri::State;
 
 /// テスト用の挨拶コマンド
@@ -11,7 +11,7 @@ use tauri::State;
 /// 挨拶メッセージ
 #[tauri::command]
 pub fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+    format!("Hello, {name}! You've been greeted from Rust!")
 }
 
 /// 設定を保存
@@ -40,16 +40,16 @@ pub async fn save_settings(
     if key == "language" {
         let issues = db.get_issues().await.map_err(|e| e.to_string())?;
         let high_priority_count = issues.iter().filter(|i| i.relevance_score >= 80).count();
-        
+
         // 言語設定を取得（デフォルトは日本語）
         let lang = value;
 
         if let Some(tray) = app.tray_by_id("main") {
             let tooltip = if high_priority_count > 0 {
                 if lang == "ja" {
-                    format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
+                    format!("ProjectLens: 重要なチケットが {high_priority_count} 件あります")
                 } else {
-                    format!("ProjectLens: {} important tickets", high_priority_count)
+                    format!("ProjectLens: {high_priority_count} important tickets")
                 }
             } else {
                 "ProjectLens".to_string()
@@ -68,7 +68,10 @@ pub async fn get_workspaces(db: State<'_, DbClient>) -> Result<Vec<crate::db::Wo
 
 /// ワークスペースIDからワークスペース情報を取得
 #[tauri::command]
-pub async fn get_workspace_by_id(db: State<'_, DbClient>, workspace_id: i64) -> Result<Option<crate::db::Workspace>, String> {
+pub async fn get_workspace_by_id(
+    db: State<'_, DbClient>,
+    workspace_id: i64,
+) -> Result<Option<crate::db::Workspace>, String> {
     let workspaces = db.get_workspaces().await.map_err(|e| e.to_string())?;
     Ok(workspaces.into_iter().find(|w| w.id == workspace_id))
 }
@@ -86,9 +89,19 @@ pub async fn save_workspace(
 
     let keys_str = project_keys.join(",");
     // 新規ワークスペースはデフォルトで有効
-    db.save_workspace(&domain, &api_key, &keys_str, Some(me.id), Some(me.name), true, None, None, None)
-        .await
-        .map_err(|e| e.to_string())
+    db.save_workspace(WorkspaceInput {
+        domain,
+        api_key,
+        project_keys: keys_str,
+        user_id: Some(me.id),
+        user_name: Some(me.name),
+        enabled: true,
+        api_limit: None,
+        api_remaining: None,
+        api_reset: None,
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// ワークスペースの有効・無効を切り替え
@@ -104,17 +117,17 @@ pub async fn toggle_workspace_enabled(
         .find(|w| w.id == workspace_id)
         .ok_or_else(|| "Workspace not found".to_string())?;
 
-    db.save_workspace(
-        &workspace.domain,
-        &workspace.api_key,
-        &workspace.project_keys,
-        workspace.user_id,
-        workspace.user_name,
+    db.save_workspace(WorkspaceInput {
+        domain: workspace.domain,
+        api_key: workspace.api_key,
+        project_keys: workspace.project_keys,
+        user_id: workspace.user_id,
+        user_name: workspace.user_name,
         enabled,
-        workspace.api_limit,
-        workspace.api_remaining,
-        workspace.api_reset,
-    )
+        api_limit: workspace.api_limit,
+        api_remaining: workspace.api_remaining,
+        api_reset: workspace.api_reset,
+    })
     .await
     .map_err(|e| e.to_string())
 }
@@ -154,10 +167,7 @@ pub async fn get_settings(key: String, db: State<'_, DbClient>) -> Result<Option
 /// # 戻り値
 /// 取得した課題の件数、またはエラーメッセージ
 #[tauri::command]
-pub async fn fetch_issues(
-    app: tauri::AppHandle,
-    db: State<'_, DbClient>,
-) -> Result<usize, String> {
+pub async fn fetch_issues(app: tauri::AppHandle, db: State<'_, DbClient>) -> Result<usize, String> {
     let workspaces = db.get_workspaces().await.map_err(|e| e.to_string())?;
     let mut total_count = 0;
     let mut all_issues_for_tooltip = Vec::new();
@@ -166,7 +176,10 @@ pub async fn fetch_issues(
         // 無効なワークスペースはスキップし、関連する課題を削除
         if !workspace.enabled {
             if let Err(e) = db.delete_workspace_issues(workspace.id).await {
-                eprintln!("Failed to delete issues for disabled workspace {}: {}", workspace.id, e);
+                eprintln!(
+                    "Failed to delete issues for disabled workspace {}: {}",
+                    workspace.id, e
+                );
             }
             continue;
         }
@@ -196,20 +209,23 @@ pub async fn fetch_issues(
                 Ok((issues, rate_limit)) => {
                     workspace_issues.extend(issues);
                     synced_projects.push(key.to_string());
-                    
+
                     // API使用状況を保存
                     // 複数のプロジェクトを取得する場合、最後のレスポンスの情報で更新する
-                    if let Err(e) = db.save_workspace_usage(
-                        workspace.id,
-                        rate_limit.limit,
-                        rate_limit.remaining,
-                        rate_limit.reset
-                    ).await {
-                        eprintln!("Failed to save workspace usage: {}", e);
+                    if let Err(e) = db
+                        .save_workspace_usage(
+                            workspace.id,
+                            rate_limit.limit,
+                            rate_limit.remaining,
+                            rate_limit.reset,
+                        )
+                        .await
+                    {
+                        eprintln!("Failed to save workspace usage: {e}");
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch issues for project {}: {}", key, e);
+                    eprintln!("Failed to fetch issues for project {key}: {e}");
                     // エラーが発生しても他のプロジェクトの取得は継続
                 }
             }
@@ -217,24 +233,26 @@ pub async fn fetch_issues(
         let me = match client.get_myself().await {
             Ok(me) => me,
             Err(e) => {
-                eprintln!("Failed to get myself for {}: {}", domain, e);
+                eprintln!("Failed to get myself for {domain}: {e}");
                 continue;
             }
         };
 
         // ユーザー情報を更新（まだ保存されていない場合のために）
         if workspace.user_id.is_none() || workspace.user_name.is_none() {
-            let _ = db.save_workspace(
-                &domain, 
-                &api_key, 
-                &project_key, 
-                Some(me.id), 
-                Some(me.name.clone()),
-                workspace.enabled,
-                workspace.api_limit,
-                workspace.api_remaining,
-                workspace.api_reset,
-            ).await;
+            let _ = db
+                .save_workspace(WorkspaceInput {
+                    domain: domain.clone(),
+                    api_key: api_key.clone(),
+                    project_keys: project_key.clone(),
+                    user_id: Some(me.id),
+                    user_name: Some(me.name.clone()),
+                    enabled: workspace.enabled,
+                    api_limit: workspace.api_limit,
+                    api_remaining: workspace.api_remaining,
+                    api_reset: workspace.api_reset.clone(),
+                })
+                .await;
         }
 
         // 各課題のスコアを計算
@@ -246,11 +264,16 @@ pub async fn fetch_issues(
         // データベースに保存
         // Vec<String> を Vec<&str> に変換
         let synced_projects_refs: Vec<&str> = synced_projects.iter().map(|s| s.as_str()).collect();
-        
-        db.save_issues(workspace.id, &workspace_issues, &synced_projects_refs, &project_keys)
-            .await
-            .map_err(|e| e.to_string())?;
-            
+
+        db.save_issues(
+            workspace.id,
+            &workspace_issues,
+            &synced_projects_refs,
+            &project_keys,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
         total_count += workspace_issues.len();
         all_issues_for_tooltip.append(&mut workspace_issues);
     }
@@ -260,16 +283,20 @@ pub async fn fetch_issues(
         .iter()
         .filter(|i| i.relevance_score >= 80)
         .count();
-    
+
     // 言語設定を取得（デフォルトは日本語）
-    let lang = db.get_setting("language").await.unwrap_or(Some("ja".to_string())).unwrap_or("ja".to_string());
+    let lang = db
+        .get_setting("language")
+        .await
+        .unwrap_or(Some("ja".to_string()))
+        .unwrap_or("ja".to_string());
 
     if let Some(tray) = app.tray_by_id("main") {
         let tooltip = if high_priority_count > 0 {
             if lang == "ja" {
-                format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
+                format!("ProjectLens: 重要なチケットが {high_priority_count} 件あります")
             } else {
-                format!("ProjectLens: {} important tickets", high_priority_count)
+                format!("ProjectLens: {high_priority_count} important tickets")
             }
         } else {
             "ProjectLens".to_string()

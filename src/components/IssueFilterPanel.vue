@@ -112,14 +112,14 @@ const dialog = ref(false)
 // ローカルフィルター状態（v-model用）
 const localFilters = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
+  set: value => emit('update:modelValue', value),
 })
 
 // ステータスフィルターオプション
 const statusFilterOptions = computed(() => [
   { title: t('filters.status.unprocessed'), value: 'unprocessed' },
   { title: t('filters.status.in_progress'), value: 'in_progress' },
-  { title: t('filters.status.all'), value: 'all' }
+  { title: t('filters.status.all'), value: 'all' },
 ])
 
 // 期限フィルターオプション
@@ -128,7 +128,7 @@ const dueDateFilterOptions = computed(() => [
   { title: t('filters.dueDate.today'), value: 'today' },
   { title: t('filters.dueDate.this_week'), value: 'this_week' },
   { title: t('filters.dueDate.this_month'), value: 'this_month' },
-  { title: t('filters.dueDate.no_due_date'), value: 'no_due_date' }
+  { title: t('filters.dueDate.no_due_date'), value: 'no_due_date' },
 ])
 
 // フィルターをリセット
@@ -144,7 +144,7 @@ function resetFilters() {
     selectedAssignees: [],
     selectedProjects: [],
     sortKey: 'relevance_score',
-    sortOrder: 'desc'
+    sortOrder: 'desc',
   })
 }
 
@@ -155,6 +155,6 @@ function openDialog() {
 
 // 外部から呼び出せるようにexpose
 defineExpose({
-  openDialog
+  openDialog,
 })
 </script>

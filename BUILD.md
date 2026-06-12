@@ -2,13 +2,14 @@
 
 ## プロダクションビルド
 
-### 方法1: npmスクリプトを使用（推奨）
+### 方法1: pnpmスクリプトを使用（推奨）
 
 ```bash
-npm run build:release
+pnpm run build:release
 ```
 
 このコマンドは以下を実行します：
+
 1. Nuxtアプリケーションの静的ファイルを生成
 2. Tauriアプリケーションをビルド
 3. 配布ファイルを `dist/vX.Y.Z/` ディレクトリに整理
@@ -17,16 +18,16 @@ npm run build:release
 
 ```bash
 # 基本的なビルド
-npm run tauri:build
+pnpm run tauri:build
 
 # または直接Tauriコマンドを実行
-npm run generate
-npx tauri build
+pnpm run generate
+pnpm tauri build
 ```
 
 ## 出力ファイル
 
-### 自動整理（`npm run build:release`使用時）
+### 自動整理（`pnpm run build:release`使用時）
 
 配布ファイルは `dist/vX.Y.Z/` ディレクトリに以下の形式で保存されます：
 
@@ -35,6 +36,7 @@ npx tauri build
 - **Windows MSI** (将来): `ProjectLens-X.Y.Z-Windows.msi`
 
 例：
+
 ```
 dist/
 └── v0.1.0/
@@ -42,7 +44,7 @@ dist/
     └── ProjectLens-0.1.0-macOS.app.zip
 ```
 
-### 標準出力（`npm run tauri:build`使用時）
+### 標準出力（`pnpm run tauri:build`使用時）
 
 ビルド成果物は以下のディレクトリに出力されます：
 
@@ -70,8 +72,9 @@ dist/
 ### ビルドが失敗する
 
 1. 依存関係を再インストール:
+
    ```bash
-   npm install
+   pnpm install
    ```
 
 2. キャッシュをクリア:
@@ -82,7 +85,7 @@ dist/
 
 ### カスタムアイコンが反映されない
 
-プロダクションビルドでは `TrayIconTemplate.png` が正しく読み込まれます。開発環境（`npm run tauri:dev`）ではデフォルトアイコンが使用されます。
+プロダクションビルドでは `TrayIconTemplate.png` が正しく読み込まれます。開発環境（`pnpm run tauri:dev`）ではデフォルトアイコンが使用されます。
 
 ## 配布
 

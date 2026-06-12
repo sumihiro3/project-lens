@@ -41,7 +41,7 @@ export function useIssues() {
     issues,
     loading,
     loadIssues,
-    syncIssues
+    syncIssues,
   }
 
   /**

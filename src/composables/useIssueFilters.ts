@@ -37,7 +37,7 @@ const filters = ref<FilterState>({
   selectedAssignees: [],
   selectedProjects: [],
   sortKey: 'relevance_score', // デフォルト：関連度スコア順
-  sortOrder: 'desc'
+  sortOrder: 'desc',
 })
 
 // 「自分の課題のみ表示」設定（グローバルステート）
@@ -223,7 +223,10 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
         // 最終更新日が閾値より前（古い）なら放置とみなす
         // かつ、完了ステータスでないこと
         const statusName = issue.status?.name
-        const isCompleted = statusName && (completedStatuses.some(s => statusName.includes(s)) || resolvedStatuses.some(s => statusName.includes(s)))
+        const isCompleted =
+          statusName &&
+          (completedStatuses.some(s => statusName.includes(s)) ||
+            resolvedStatuses.some(s => statusName.includes(s)))
 
         if (updated >= thresholdDate || isCompleted) {
           return false
@@ -243,7 +246,10 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
       // ----------------------------------------------------------------
       // 選択された優先度に含まれない課題を除外
       if (filters.value.selectedPriorities.length > 0) {
-        if (!issue.priority?.name || !filters.value.selectedPriorities.includes(issue.priority.name)) {
+        if (
+          !issue.priority?.name ||
+          !filters.value.selectedPriorities.includes(issue.priority.name)
+        ) {
           return false
         }
       }
@@ -253,7 +259,10 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
       // ----------------------------------------------------------------
       // 選択された担当者に含まれない課題を除外
       if (filters.value.selectedAssignees.length > 0) {
-        if (!issue.assignee?.name || !filters.value.selectedAssignees.includes(issue.assignee.name)) {
+        if (
+          !issue.assignee?.name ||
+          !filters.value.selectedAssignees.includes(issue.assignee.name)
+        ) {
           return false
         }
       }
@@ -295,7 +304,7 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
     // 8. ソート
     // ----------------------------------------------------------------
     return result.sort((a, b) => {
-      let comparison = 0
+      let comparison: number
       const { sortKey } = filters.value
 
       switch (sortKey) {
@@ -307,12 +316,17 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
           else comparison = a.dueDate.localeCompare(b.dueDate)
           break
 
-        case 'priority':
+        case 'priority': {
           // 優先度の重み付け（高い順）
           const priorityRanks: Record<string, number> = {
-            '高': 3, 'High': 3, 'Highest': 4,
-            '中': 2, 'Normal': 2,
-            '低': 1, 'Low': 1, 'Lowest': 0
+            高: 3,
+            High: 3,
+            Highest: 4,
+            中: 2,
+            Normal: 2,
+            低: 1,
+            Low: 1,
+            Lowest: 0,
           }
 
           const pA = a.priority?.name || ''
@@ -329,13 +343,15 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
             comparison = pA.localeCompare(pB)
           }
           break
+        }
 
-        case 'updated':
+        case 'updated': {
           // 更新日順
           const uA = a.updated || ''
           const uB = b.updated || ''
           comparison = uA.localeCompare(uB)
           break
+        }
 
         case 'relevance_score':
         default:
@@ -370,6 +386,6 @@ export function useIssueFilters(issues: Ref<Issue[]>) {
     showOnlyMyIssues,
     availablePriorities,
     availableAssignees,
-    availableProjects
+    availableProjects,
   }
 }
