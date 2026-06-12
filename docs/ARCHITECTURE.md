@@ -1,5 +1,8 @@
 # ProjectLens アーキテクチャガイドライン
 
+> **役割**: 規約(設計原則・コーディング規約)。コードレビューの判定基準として使う
+> **更新タイミング**: 新しい設計パターン・規約が確立されたとき
+
 ## 概要
 
 このドキュメントは、ProjectLensプロジェクトのアーキテクチャ、コンポーネント設計、コーディング規約を定義します。
@@ -9,40 +12,63 @@
 
 ```
 ProjectLens/
-├── src/                          # フロントエンド（Nuxt 3）
+├── src/                          # フロントエンド（Nuxt 4）
 │   ├── pages/                    # ページコンポーネント
 │   ├── components/               # 再利用可能なコンポーネント
+│   │   └── dashboard/            # ダッシュボード専用コンポーネント
 │   ├── composables/              # Composition API ロジック
 │   ├── utils/                    # ユーティリティ関数
 │   ├── plugins/                  # Nuxt プラグイン
+│   ├── locales/                  # i18n リソース（ja / en）
 │   └── app.vue                   # ルートコンポーネント
 ├── src-tauri/                    # バックエンド（Rust）
 │   ├── src/
 │   │   ├── commands.rs           # Tauri コマンド
+│   │   ├── log_commands.rs       # ログ管理コマンド
 │   │   ├── db.rs                 # データベース操作
 │   │   ├── backlog.rs            # Backlog API クライアント
+│   │   ├── rate_limit.rs         # API レートリミット管理
 │   │   ├── scoring.rs            # スコアリングロジック
 │   │   ├── scheduler.rs          # バックグラウンドスケジューラー
 │   │   └── lib.rs                # メインエントリポイント
 │   └── Cargo.toml
-└── docs/                         # ドキュメント
-    ├── ARCHITECTURE.md           # このファイル
-    └── COMPONENTS.md             # コンポーネント一覧
+├── .claude/                      # Claude Code 開発ツール
+│   ├── workflows/                # ワークフロースクリプト（JS）
+│   └── commands/                 # スラッシュコマンド定義（Markdown）
+├── pnpm-workspace.yaml           # pnpm ワークスペース設定
+├── eslint.config.cjs             # ESLint flat config
+└── docs/                         # ドキュメント（参照マップは CLAUDE.md）
+    ├── ARCHITECTURE.md           # このファイル（規約）
+    ├── COMPONENT_RULES.md        # コンポーネント設計ルール（規約）
+    ├── COLOR_SCHEME.md           # カラースキーマ（規約）
+    ├── COMPONENTS.md             # コンポーネント一覧（現状仕様）
+    ├── REQUIREMENTS.md           # 要件索引
+    └── releases/vX.Y/            # リリース別の要件・設計・リリースノート
 ```
+
+## 開発環境
+
+| 項目                 | 設定値                                                    |
+| -------------------- | --------------------------------------------------------- |
+| パッケージマネージャ | pnpm 11.6.0（`pnpm-workspace.yaml` でワークスペース管理） |
+| ESLint 設定形式      | `eslint.config.cjs`（flat config）                        |
+| 開発ワークフロー     | `.claude/workflows/` + `.claude/commands/`                |
 
 ## フロントエンド設計原則
 
 ### 1. コンポーネント分割の基準
 
 #### ページコンポーネント（`pages/`）
+
 - **役割**: ルーティング、データ取得、コンポーネントの統合
 - **サイズ**: 50-100行を目安
-- **責務**: 
+- **責務**:
   - composablesを使用してデータ取得
   - 子コンポーネントの配置と連携
   - ページレベルの状態管理
 
 **例**: `pages/index.vue`
+
 ```vue
 <template>
   <v-container>
@@ -59,6 +85,7 @@ const { filters, filteredIssues } = useIssueFilters(issues)
 ```
 
 #### UIコンポーネント（`components/`）
+
 - **役割**: 再利用可能なUI部品
 - **サイズ**: 50-150行を目安
 - **命名規則**: PascalCase、役割を明確に（例: `IssueCard`, `IssueFilterPanel`）
@@ -68,11 +95,13 @@ const { filters, filteredIssues } = useIssueFilters(issues)
   - 単一責任の原則を守る
 
 **分割の目安**:
+
 - 100行を超えたら分割を検討
 - 複数の責務がある場合は分割
 - 他のページでも使用する可能性がある場合は独立させる
 
 #### Composables（`composables/`）
+
 - **役割**: ロジックの再利用、状態管理
 - **命名規則**: `use`で始まる（例: `useIssues`, `useIssueFilters`）
 - **責務**:
@@ -81,6 +110,7 @@ const { filters, filteredIssues } = useIssueFilters(issues)
   - 複雑な計算ロジック
 
 **例**: `composables/useIssues.ts`
+
 ```typescript
 export function useIssues() {
   const issues = ref<Issue[]>([])
@@ -100,6 +130,7 @@ export function useIssues() {
 ```
 
 #### ユーティリティ（`utils/`）
+
 - **役割**: 純粋関数、ヘルパー関数
 - **命名規則**: camelCase
 - **責務**:
@@ -107,6 +138,7 @@ export function useIssues() {
   - フォーマット、変換、計算
 
 **例**: `utils/issueHelpers.ts`
+
 ```typescript
 export function getPriorityColor(priority: string | undefined): string {
   if (!priority) return 'grey'
@@ -118,6 +150,7 @@ export function getPriorityColor(priority: string | undefined): string {
 ### 2. コンポーネント設計パターン
 
 #### Props設計
+
 - **明示的な型定義**: TypeScriptで型を定義
 - **デフォルト値**: 必要に応じて設定
 - **バリデーション**: 重要なPropsには検証を追加
@@ -129,11 +162,12 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  compact: false
+  compact: false,
 })
 ```
 
 #### Emits設計
+
 - **イベント名**: kebab-case（例: `issue-click`, `filter-change`）
 - **ペイロード**: 必要最小限のデータ
 
@@ -146,12 +180,12 @@ const emit = defineEmits<{
 
 ### 3. ファイル命名規則
 
-| 種類 | 命名規則 | 例 |
-|------|----------|-----|
-| ページ | kebab-case | `index.vue`, `settings.vue` |
-| コンポーネント | PascalCase | `IssueCard.vue`, `IssueFilterPanel.vue` |
-| Composables | camelCase, `use`プレフィックス | `useIssues.ts`, `useIssueFilters.ts` |
-| Utils | camelCase | `issueHelpers.ts`, `dateUtils.ts` |
+| 種類           | 命名規則                       | 例                                      |
+| -------------- | ------------------------------ | --------------------------------------- |
+| ページ         | kebab-case                     | `index.vue`, `settings.vue`             |
+| コンポーネント | PascalCase                     | `IssueCard.vue`, `IssueFilterPanel.vue` |
+| Composables    | camelCase, `use`プレフィックス | `useIssues.ts`, `useIssueFilters.ts`    |
+| Utils          | camelCase                      | `issueHelpers.ts`, `dateUtils.ts`       |
 
 ## バックエンド設計原則
 
@@ -160,26 +194,39 @@ const emit = defineEmits<{
 各モジュールは単一責任の原則に従う：
 
 - **commands.rs**: Tauriコマンド定義のみ
+- **log_commands.rs**: ログ管理コマンドのみ
 - **db.rs**: データベース操作のみ
 - **backlog.rs**: Backlog API通信のみ
+- **rate_limit.rs**: APIレートリミット情報の管理のみ
 - **scoring.rs**: スコアリングロジックのみ
 - **scheduler.rs**: バックグラウンド処理のみ
 
-### 2. コメント規約
+### 2. 文字列フォーマット規約
+
+Rust 2021 edition の補間構文を使用する（`format!("…{}", x)` ではなく `format!("…{x}")`）：
+
+```rust
+// NG
+let msg = format!("workspace_id: {}", id);
+// OK
+let msg = format!("workspace_id: {id}");
+```
+
+### 3. コメント規約
 
 すべてのRustコードには日本語のドキュメントコメントを記載：
 
 ```rust
 /// 課題の関連度スコアを計算
-/// 
+///
 /// 以下の基準でスコアを加算する：
 /// - 自分が担当者: +50点
 /// - 期限切れ: +100点
-/// 
+///
 /// # 引数
 /// * `issue` - スコアを計算する課題
 /// * `me` - 現在のユーザー情報
-/// 
+///
 /// # 戻り値
 /// 計算された関連度スコア（0以上の整数）
 pub fn calculate_score(issue: &Issue, me: &User) -> i32 {
@@ -196,12 +243,14 @@ pub fn calculate_score(issue: &Issue, me: &User) -> i32 {
 新しいコード追加時は以下を確認：
 
 ### フロントエンド
+
 - [ ] コンポーネントは100行以下か？
 - [ ] Props/Emitsに型定義があるか？
 - [ ] ロジックはcomposablesに分離されているか？
 - [ ] 命名規則に従っているか？
 
 ### バックエンド
+
 - [ ] すべての関数に日本語コメントがあるか？
 - [ ] エラーハンドリングが適切か？
 - [ ] 単一責任の原則に従っているか？
@@ -211,3 +260,5 @@ pub fn calculate_score(issue: &Issue, me: &User) -> i32 {
 このドキュメントは、新しいパターンやベストプラクティスが確立された際に更新してください。
 
 - 2024-11-24: 初版作成
+- 2026-06-12: 役割ヘッダー追加、プロジェクト構成を現行コードに同期（log_commands.rs / rate_limit.rs / dashboard コンポーネント / docs/releases を反映）
+- 2026-06-12: v0.2 対応（開発環境テーブル追加、pnpm / eslint.config.cjs / .claude/ をプロジェクト構成に反映、Rust format! 補間規約を追加）
