@@ -3,7 +3,7 @@
     <div v-for="issue in issues" :key="issue.id">
       <IssueCard :issue="issue" />
     </div>
-    
+
     <v-alert v-if="issues.length === 0 && !loading" type="info" class="mt-4">
       {{ emptyMessage || $t('dashboard.noFilteredIssues') }}
     </v-alert>

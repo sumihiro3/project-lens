@@ -7,22 +7,22 @@
         :total-count="issues.length"
         :filtered-count="filteredIssues.length"
         @open-filter-dialog="filterPanelRef?.openDialog()"
+        @update:sort-key="filters.sortKey = $event"
+        @update:sort-order="filters.sortOrder = $event"
       />
       <v-tooltip :text="$t('dashboard.refresh')" location="bottom">
-        <template v-slot:activator="{ props }">
-          <v-btn 
+        <template #activator="{ props }">
+          <v-btn
             v-bind="props"
-            icon="mdi-refresh" 
-            @click="handleRefresh" 
-            :loading="loading" 
-            variant="text" 
+            icon="mdi-refresh"
+            :loading="loading"
+            variant="text"
             size="small"
+            @click="handleRefresh"
           ></v-btn>
         </template>
       </v-tooltip>
     </div>
-
-
 
     <!-- フィルター設定ダイアログ（非表示） -->
     <IssueFilterPanel
@@ -37,15 +37,13 @@
     <IssueList
       :issues="filteredIssues"
       :loading="loading"
-      :empty-message="issues.length === 0 ? $t('dashboard.noIssues') : $t('dashboard.noFilteredIssues')"
+      :empty-message="
+        issues.length === 0 ? $t('dashboard.noIssues') : $t('dashboard.noFilteredIssues')
+      "
     />
-    <v-snackbar
-      v-model="snackbar"
-      :color="snackbarColor"
-      timeout="3000"
-    >
+    <v-snackbar v-model="snackbar" :color="snackbarColor" timeout="3000">
       {{ snackbarText }}
-      <template v-slot:actions>
+      <template #actions>
         <v-btn variant="text" @click="snackbar = false">{{ $t('common.close') }}</v-btn>
       </template>
     </v-snackbar>
@@ -87,13 +85,8 @@ async function handleRefresh() {
 }
 
 // フィルター管理
-const {
-  filters,
-  filteredIssues,
-  availablePriorities,
-  availableAssignees,
-  availableProjects
-} = useIssueFilters(issues)
+const { filters, filteredIssues, availablePriorities, availableAssignees, availableProjects } =
+  useIssueFilters(issues)
 
 // フィルターパネルへの参照
 const filterPanelRef = ref<InstanceType<typeof IssueFilterPanel>>()
@@ -104,7 +97,7 @@ let unlisten: (() => void) | null = null
 // 初期データ読み込み
 onMounted(async () => {
   await loadIssues()
-  
+
   // バックグラウンド同期完了イベントを監視
   unlisten = await listen('refresh-issues', () => {
     console.log('Received refresh-issues event, reloading...')

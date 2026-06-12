@@ -27,7 +27,7 @@ pub fn init(app: AppHandle) {
             info!("Scheduler: Starting sync...");
 
             if let Err(e) = sync_and_notify(&app).await {
-                error!("Scheduler: Sync failed: {}", e);
+                error!("Scheduler: Sync failed: {e}");
             }
         }
     });
@@ -55,7 +55,7 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
 
     // 1. ワークスペース一覧を取得
     let workspaces = db.get_workspaces().await?;
-    
+
     if workspaces.is_empty() {
         info!("Scheduler: No workspaces configured.");
         return Ok(());
@@ -99,16 +99,16 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
                     synced_projects.push(key.to_string());
                 }
                 Err(e) => {
-                    log::error!("Failed to fetch issues for project {}: {}", key, e);
+                    log::error!("Failed to fetch issues for project {key}: {e}");
                 }
             }
         }
-        
+
         // ユーザー情報取得
         let me = match client.get_myself().await {
             Ok(me) => me,
             Err(e) => {
-                error!("Failed to get myself for {}: {}", domain, e);
+                error!("Failed to get myself for {domain}: {e}");
                 continue;
             }
         };
@@ -144,30 +144,39 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
                 }
             }
         }
-        
+
         all_issues_for_tooltip.append(&mut issues.clone());
 
         // 3. データベースに保存
         // Vec<String> を Vec<&str> に変換
         let synced_projects_refs: Vec<&str> = synced_projects.iter().map(|s| s.as_str()).collect();
-        
-        if let Err(e) = db.save_issues(workspace.id, &issues, &synced_projects_refs, &project_keys).await {
-             error!("Failed to save issues for workspace {}: {}", domain, e);
+
+        if let Err(e) = db
+            .save_issues(workspace.id, &issues, &synced_projects_refs, &project_keys)
+            .await
+        {
+            error!("Failed to save issues for workspace {domain}: {e}");
         }
     }
 
     // トレイのツールチップを更新
-    let high_priority_count = all_issues_for_tooltip.iter().filter(|i| i.relevance_score >= 80).count();
-    
+    let high_priority_count = all_issues_for_tooltip
+        .iter()
+        .filter(|i| i.relevance_score >= 80)
+        .count();
+
     // 言語設定を取得（デフォルトは日本語）
-    let lang = db.get_setting("language").await?.unwrap_or_else(|| "ja".to_string());
-    
+    let lang = db
+        .get_setting("language")
+        .await?
+        .unwrap_or_else(|| "ja".to_string());
+
     if let Some(tray) = app.tray_by_id("main") {
         let tooltip = if high_priority_count > 0 {
             if lang == "ja" {
-                format!("ProjectLens: 重要なチケットが {} 件あります", high_priority_count)
+                format!("ProjectLens: 重要なチケットが {high_priority_count} 件あります")
             } else {
-                format!("ProjectLens: {} important tickets", high_priority_count)
+                format!("ProjectLens: {high_priority_count} important tickets")
             }
         } else {
             "ProjectLens".to_string()
@@ -182,7 +191,10 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
             let body = if new_high_score_issues.len() == 1 {
                 format!("新しい重要な課題: {}", new_high_score_issues[0])
             } else {
-                format!("{}件の新しい重要な課題が見つかりました。", new_high_score_issues.len())
+                format!(
+                    "{}件の新しい重要な課題が見つかりました。",
+                    new_high_score_issues.len()
+                )
             };
             (title, body)
         } else {
@@ -190,12 +202,15 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
             let body = if new_high_score_issues.len() == 1 {
                 format!("New high priority issue: {}", new_high_score_issues[0])
             } else {
-                format!("{} new high priority issues found.", new_high_score_issues.len())
+                format!(
+                    "{} new high priority issues found.",
+                    new_high_score_issues.len()
+                )
             };
             (title, body)
         };
 
-        info!("Sending notification: {}", body);
+        info!("Sending notification: {body}");
 
         // macOSのシステムサウンドを再生
         #[cfg(target_os = "macos")]
@@ -206,15 +221,9 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         }
 
         // システム通知を表示
-        match app
-            .notification()
-            .builder()
-            .title(title)
-            .body(&body)
-            .show()
-        {
+        match app.notification().builder().title(title).body(&body).show() {
             Ok(_) => info!("Notification sent successfully"),
-            Err(e) => error!("Failed to send notification: {}", e),
+            Err(e) => error!("Failed to send notification: {e}"),
         }
     }
 

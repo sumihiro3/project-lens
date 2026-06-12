@@ -3,22 +3,15 @@
     <v-card-title class="text-subtitle-1 font-weight-bold">
       {{ $t('dashboard.recentUpdates') }}
     </v-card-title>
-    <v-card-subtitle class="text-caption text-medium-emphasis pb-0" style="white-space: normal;">
+    <v-card-subtitle class="text-caption text-medium-emphasis pb-0" style="white-space: normal">
       {{ $t('dashboard.recentUpdatesDescription') }}
     </v-card-subtitle>
     <v-card-text class="pa-0">
       <v-list v-if="recentIssues.length > 0" density="compact">
         <template v-for="(issue, index) in recentIssues" :key="issue.id">
-          <v-list-item
-            @click="openIssue(issue)"
-            class="cursor-pointer"
-          >
-            <template v-slot:prepend>
-              <v-chip
-                :color="getPriorityColor(issue.priority?.name)"
-                size="x-small"
-                class="mr-2"
-              >
+          <v-list-item class="cursor-pointer" @click="openIssue(issue)">
+            <template #prepend>
+              <v-chip :color="getPriorityColor(issue.priority?.name)" size="x-small" class="mr-2">
                 {{ issue.priority?.name || '-' }}
               </v-chip>
             </template>
@@ -35,7 +28,7 @@
                 {{ formatDate(issue.dueDate) }}
               </v-chip>
             </v-list-item-subtitle>
-            <template v-slot:append>
+            <template #append>
               <span class="text-caption text-medium-emphasis">
                 {{ formatRelativeTime(issue.updated, t) }}
               </span>
@@ -54,7 +47,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Issue } from '../../composables/useIssues'
-import { getPriorityColor, getDueDateColor, formatDate, formatRelativeTime } from '../../utils/issueHelpers'
+import {
+  getPriorityColor,
+  getDueDateColor,
+  formatDate,
+  formatRelativeTime,
+} from '../../utils/issueHelpers'
 import { useI18n } from 'vue-i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
@@ -79,30 +77,32 @@ const recentIssues = computed(() => {
 // チケットをブラウザで開く
 async function openIssue(issue: Issue) {
   console.log('openIssue called with:', issue.issueKey, 'workspace_id:', issue.workspace_id)
-  
+
   if (!issue.issueKey || !issue.workspace_id) {
     console.error('No issue key or workspace_id provided')
     return
   }
-  
+
   try {
     // ワークスペース情報を取得
     console.log('Fetching workspace by ID:', issue.workspace_id)
-    const workspace = await invoke<{ id: number; domain: string; api_key: string; project_keys: string } | null>(
-      'get_workspace_by_id',
-      { workspaceId: issue.workspace_id }
-    )
+    const workspace = await invoke<{
+      id: number
+      domain: string
+      api_key: string
+      project_keys: string
+    } | null>('get_workspace_by_id', { workspaceId: issue.workspace_id })
     console.log('Workspace:', workspace)
-    
+
     if (!workspace || !workspace.domain) {
       console.error('Workspace not found or domain not configured')
       return
     }
-    
+
     // BacklogのチケットURLを構築
     const url = `https://${workspace.domain}/view/${issue.issueKey}`
     console.log('Opening URL:', url)
-    
+
     // デフォルトブラウザで開く
     await open(url)
     console.log('Successfully opened URL')
