@@ -13,11 +13,13 @@ Backlog の課題を複数ワークスペース・複数プロジェクト横断
 
 ## リリース一覧
 
-| リリース | 内容                                                                       | 要件                                                           | ステータス            |
-| -------- | -------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------- |
-| v0.1     | 初期リリース(同期・スコアリング・通知・ダッシュボード・ワークスペース管理) | [releases/v0.1/requirements.md](releases/v0.1/requirements.md) | ✅ 実装済み           |
-| v0.2     | 開発基盤整備(pnpm 移行・ライブラリ最新化・Dynamic Workflows 確立)          | [releases/v0.2/requirements.md](releases/v0.2/requirements.md) | 🚧 進行中             |
-| v0.3     | AI機能(ローカルLLM)+ フリーミアム課金                                      | [releases/v0.3/requirements.md](releases/v0.3/requirements.md) | 📝 ドラフト(壁打ち前) |
+| リリース | 内容                                                                         | 要件                                                           | ステータス            |
+| -------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------- |
+| v0.1     | 初期リリース(同期・スコアリング・通知・ダッシュボード・ワークスペース管理)   | [releases/v0.1/requirements.md](releases/v0.1/requirements.md) | ✅ 実装済み           |
+| v0.2     | 開発基盤整備(pnpm 移行・ライブラリ最新化・Dynamic Workflows 確立)            | [releases/v0.2/requirements.md](releases/v0.2/requirements.md) | ✅ 実装済み(PR #23)   |
+| v0.3     | AI機能基盤(macOS 搭載モデル/FoundationModels + チケット要約・遅延リスク検知) | [releases/v0.3/requirements.md](releases/v0.3/requirements.md) | ✔ 確定(実装待ち)      |
+| v0.4     | AIユースケース拡充 / MLX(Qwen3)バックエンド追加                              | [releases/v0.4/requirements.md](releases/v0.4/requirements.md) | 📝 ドラフト(壁打ち前) |
+| v0.5     | フリーミアム課金 + ライセンス管理(Stripe + Workers + D1)                     | [releases/v0.5/requirements.md](releases/v0.5/requirements.md) | 📝 ドラフト(壁打ち前) |
 
 ## リリースサイクル
 
