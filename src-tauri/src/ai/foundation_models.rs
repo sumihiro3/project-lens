@@ -46,11 +46,16 @@ use std::sync::Arc;
 use tauri::async_runtime::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
 
-/// 同梱する Swift sidecar の名前（`externalBin` のベース名）。
+/// 同梱する Swift sidecar の実行時名（`shell().sidecar()` に渡す名前）。
 ///
-/// `tauri.conf.json` の `bundle.externalBin` に `binaries/projectlens-ai-sidecar` を登録し、
-/// ターゲットトリプル付きの実体（例: `projectlens-ai-sidecar-aarch64-apple-darwin`）を配置する想定。
-pub const SIDECAR_NAME: &str = "binaries/projectlens-ai-sidecar";
+/// **basename のみ**（`binaries/` プレフィックスを付けない）。tauri-plugin-shell の
+/// `relative_command_path` は `<実行ファイルのディレクトリ>/<この名前>` をそのまま解決する一方、
+/// Tauri は `externalBin`（`tauri.conf.json` の `binaries/projectlens-ai-sidecar`）を
+/// **ターゲットトリプルと `binaries/` を除いた basename** で実行ファイルの隣に配置する
+/// （dev: `target/debug/projectlens-ai-sidecar`、バンドル: `*.app/Contents/MacOS/projectlens-ai-sidecar`）。
+/// よってここに `binaries/` を付けると解決先がずれて spawn に失敗する。
+/// なお `externalBin` の登録値とソース配置（`src-tauri/binaries/<name>-<triple>`）は別概念で、そちらは `binaries/` 付きのまま。
+pub const SIDECAR_NAME: &str = "projectlens-ai-sidecar";
 
 /// バックエンドの識別名。`ai_results.model_used` への記録に用いる。
 pub const BACKEND_NAME: &str = "foundation-models";
