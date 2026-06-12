@@ -172,6 +172,14 @@ pub async fn fetch_issues(app: tauri::AppHandle, db: State<'_, DbClient>) -> Res
     let mut total_count = 0;
     let mut all_issues_for_tooltip = Vec::new();
 
+    // 同期前のDBスナップショット（最終更新日時）を取得し、AIジョブ投入の差分検出に流用する。
+    // 差分検出に必要なのは更新日時だけなので、JSON デシリアライズ・ai_results JOIN を伴う
+    // get_issues ではなく軽量な get_issue_updated_map を使う（課題が多くても同期を遅くしない）。
+    let existing_updated_map = db
+        .get_issue_updated_map()
+        .await
+        .map_err(|e| e.to_string())?;
+
     for workspace in workspaces {
         // 無効なワークスペースはスキップし、関連する課題を削除
         if !workspace.enabled {
@@ -274,6 +282,17 @@ pub async fn fetch_issues(app: tauri::AppHandle, db: State<'_, DbClient>) -> Res
         .await
         .map_err(|e| e.to_string())?;
 
+        // 保存成功後、新規・更新チケットをAIジョブとしてキュー投入する（FR-V03-004 / 手動sync経路）。
+        // 無効ワークスペースはループ冒頭で continue 済みのため、ここに来る時点で enabled が確定している。
+        // 差分検出ロジックは scheduler 経路と共通化している。
+        crate::scheduler::enqueue_changed_issues(
+            &db,
+            workspace.id,
+            &workspace_issues,
+            &existing_updated_map,
+        )
+        .await;
+
         total_count += workspace_issues.len();
         all_issues_for_tooltip.append(&mut workspace_issues);
     }
@@ -346,4 +365,113 @@ pub async fn fetch_projects(
 #[tauri::command]
 pub async fn get_issues(db: State<'_, DbClient>) -> Result<Vec<crate::backlog::Issue>, String> {
     db.get_issues().await.map_err(|e| e.to_string())
+}
+
+/// AI 機能の可用性を取得（FR-V03-002）
+///
+/// macOS バージョン要件と FoundationModels の availability を統合し、理由別の可用性状態を返す。
+/// 判定のため一時的に FoundationModels バックエンドを生成して問い合わせる。
+/// いかなる失敗でも `Err` にはせず、`Unavailable` 系の値を返すため、AI 非対応環境でも
+/// フロントは結果を受け取って理由別メッセージ・導線を出し分けられる（NFR-V03-002 / NFR-V03-004）。
+///
+/// # 引数
+/// * `app` - sidecar 起動に用いる Tauri アプリケーションハンドル（自動注入）
+///
+/// # 戻り値
+/// 理由別の可用性状態 [`crate::ai::availability::AiAvailability`]
+#[tauri::command]
+pub async fn get_ai_availability(
+    app: tauri::AppHandle,
+) -> Result<crate::ai::availability::AiAvailability, String> {
+    // 可用性問い合わせ用に FoundationModels バックエンドを生成する。
+    // sidecar の実起動は availability 要求時まで遅延し、判定後はバックエンドが drop されて停止する
+    // （アイドル時 sidecar 非消費。NFR-V03-003）。
+    let backend = crate::ai::foundation_models::FoundationModelsBackend::new(app);
+    Ok(crate::ai::availability::check_availability(&backend).await)
+}
+
+/// AI 機能の有効・無効設定を取得（FR-V03-003）
+///
+/// `settings` テーブルの `'ai_enabled'` キーを参照し、AI 機能のオン/オフを返す。
+/// 値が `"true"` のときのみ有効とみなす。未設定・それ以外は無効（既定 OFF）。
+///
+/// # 引数
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// AI 機能が有効なら `true`、無効・未設定なら `false`、またはエラーメッセージ
+#[tauri::command]
+pub async fn get_ai_settings(db: State<'_, DbClient>) -> Result<bool, String> {
+    let value = db
+        .get_setting(crate::ai::worker::SETTING_AI_ENABLED)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(value.as_deref() == Some("true"))
+}
+
+/// AI 機能の有効・無効を保存（FR-V03-003）
+///
+/// `settings` テーブルの `'ai_enabled'` キーへオン/オフトグルの状態を保存する。
+/// 既存の `save_setting` を流用し、`true` / `false` の文字列で保存する。
+///
+/// # 引数
+/// * `enabled` - AI 機能を有効にするなら `true`
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// 成功時は`Ok(())`、失敗時はエラーメッセージ
+#[tauri::command]
+pub async fn save_ai_setting(enabled: bool, db: State<'_, DbClient>) -> Result<(), String> {
+    let value = if enabled { "true" } else { "false" };
+    db.save_setting(crate::ai::worker::SETTING_AI_ENABLED, value)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// AI キューの処理状況を取得（FR-V03-003 / FR-V03-004）
+///
+/// 設定画面でバックグラウンド処理状況を表示するため、`job_queue` の残件数（`pending`）と
+/// 処理中件数（`processing`）を返す。
+///
+/// # 引数
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// `(pending, processing)`（残件数・処理中件数）のタプル、またはエラーメッセージ
+#[tauri::command]
+pub async fn get_ai_queue_status(db: State<'_, DbClient>) -> Result<(i64, i64), String> {
+    let pending = db.count_pending_jobs().await.map_err(|e| e.to_string())?;
+    let processing = db
+        .count_processing_jobs()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok((pending, processing))
+}
+
+/// 課題を手動で再分析キューに投入（FR-V03-004 / 手動「再分析」トリガー）
+///
+/// 指定した課題1件を `job_queue` に `pending` で投入し、バックグラウンドワーカーに再分析させる。
+/// 重複した `pending` ジョブは `enqueue_jobs` 側で抑止されるため、連打しても多重投入されない。
+/// AI 機能が OFF の場合はワーカーが処理しないが、投入自体は受け付ける（ON 後に処理される）。
+///
+/// # 引数
+/// * `workspace_id` - 対象課題のワークスペースID
+/// * `issue_id` - 対象課題ID
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// 新規に投入したジョブ件数（既に pending があれば 0）、またはエラーメッセージ
+#[tauri::command]
+pub async fn reanalyze_issue(
+    workspace_id: i64,
+    issue_id: i64,
+    db: State<'_, DbClient>,
+) -> Result<u64, String> {
+    db.enqueue_jobs(
+        workspace_id,
+        &[issue_id],
+        crate::ai::worker::JOB_TYPE_SUMMARIZE,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }

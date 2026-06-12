@@ -1,4 +1,5 @@
 // モジュール宣言
+mod ai; // AI推論基盤（LlmInference trait / 入出力型。v0.3）
 mod backlog; // Backlog APIクライアント
 mod commands; // Tauriコマンド（フロントエンドから呼び出される関数）
 mod db; // データベースクライアント
@@ -53,6 +54,11 @@ pub fn run() {
             commands::save_workspace,           // ワークスペースを保存
             commands::delete_workspace,         // ワークスペースを削除
             commands::toggle_workspace_enabled, // ワークスペースの有効・無効を切り替え
+            commands::get_ai_availability,      // AI機能の可用性を取得（v0.3）
+            commands::get_ai_settings,          // AI機能のON/OFF設定を取得（v0.3）
+            commands::save_ai_setting,          // AI機能のON/OFF設定を保存（v0.3）
+            commands::get_ai_queue_status,      // AIキューの処理状況を取得（v0.3）
+            commands::reanalyze_issue,          // 課題を手動で再分析キューに投入（v0.3）
             log_commands::get_log_directory,    // ログディレクトリのパスを取得
             log_commands::open_log_directory    // ログディレクトリを開く
         ])
@@ -219,11 +225,24 @@ pub fn run() {
                 // マイグレーションを実行
                 db_client.migrate().await.expect("failed to migrate db");
 
+                // 起動時のキュー復旧: 前回終了時に 'processing' のまま残った AI ジョブを
+                // 'pending' へ戻し、ワーカーが再処理できるようにする（FR-V03-004）。
+                match db_client.reset_stale_jobs().await {
+                    Ok(n) if n > 0 => log::info!("Reset {n} stale AI job(s) to pending on startup"),
+                    Ok(_) => {}
+                    Err(e) => log::warn!("Failed to reset stale AI jobs on startup: {e}"),
+                }
+
                 app_handle.manage(db_client);
 
                 // バックグラウンドスケジューラーを初期化
                 // データベース準備完了後に起動
                 scheduler::init(app_handle.clone());
+
+                // バックグラウンドAIワーカーを起動（v0.3 / FR-V03-004）
+                // job_queue の pending を同時1件で消費し、ai_results へ保存する。
+                // AI 機能 OFF・可用性なし・キュー空のときはアイドルし、本体機能を阻害しない。
+                ai::worker::init(app_handle.clone());
 
                 // 起動ログを出力（ログファイル生成のため）
                 log::info!("Application initialized successfully");
