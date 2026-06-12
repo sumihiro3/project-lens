@@ -1,7 +1,0 @@
-node_modules
-dist
-.nuxt
-.output
-*.log
-.DS_Store
-src-tauri
