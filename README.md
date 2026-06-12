@@ -6,6 +6,14 @@
 
 ## Key Features
 
+### 🤖 AI Analysis (Apple Intelligence)
+
+- On-device AI analysis powered by Apple Intelligence (FoundationModels — requires macOS 26+)
+- Automatically generates a one-line summary, risk level (High/Medium/Low), and action suggestions for each issue
+- Calculates delay days and displays a delay-risk section on the dashboard
+- AI ON/OFF toggle and availability status in Settings
+- Manual re-analysis per issue via the issue detail dialog
+
 ### 📊 Smart Scoring
 
 - AI-driven relevance scoring system
@@ -78,6 +86,7 @@
 - Node.js 18+
 - Rust 1.77.2+
 - pnpm
+- **For AI features:** macOS 26+, Xcode 26.4+, Apple Intelligence enabled
 
 ### Installation
 
@@ -88,9 +97,12 @@ pnpm install
 # Start development server
 pnpm run tauri:dev
 
-# Production build
+# Production build (builds AI sidecar automatically)
 pnpm run tauri:build
 ```
+
+> **Note:** The AI sidecar (`projectlens-ai-sidecar`) is built automatically by `build.sh` before the Tauri build.
+> Set `SKIP_AI_SIDECAR=1` to skip the sidecar build if your environment does not support FoundationModels.
 
 ## Usage
 
@@ -108,6 +120,13 @@ pnpm run tauri:build
 - Narrow down conditions with the filter bar
 - Change sort order with the sort button
 - Open the Backlog ticket page by clicking the ticket title or "Open" button
+- Click an issue to open the detail dialog showing AI summary, suggestions, delay days, and a re-analyze button
+
+### AI Analysis
+
+- Enable AI in Settings to start automatic analysis of new and updated issues
+- The dashboard shows a "Delay Risk" section listing issues with AI-detected risks, sorted by risk level
+- A banner on the dashboard prompts you to enable AI if Apple Intelligence is available but AI is turned off
 
 ### Notifications
 
@@ -127,6 +146,11 @@ ProjectLens/
 │   └── utils/              # Utility Functions
 ├── src-tauri/               # Backend Source (Rust)
 │   ├── src/
+│   │   ├── ai/             # AI Inference Module
+│   │   │   ├── mod.rs      # LlmInference trait / types
+│   │   │   ├── availability.rs  # Apple Intelligence availability check
+│   │   │   ├── foundation_models.rs  # FoundationModels sidecar client
+│   │   │   └── worker.rs   # Background AI job worker
 │   │   ├── backlog.rs      # Backlog API Client
 │   │   ├── commands.rs     # Tauri Commands
 │   │   ├── db.rs           # Database Client
@@ -134,6 +158,7 @@ ProjectLens/
 │   │   ├── rate_limit.rs   # API Rate Limit Management
 │   │   ├── scheduler.rs    # Background Scheduler
 │   │   └── scoring.rs      # Scoring Logic
+│   ├── sidecar/            # AI Sidecar (Swift / FoundationModels)
 │   └── Cargo.toml          # Rust Dependencies
 ├── docs/                    # Documentation
 │   ├── ARCHITECTURE.md     # Architecture Design

@@ -6,6 +6,14 @@
 
 ## 主な機能
 
+### 🤖 AI分析（Apple Intelligence）
+
+- Apple Intelligence（FoundationModels）によるオンデバイスAI分析（macOS 26以上が必要）
+- 各課題に対して1行サマリー・リスクレベル（高/中/低）・対応提案を自動生成
+- 遅延日数を算出し、ダッシュボードに遅延リスクセクションを表示
+- 設定画面でAI ON/OFF・可用性確認・キュー状況を確認可能
+- 課題詳細ダイアログから手動再分析を実行可能
+
 ### 📊 スマートスコアリング
 
 - AI駆動の関連度スコアリングシステム
@@ -78,6 +86,7 @@
 - Node.js 18以上
 - Rust 1.77.2以上
 - pnpm
+- **AI機能を使う場合:** macOS 26以上、Xcode 26.4以上、Apple Intelligence 有効化
 
 ### インストール
 
@@ -88,9 +97,12 @@ pnpm install
 # 開発サーバーの起動
 pnpm run tauri:dev
 
-# プロダクションビルド
+# プロダクションビルド（AIサイドカーも自動ビルド）
 pnpm run tauri:build
 ```
+
+> **注意:** AIサイドカー（`projectlens-ai-sidecar`）は `build.sh` によって Tauri ビルド前に自動でビルドされます。
+> FoundationModels に対応していない環境では `SKIP_AI_SIDECAR=1` を設定することでサイドカービルドをスキップできます。
 
 ## 使い方
 
@@ -108,6 +120,13 @@ pnpm run tauri:build
 - フィルターバーで条件を絞り込めます
 - 並び替えボタンでソート順を変更できます
 - チケットタイトルまたは「開く」ボタンでBacklogのチケットページを開けます
+- 課題をクリックすると詳細ダイアログが開き、AI要約・対応提案・遅延日数・再分析ボタンを確認できます
+
+### AI分析
+
+- 設定でAIを有効化すると、新規・更新された課題の自動分析が開始されます
+- ダッシュボードにAI検出リスク付き課題を「遅延リスク」セクションとしてリスク順で表示します
+- Apple Intelligenceが利用可能でAIが未有効の場合、ダッシュボードにバナーが表示されます
 
 ### 通知
 
@@ -127,6 +146,11 @@ ProjectLens/
 │   └── utils/              # ユーティリティ関数
 ├── src-tauri/               # バックエンドソース（Rust）
 │   ├── src/
+│   │   ├── ai/             # AI推論モジュール
+│   │   │   ├── mod.rs      # LlmInferenceトレイト / 型定義
+│   │   │   ├── availability.rs  # Apple Intelligence可用性チェック
+│   │   │   ├── foundation_models.rs  # FoundationModelsサイドカークライアント
+│   │   │   └── worker.rs   # AIジョブバックグラウンドワーカー
 │   │   ├── backlog.rs      # Backlog APIクライアント
 │   │   ├── commands.rs     # Tauriコマンド
 │   │   ├── db.rs           # データベースクライアント
@@ -134,6 +158,7 @@ ProjectLens/
 │   │   ├── rate_limit.rs   # APIレートリミット管理
 │   │   ├── scheduler.rs    # バックグラウンド同期
 │   │   └── scoring.rs      # スコアリングロジック
+│   ├── sidecar/            # AIサイドカー（Swift / FoundationModels）
 │   └── Cargo.toml          # Rust依存関係
 ├── docs/                    # ドキュメント
 │   ├── ARCHITECTURE.md     # アーキテクチャ設計

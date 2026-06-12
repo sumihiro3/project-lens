@@ -23,6 +23,11 @@ ProjectLens/
 │   └── app.vue                   # ルートコンポーネント
 ├── src-tauri/                    # バックエンド（Rust）
 │   ├── src/
+│   │   ├── ai/                   # AI 推論基盤（v0.3）
+│   │   │   ├── mod.rs            # LlmInference トレイト・型定義・バックエンドレジストリ
+│   │   │   ├── availability.rs   # 可用性チェック（macOS バージョン + sidecar 2段判定）
+│   │   │   ├── foundation_models.rs  # Swift sidecar との JSON Lines 通信バックエンド
+│   │   │   └── worker.rs         # バックグラウンド AI ワーカー（job_queue 消費）
 │   │   ├── commands.rs           # Tauri コマンド
 │   │   ├── log_commands.rs       # ログ管理コマンド
 │   │   ├── db.rs                 # データベース操作
@@ -31,6 +36,8 @@ ProjectLens/
 │   │   ├── scoring.rs            # スコアリングロジック
 │   │   ├── scheduler.rs          # バックグラウンドスケジューラー
 │   │   └── lib.rs                # メインエントリポイント
+│   ├── sidecar/                  # Swift sidecar（FoundationModels。v0.3）
+│   │   └── projectlens-ai-sidecar/  # Swift Package（macOS 26 / FoundationModels）
 │   └── Cargo.toml
 ├── .claude/                      # Claude Code 開発ツール
 │   ├── workflows/                # ワークフロースクリプト（JS）
@@ -200,6 +207,10 @@ const emit = defineEmits<{
 - **rate_limit.rs**: APIレートリミット情報の管理のみ
 - **scoring.rs**: スコアリングロジックのみ
 - **scheduler.rs**: バックグラウンド処理のみ
+- **ai/mod.rs**: AI 推論の抽象基盤（トレイト・型・バックエンドレジストリ）のみ
+- **ai/availability.rs**: AI 可用性チェックのみ
+- **ai/foundation_models.rs**: FoundationModels バックエンド（Swift sidecar 通信）のみ
+- **ai/worker.rs**: バックグラウンドAIジョブ処理のみ
 
 ### 2. 文字列フォーマット規約
 
@@ -262,3 +273,4 @@ pub fn calculate_score(issue: &Issue, me: &User) -> i32 {
 - 2024-11-24: 初版作成
 - 2026-06-12: 役割ヘッダー追加、プロジェクト構成を現行コードに同期（log_commands.rs / rate_limit.rs / dashboard コンポーネント / docs/releases を反映）
 - 2026-06-12: v0.2 対応（開発環境テーブル追加、pnpm / eslint.config.cjs / .claude/ をプロジェクト構成に反映、Rust format! 補間規約を追加）
+- 2026-06-13: v0.3 対応（プロジェクト構成に ai/ モジュール・sidecar/ を追加、バックエンドモジュール構成に ai/mod.rs〜ai/worker.rs を追加）
