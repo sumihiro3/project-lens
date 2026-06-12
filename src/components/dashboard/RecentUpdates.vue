@@ -9,38 +9,43 @@
     <v-card-text class="pa-0">
       <v-list v-if="recentIssues.length > 0" density="compact">
         <template v-for="(issue, index) in recentIssues" :key="issue.id">
-          <v-list-item
-            @click="openIssue(issue)"
-            class="cursor-pointer"
-          >
-            <template v-slot:prepend>
-              <v-chip
-                :color="getPriorityColor(issue.priority?.name)"
-                size="x-small"
-                class="mr-2"
+          <v-tooltip :text="$t('dashboard.clickToOpenIssue')" location="bottom">
+            <template v-slot:activator="{ props }">
+              <v-list-item
+                v-bind="props"
+                @click="openIssue(issue)"
+                class="cursor-pointer"
               >
-                {{ issue.priority?.name || '-' }}
-              </v-chip>
+                <template v-slot:prepend>
+                  <v-chip
+                    :color="getPriorityColor(issue.priority?.name)"
+                    size="x-small"
+                    class="mr-2"
+                  >
+                    {{ issue.priority?.name || '-' }}
+                  </v-chip>
+                </template>
+                <v-list-item-title class="text-body-2">
+                  <span class="font-weight-bold">{{ issue.issueKey }}</span> {{ issue.summary }}
+                </v-list-item-title>
+                <v-list-item-subtitle class="d-flex align-center gap-2 mt-1">
+                  <v-chip
+                    v-if="issue.dueDate"
+                    :color="getDueDateColor(issue.dueDate)"
+                    size="x-small"
+                    prepend-icon="mdi-calendar-clock"
+                  >
+                    {{ formatDate(issue.dueDate) }}
+                  </v-chip>
+                </v-list-item-subtitle>
+                <template v-slot:append>
+                  <span class="text-caption text-medium-emphasis">
+                    {{ formatRelativeTime(issue.updated, t) }}
+                  </span>
+                </template>
+              </v-list-item>
             </template>
-            <v-list-item-title class="text-body-2">
-              <span class="font-weight-bold">{{ issue.issueKey }}</span> {{ issue.summary }}
-            </v-list-item-title>
-            <v-list-item-subtitle class="d-flex align-center gap-2 mt-1">
-              <v-chip
-                v-if="issue.dueDate"
-                :color="getDueDateColor(issue.dueDate)"
-                size="x-small"
-                prepend-icon="mdi-calendar-clock"
-              >
-                {{ formatDate(issue.dueDate) }}
-              </v-chip>
-            </v-list-item-subtitle>
-            <template v-slot:append>
-              <span class="text-caption text-medium-emphasis">
-                {{ formatRelativeTime(issue.updated, t) }}
-              </span>
-            </template>
-          </v-list-item>
+          </v-tooltip>
           <v-divider v-if="index < recentIssues.length - 1" />
         </template>
       </v-list>
