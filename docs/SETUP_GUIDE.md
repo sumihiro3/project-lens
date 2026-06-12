@@ -6,11 +6,14 @@
 
 ### macOS の場合
 
-1. 配布された `ProjectLens-x.x.x-macOS.dmg` ファイルをダブルクリックして開きます。
-2. ProjectLens アイコンを Applications フォルダにドラッグ＆ドロップします。
-3. Applications フォルダから ProjectLens を起動します。
-
-![macOS インストール画面](images/setup_guide/macos_installer_drag_drop.png)
+1. 配布された `ProjectLens-x.x.x-macOS-installer.zip` を展開します
+2. 「ターミナル」を開きます
+   - Spotlight（⌘ + スペース）で「ターミナル」と入力して開く
+3. ターミナルに以下を入力します（最後にスペースを1つ入れてください）：
+    `xattr -cr `
+4. Finder で展開したフォルダ内の「`ProjectLens.app`」をターミナルの画面にドラッグ＆ドロップします
+5. Enter キーを押します
+6. ProjectLens.app をダブルクリックで起動できます
 
 ### Windows の場合（準備中）
 
