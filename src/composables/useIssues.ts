@@ -14,6 +14,16 @@ export interface Issue {
   updated?: string
   relevance_score: number
   workspace_id: number
+  /** AI生成の1行要約（ai_results.summary から LEFT JOIN） */
+  ai_summary?: string
+  /** AI判定のリスクレベル（high / medium / low） */
+  ai_risk_level?: 'high' | 'medium' | 'low'
+  /** AI生成の対応提案（ai_results.suggestion から LEFT JOIN） */
+  ai_suggestion?: string
+  /** SQL算出の遅延日数（ai_results.delay_days から LEFT JOIN） */
+  ai_delay_days?: number
+  /** AI処理完了日時（ISO 8601 文字列） */
+  ai_processed_at?: string
 }
 
 /**

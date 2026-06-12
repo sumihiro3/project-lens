@@ -97,6 +97,9 @@
         </v-chip>
       </div>
 
+      <!-- AI 要約行（ai_summary がある場合のみ。詳細表示は親へ委譲） -->
+      <IssueAiSummaryRow :issue="issue" @open-detail="emit('open-detail', $event)" />
+
       <!-- 説明文 -->
       <div v-if="issue.description" class="text-body-2 text-medium-emphasis description-text">
         {{ issue.description }}
@@ -111,6 +114,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
 import { useI18n } from 'vue-i18n'
 import type { Issue } from '../composables/useIssues'
+import IssueAiSummaryRow from './IssueAiSummaryRow.vue'
 import {
   getPriorityColor,
   getStatusColor,
@@ -126,7 +130,12 @@ interface Props {
   issue: Issue
 }
 
+interface Emits {
+  (e: 'open-detail', issue: Issue): void
+}
+
 const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
 const { t } = useI18n()
 
 const projectColor = computed(() => getProjectColor(props.issue.issueKey))
