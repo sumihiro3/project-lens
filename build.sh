@@ -12,7 +12,7 @@ VERSION=$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*"versi
 echo "📦 バージョン: $VERSION"
 
 # ビルド実行
-npm run tauri:build
+pnpm run tauri:build
 
 # 出力ディレクトリを作成
 DIST_DIR="dist/v${VERSION}"
