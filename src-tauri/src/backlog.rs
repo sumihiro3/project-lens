@@ -50,6 +50,24 @@ pub struct Issue {
     /// ワークスペースID（DB保存時に設定）
     #[serde(skip_deserializing, default)]
     pub workspace_id: i64,
+    /// AI 1行要約（`ai_results` から取得。未生成の場合は `None`）。
+    ///
+    /// raw_data には保存されず、`get_issues` の `ai_results` LEFT JOIN 結果から設定する（v0.3）。
+    /// `#[serde(default)]` により raw_data デシリアライズ時は欠落しても初期値（`None`）になる。
+    #[serde(default)]
+    pub ai_summary: Option<String>,
+    /// AI リスクレベル（`high` / `medium` / `low`。未生成の場合は `None`。v0.3）。
+    #[serde(default)]
+    pub ai_risk_level: Option<String>,
+    /// AI 対応提案（未生成の場合は `None`。v0.3）。
+    #[serde(default)]
+    pub ai_suggestion: Option<String>,
+    /// 遅延日数（SQL 算出値。正=遅延・0=当日・負=猶予。未算出は `None`。v0.3）。
+    #[serde(default)]
+    pub ai_delay_days: Option<i64>,
+    /// AI 分析の処理日時（ISO8601 文字列。未生成の場合は `None`。v0.3）。
+    #[serde(default)]
+    pub ai_processed_at: Option<String>,
 }
 
 /// 優先度
