@@ -33,6 +33,9 @@
     "resources": [
       "icons/TrayIconTemplate.png"
     ],
+    "externalBin": [
+      "binaries/projectlens-ai-sidecar"
+    ],
     "macOS": {
       "minimumSystemVersion": "10.13"
     }
