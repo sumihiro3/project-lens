@@ -28,15 +28,28 @@
 //! ```jsonc
 //! {"type":"availability"}
 //! {"type":"analyze","issue_key":"PROJ-1","summary":"...","description_head":"...","status":"...","due_date":"2026-06-30","lang":"ja"}
+//! {"type":"embed","texts":["...","..."],"prefix":"query"}
 //! {"type":"shutdown"}
 //! ```
 //! sidecar → Rust（1行 = 1 JSON。`type` で判別）:
 //! ```jsonc
 //! {"type":"availability","available":true,"reason":"available"}
 //! {"type":"result","summary":"...","risk_level":"high","suggestion":"..."}
+//! {"type":"embedding","vectors":[[/* 512 個の f32 */], ...]}
 //! {"type":"error","message":"..."}
 //! ```
+//!
+//! # 埋め込み（FR-V04-001）
+//! analyze（要約・リスク判定）と embed（埋め込み生成）は **同一 sidecar プロセス** で扱う。
+//! 双方とも管理タスク（[`run_manager`]）が直列に処理するため、同時実行は構造的に1件に保たれ、
+//! 要求 ID を持たないプロトコルの応答突合（送信順 1 対 1）も維持される。プレフィックス
+//! （`query: ` / `passage: `）の付与は **sidecar 側** が行い、Rust は [`EmbedPrefix`] をどちらにするか
+//! 渡すのみ（二重付与防止。`embedding.rs` の契約参照）。埋め込み経路は [`EmbeddingBackend`] として
+//! 公開し、[`super::embedding::create_embedding_backend`] が本バックエンドへ解決する。
 
+use super::embedding::{
+    EmbedPrefix, EmbeddingBackend, EmbeddingInput, EmbeddingOutput, EMBEDDING_DIM,
+};
 use super::{AiAnalysisInput, AiAnalysisOutput, LlmInference, RiskLevel};
 use anyhow::{anyhow, Result};
 use log::{error, info, warn};
@@ -59,6 +72,14 @@ pub const SIDECAR_NAME: &str = "projectlens-ai-sidecar";
 
 /// バックエンドの識別名。`ai_results.model_used` への記録に用いる。
 pub const BACKEND_NAME: &str = "foundation-models";
+
+/// 埋め込みモデルの識別名。`issue_embeddings.model` への記録に用いる（FR-V04-001 / 再埋め込み判定）。
+///
+/// 推論バックエンド名（[`BACKEND_NAME`]）とは別概念で、こちらは **モデル本体**を識別する。
+/// モデル更新時にこの値を変えることで、`source_hash` と併せて再埋め込みの要否を判定できる
+/// （要件 未解決事項 5）。v0.4 既定は OS 組み込み `NLContextualEmbedding`（日本語/CJK・512 次元）。
+/// 将来 HuggingFace から別モデルを DL した場合はこの値を変え、全ベクトルを再埋め込みする。
+pub const EMBEDDING_MODEL_NAME: &str = "apple-nl-contextual-ja";
 
 /// 連続失敗をこの回数超えたら AI 機能を一時停止状態にする閾値（FR-V03-001）。
 ///
@@ -96,6 +117,16 @@ enum SidecarRequest {
         /// 出力言語（`ja` / `en`）。
         lang: String,
     },
+    /// 複数テキストの埋め込み生成要求（FR-V04-001）。
+    ///
+    /// `texts` は **プレフィックス未付与・切り詰め済み**で渡す。`query: ` / `passage: ` の付与は
+    /// sidecar 側が `prefix` を見て一括で行う（二重付与防止。`embedding.rs` の契約参照）。
+    Embed {
+        /// 埋め込み対象テキスト群（プレフィックス未付与・切り詰め済み）。
+        texts: Vec<String>,
+        /// 付与するプレフィックス種別（`query` / `passage`）。
+        prefix: EmbedPrefix,
+    },
     /// 正常終了要求（sidecar を停止する。EOF でも停止する）。
     Shutdown,
 }
@@ -116,6 +147,22 @@ impl SidecarRequest {
             status: input.status,
             due_date: input.due_date,
             lang: input.lang,
+        }
+    }
+
+    /// [`EmbeddingInput`] から embed 要求を組み立てる。
+    ///
+    /// `texts` はプレフィックス未付与のまま渡す（付与は sidecar 側の責務）。
+    ///
+    /// # 引数
+    /// * `input` - 埋め込み対象テキスト群とプレフィックス指定。
+    ///
+    /// # 戻り値
+    /// sidecar へ送る embed 要求。
+    fn embed(input: EmbeddingInput) -> Self {
+        SidecarRequest::Embed {
+            texts: input.texts,
+            prefix: input.prefix,
         }
     }
 }
@@ -142,6 +189,14 @@ enum SidecarResponse {
         /// 理由コード（`available` / `appleIntelligenceNotEnabled` / `modelNotReady` /
         /// `deviceNotEligible` / `unavailableOther` / `unsupportedOS`）。
         reason: String,
+    },
+    /// embed 成功時の応答（[`EmbeddingOutput`] と同じ並び。FR-V04-001）。
+    ///
+    /// `vectors` は要求の `texts` と**同順・同数**で対応し、各ベクトルは [`EMBEDDING_DIM`] 次元。
+    /// 次元・件数の検証は [`parse_embedding`] で行う。
+    Embedding {
+        /// 入力テキストと同順の埋め込みベクトル群。
+        vectors: Vec<Vec<f32>>,
     },
     /// エラー応答（生成失敗・入力不正）。
     Error {
@@ -180,6 +235,13 @@ enum ManagerCommand {
         /// 結果返却用の oneshot 送信端。
         respond: oneshot::Sender<Result<AvailabilityInfo>>,
     },
+    /// 埋め込み生成要求（FR-V04-001）。
+    Embed {
+        /// 埋め込み入力（テキスト群とプレフィックス）。
+        input: EmbeddingInput,
+        /// 結果返却用の oneshot 送信端。
+        respond: oneshot::Sender<Result<EmbeddingOutput>>,
+    },
 }
 
 /// 期待する応答の種別（送信順に1対1対応する応答の検証に用いる）。
@@ -192,6 +254,8 @@ enum ExpectedResponse {
     Result,
     /// availability 要求 → `availability`（または `error`）を期待。
     Availability,
+    /// embed 要求 → `embedding`（または `error`）を期待。
+    Embedding,
 }
 
 /// sidecar プロセスを表すハンドル抽象。
@@ -379,6 +443,62 @@ impl FoundationModelsBackend {
         recv.await
             .map_err(|_| anyhow!("AI manager dropped the availability response"))?
     }
+
+    /// テキスト群を埋め込みベクトルへ変換する（FR-V04-001）。
+    ///
+    /// analyze と同じ管理タスク・同じ sidecar プロセスを経由し、embed 要求を送って `embedding`
+    /// 応答を受け取る。一時停止中（連続失敗超過）は即エラーを返す。埋め込み非対応環境
+    /// （Intel・モデル未同梱等）では sidecar が `error` を返すため、ここでも `Err` になり、
+    /// 呼び出し側は検索機能のみ degrade する（NFR-V04-005）。
+    ///
+    /// # 引数
+    /// * `input` - 埋め込み対象テキスト群とプレフィックス指定（テキストは切り詰め済み）。
+    ///
+    /// # 戻り値
+    /// 入力と同順・同数の埋め込みベクトル群 [`EmbeddingOutput`]、または失敗・一時停止時のエラー。
+    async fn embed_internal(&self, input: EmbeddingInput) -> Result<EmbeddingOutput> {
+        if self.state() == SidecarState::Suspended {
+            return Err(anyhow!(
+                "AI backend is suspended after {MAX_CONSECUTIVE_FAILURES} consecutive failures"
+            ));
+        }
+        let (respond, recv) = oneshot::channel();
+        self.tx
+            .send(ManagerCommand::Embed { input, respond })
+            .await
+            .map_err(|_| anyhow!("AI manager task is not running"))?;
+        recv.await
+            .map_err(|_| anyhow!("AI manager dropped the embedding response"))?
+    }
+}
+
+impl EmbeddingBackend for FoundationModelsBackend {
+    /// テキスト群を sidecar 経由で埋め込みベクトルへ変換する（FR-V04-001）。
+    ///
+    /// analyze と同一 sidecar・同一管理タスクを共用するため、埋め込みと要約が同時に走ることはなく
+    /// （直列化）、応答突合も維持される。詳細は [`FoundationModelsBackend::embed_internal`]。
+    ///
+    /// # 引数
+    /// * `input` - 埋め込み対象テキスト群とプレフィックス指定。
+    ///
+    /// # 戻り値
+    /// 入力と同順・同数の埋め込みベクトル群、または失敗・一時停止時のエラー。
+    async fn embed(&self, input: EmbeddingInput) -> Result<EmbeddingOutput> {
+        self.embed_internal(input).await
+    }
+
+    /// 埋め込みベクトルの次元数（[`EMBEDDING_DIM`] = 512）を返す。
+    fn dim(&self) -> usize {
+        EMBEDDING_DIM
+    }
+
+    /// 埋め込みモデルの識別名を返す。
+    ///
+    /// `issue_embeddings.model` への記録（再埋め込みポリシー判定）に用いる。バックエンドの
+    /// 識別名（[`BACKEND_NAME`]）ではなく、**モデル名**を返す点に注意（モデル更新検知のため）。
+    fn model_name(&self) -> &str {
+        EMBEDDING_MODEL_NAME
+    }
 }
 
 impl LlmInference for FoundationModelsBackend {
@@ -522,6 +642,21 @@ async fn dispatch_command(child: &mut dyn SidecarProcessDyn, cmd: ManagerCommand
                 }
             }
         }
+        ManagerCommand::Embed { input, respond } => {
+            // 期待件数を控えてから move する（応答の件数検証に用いる）。
+            let expected_count = input.texts.len();
+            let request = SidecarRequest::embed(input);
+            match exchange(child, &request, ExpectedResponse::Embedding).await {
+                Ok(response) => {
+                    let _ = respond.send(parse_embedding(response, expected_count));
+                    Ok(())
+                }
+                Err(e) => {
+                    let _ = respond.send(Err(anyhow!("{e}")));
+                    Err(e)
+                }
+            }
+        }
     }
 }
 
@@ -547,6 +682,9 @@ fn parse_result(response: SidecarResponse) -> Result<AiAnalysisOutput> {
         SidecarResponse::Availability { .. } => Err(anyhow!(
             "unexpected 'availability' response for analyze request"
         )),
+        SidecarResponse::Embedding { .. } => Err(anyhow!(
+            "unexpected 'embedding' response for analyze request"
+        )),
     }
 }
 
@@ -565,6 +703,48 @@ fn parse_availability(response: SidecarResponse) -> Result<AvailabilityInfo> {
         SidecarResponse::Error { message } => Err(anyhow!("sidecar error: {message}")),
         SidecarResponse::Result { .. } => Err(anyhow!(
             "unexpected 'result' response for availability request"
+        )),
+        SidecarResponse::Embedding { .. } => Err(anyhow!(
+            "unexpected 'embedding' response for availability request"
+        )),
+    }
+}
+
+/// `embedding` 応答（または `error`・型不一致）を [`EmbeddingOutput`] へ変換する。
+///
+/// sidecar は要求の `texts` と**同順・同数**のベクトルを返す契約のため、件数と各ベクトルの次元
+/// （[`EMBEDDING_DIM`]）を検証してから受け入れる。検証に外れた応答は、後続の BLOB 保存・コサイン
+/// 類似度計算が前提を崩さないよう `Err` にする（NFR-V04-005 で検索のみ degrade）。
+///
+/// # 引数
+/// * `response` - 受信済みの応答。
+/// * `expected_count` - 要求した `texts` の件数（応答件数の検証に用いる）。
+///
+/// # 戻り値
+/// 検証済みの埋め込みベクトル群、または sidecar エラー・型不一致・件数/次元不一致時のエラー。
+fn parse_embedding(response: SidecarResponse, expected_count: usize) -> Result<EmbeddingOutput> {
+    match response {
+        SidecarResponse::Embedding { vectors } => {
+            if vectors.len() != expected_count {
+                return Err(anyhow!(
+                    "embedding count mismatch: expected {expected_count}, got {}",
+                    vectors.len()
+                ));
+            }
+            if let Some(bad) = vectors.iter().find(|v| v.len() != EMBEDDING_DIM) {
+                return Err(anyhow!(
+                    "embedding dimension mismatch: expected {EMBEDDING_DIM}, got {}",
+                    bad.len()
+                ));
+            }
+            Ok(EmbeddingOutput { vectors })
+        }
+        SidecarResponse::Error { message } => Err(anyhow!("sidecar error: {message}")),
+        SidecarResponse::Result { .. } => {
+            Err(anyhow!("unexpected 'result' response for embed request"))
+        }
+        SidecarResponse::Availability { .. } => Err(anyhow!(
+            "unexpected 'availability' response for embed request"
         )),
     }
 }
@@ -602,6 +782,9 @@ fn fail_command(cmd: ManagerCommand, err: anyhow::Error) {
             let _ = respond.send(Err(err));
         }
         ManagerCommand::Availability { respond } => {
+            let _ = respond.send(Err(err));
+        }
+        ManagerCommand::Embed { respond, .. } => {
             let _ = respond.send(Err(err));
         }
     }
@@ -828,6 +1011,24 @@ mod tests {
         }
     }
 
+    /// 1 テキストの埋め込み入力（passage プレフィックス）を作る。
+    fn sample_embed_input() -> EmbeddingInput {
+        EmbeddingInput {
+            texts: vec!["hello".into()],
+            prefix: EmbedPrefix::Passage,
+        }
+    }
+
+    /// `EMBEDDING_DIM` 次元のダミーベクトルを `count` 本含む embedding 応答行を作る。
+    fn embedding_reply(count: usize) -> String {
+        let vectors: Vec<Vec<f32>> = (0..count).map(|_| vec![0.0_f32; EMBEDDING_DIM]).collect();
+        serde_json::to_string(&serde_json::json!({
+            "type": "embedding",
+            "vectors": vectors,
+        }))
+        .expect("serialize embedding reply")
+    }
+
     #[tokio::test]
     async fn infer_returns_structured_output() {
         let backend = backend_with(
@@ -942,5 +1143,155 @@ mod tests {
             reason: "available".into(),
         };
         assert!(parse_result(resp).is_err());
+    }
+
+    #[tokio::test]
+    async fn embed_returns_vectors() {
+        // embed 要求 → embedding 応答（512 次元 × 1 本）を受け取り、同順・同数で返ること。
+        let backend = backend_with(
+            vec![MockBehavior::Reply(embedding_reply(1))],
+            Arc::new(AtomicU32::new(0)),
+        );
+
+        let out = backend.embed(sample_embed_input()).await.expect("embed ok");
+        assert_eq!(out.vectors.len(), 1);
+        assert_eq!(out.vectors[0].len(), EMBEDDING_DIM);
+        assert_eq!(backend.state(), SidecarState::Running);
+    }
+
+    #[tokio::test]
+    async fn embed_request_serializes_to_sidecar_contract() {
+        // Rust → sidecar の embed 行が Swift 側契約（type/texts/prefix・prefix は小文字）と一致するか。
+        let req = SidecarRequest::embed(EmbeddingInput {
+            texts: vec!["a".into(), "b".into()],
+            prefix: EmbedPrefix::Query,
+        });
+        let json = serde_json::to_string(&req).expect("serialize");
+        assert!(json.contains(r#""type":"embed""#));
+        assert!(json.contains(r#""texts":["a","b"]"#));
+        // EmbedPrefix は lowercase serde のため "query" / "passage" になる（sidecar の rawValue と一致）。
+        assert!(json.contains(r#""prefix":"query""#));
+    }
+
+    #[tokio::test]
+    async fn embed_rejects_dimension_mismatch() {
+        // 次元が EMBEDDING_DIM と異なる応答は Err（BLOB 保存・類似度計算の前提を守る）。
+        // 通信自体は成立しているため再起動はしない（spawn は1回）。
+        let spawns = Arc::new(AtomicU32::new(0));
+        let backend = backend_with(
+            vec![MockBehavior::Reply(
+                r#"{"type":"embedding","vectors":[[0.1,0.2,0.3]]}"#.into(),
+            )],
+            Arc::clone(&spawns),
+        );
+
+        assert!(backend.embed(sample_embed_input()).await.is_err());
+        assert_eq!(spawns.load(Ordering::SeqCst), 1);
+        assert_eq!(backend.state(), SidecarState::Running);
+    }
+
+    #[tokio::test]
+    async fn embed_rejects_count_mismatch() {
+        // 要求 1 件に対し 2 本のベクトルが返ったら件数不一致で Err。
+        let backend = backend_with(
+            vec![MockBehavior::Reply(embedding_reply(2))],
+            Arc::new(AtomicU32::new(0)),
+        );
+        assert!(backend.embed(sample_embed_input()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn embed_error_response_is_propagated_without_restart() {
+        // sidecar が error（モデル未同梱等）を返した場合: 要求は失敗するが接続は健全 → 再起動しない。
+        let spawns = Arc::new(AtomicU32::new(0));
+        let backend = backend_with(
+            vec![
+                MockBehavior::Reply(
+                    r#"{"type":"error","message":"embedding model not bundled"}"#.into(),
+                ),
+                MockBehavior::Reply(embedding_reply(1)),
+            ],
+            Arc::clone(&spawns),
+        );
+
+        assert!(backend.embed(sample_embed_input()).await.is_err());
+        let out = backend
+            .embed(sample_embed_input())
+            .await
+            .expect("second ok");
+        assert_eq!(out.vectors.len(), 1);
+        // error 応答は通信成立とみなすため再起動しない（spawn は1回のみ）。
+        assert_eq!(spawns.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn embed_restarts_after_termination() {
+        // 1回目: 終了（応答なし）→ 失敗。2回目: 正常応答 → 成功。spawn は2回起きる。
+        let spawns = Arc::new(AtomicU32::new(0));
+        let backend = backend_with(
+            vec![
+                MockBehavior::Terminate,
+                MockBehavior::Reply(embedding_reply(1)),
+            ],
+            Arc::clone(&spawns),
+        );
+
+        assert!(backend.embed(sample_embed_input()).await.is_err());
+        let out = backend
+            .embed(sample_embed_input())
+            .await
+            .expect("second ok");
+        assert_eq!(out.vectors.len(), 1);
+        assert_eq!(spawns.load(Ordering::SeqCst), 2, "sidecar should restart");
+    }
+
+    #[tokio::test]
+    async fn embed_suspends_after_consecutive_failures() {
+        // embed をすべて終了させて連続失敗を積み上げる。閾値超過で Suspended になり以降は即エラー。
+        let script: Vec<MockBehavior> = (0..(MAX_CONSECUTIVE_FAILURES + 1))
+            .map(|_| MockBehavior::Terminate)
+            .collect();
+        let backend = backend_with(script, Arc::new(AtomicU32::new(0)));
+
+        for _ in 0..(MAX_CONSECUTIVE_FAILURES + 1) {
+            let _ = backend.embed(sample_embed_input()).await;
+        }
+        assert_eq!(backend.state(), SidecarState::Suspended);
+
+        // 一時停止中は即エラー、resume で復帰。
+        assert!(backend.embed(sample_embed_input()).await.is_err());
+        backend.resume();
+        assert_eq!(backend.state(), SidecarState::Running);
+    }
+
+    #[tokio::test]
+    async fn analyze_and_embed_share_one_sidecar() {
+        // analyze と embed が同一 sidecar プロセスを共用すること（spawn は1回のみ）。
+        let spawns = Arc::new(AtomicU32::new(0));
+        let backend = backend_with(
+            vec![
+                MockBehavior::Reply(
+                    r#"{"type":"result","summary":"s","risk_level":"low","suggestion":"y"}"#.into(),
+                ),
+                MockBehavior::Reply(embedding_reply(1)),
+            ],
+            Arc::clone(&spawns),
+        );
+
+        backend.infer(sample_input()).await.expect("infer ok");
+        backend.embed(sample_embed_input()).await.expect("embed ok");
+        assert_eq!(
+            spawns.load(Ordering::SeqCst),
+            1,
+            "analyze and embed reuse one sidecar"
+        );
+    }
+
+    #[test]
+    fn embed_backend_reports_dim_and_model_name() {
+        // EmbeddingBackend の dim / model_name が DB 保存の前提（512 / モデル名）と一致すること。
+        let backend = backend_with(vec![], Arc::new(AtomicU32::new(0)));
+        assert_eq!(EmbeddingBackend::dim(&backend), EMBEDDING_DIM);
+        assert_eq!(EmbeddingBackend::model_name(&backend), EMBEDDING_MODEL_NAME);
     }
 }

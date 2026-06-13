@@ -20,6 +20,9 @@
 #![allow(dead_code)]
 
 pub mod availability;
+pub mod cosine;
+pub mod embed_worker;
+pub mod embedding;
 pub mod foundation_models;
 pub mod worker;
 
@@ -72,15 +75,97 @@ pub struct AiAnalysisInput {
 ///
 /// FR-V03-005 の構造化出力に対応する。シリアライズ時は小文字（`high` / `medium` / `low`）になり、
 /// `ai_results.risk_level` カラムおよびフロントエンドのバッジ色分けと一致する。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// # 順序（FR-V04-006）
+/// `final_risk = max(llm_risk, schedule_risk)` を取れるよう `Ord` を導出する。
+/// バリアントの宣言順がそのまま順序になる（`Low < Medium < High`）ため、
+/// 危険度が高いほど大きい値になるよう **Low → Medium → High の順**で宣言する。
+/// この順序は `max` 演算の意味（より高いリスクを採用する）と一致する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskLevel {
-    /// 高リスク。
-    High,
-    /// 中リスク。
-    Medium,
     /// 低リスク。
     Low,
+    /// 中リスク。
+    Medium,
+    /// 高リスク。
+    High,
+}
+
+impl RiskLevel {
+    /// `ai_results.risk_level` へ保存する小文字文字列へ変換する。
+    ///
+    /// フロントのバッジ色分け（`high` / `medium` / `low`）および serde 表現
+    /// （`rename_all = "lowercase"`）と一致する文字列を、JSON を経由せずに得る。
+    ///
+    /// # 戻り値
+    /// `"high"` / `"medium"` / `"low"` のいずれか。
+    pub fn as_storage_str(self) -> &'static str {
+        match self {
+            RiskLevel::High => "high",
+            RiskLevel::Medium => "medium",
+            RiskLevel::Low => "low",
+        }
+    }
+
+    /// `ai_results.risk_level` の保存文字列から復元する。
+    ///
+    /// 既保存結果の再計算（FR-V04-006 の [`crate::db::DbClient::recompute_schedule_risk`]）で、
+    /// 保存済み LLM リスクを `RiskLevel` に戻して `schedule_risk` と `max` を取るために用いる。
+    /// 大文字小文字は無視する。`high` / `medium` / `low` 以外は `None`。
+    ///
+    /// # 引数
+    /// * `s` - 保存文字列（`"high"` / `"medium"` / `"low"`）。
+    ///
+    /// # 戻り値
+    /// 対応する [`RiskLevel`]、未知の値なら `None`。
+    pub fn from_storage_str(s: &str) -> Option<RiskLevel> {
+        match s.to_ascii_lowercase().as_str() {
+            "high" => Some(RiskLevel::High),
+            "medium" => Some(RiskLevel::Medium),
+            "low" => Some(RiskLevel::Low),
+            _ => None,
+        }
+    }
+}
+
+/// 遅延日数からスケジュール由来のリスクレベルを決定的に算出する（FR-V04-006）。
+///
+/// 期限超過・期限間近の度合いだけで決まる**決定的**なリスク評価で、LLM の不確実な出力に依存しない。
+/// 課題本文の内容リスク（LLM 由来）とは独立に算出し、最終リスクは
+/// `final_risk = max(llm_risk, schedule_risk(delay_days))` で合成する（ワーカー / 再計算で共用）。
+///
+/// # しきい値
+/// `delay_days` は SQL 算出値（[`crate::db::DbClient::get_issue_delay_days`]）で、
+/// **正=期限超過・0=当日・負=期限までの猶予日数**を表す。
+///
+/// | 条件                         | 返り値   | 意味                                   |
+/// | ---------------------------- | -------- | -------------------------------------- |
+/// | `delay_days > 14`            | `High`   | 14日超の超過は高リスク                 |
+/// | `1 ..= 14`                   | `Medium` | 1〜14日の超過は中リスク以上            |
+/// | `-3 ..= 0`（期限間近・当日） | `Medium` | 期限まで数日（3日以内）は中リスク      |
+/// | それ以外（猶予が十分・期限なし） | `Low`    | 内容リスク据え置き（合成で影響なし）   |
+///
+/// `Low` は「スケジュール由来では昇格させない」ことを表す。`max` を取ると LLM リスクがそのまま残るため、
+/// 内容リスクを据え置く（影響なし）という要件を満たす。
+///
+/// # 引数
+/// * `delay_days` - SQL 算出の遅延日数（期限未設定・算出不能なら `None`）。
+///
+/// # 戻り値
+/// スケジュール由来のリスクレベル。
+pub fn schedule_risk(delay_days: Option<i64>) -> RiskLevel {
+    match delay_days {
+        // 14日超の超過 → 高リスク。
+        Some(d) if d > 14 => RiskLevel::High,
+        // 1〜14日の超過 → 中リスク以上。
+        Some(d) if d >= 1 => RiskLevel::Medium,
+        // 当日〜期限まで数日以内（猶予 3 日以内）→ 中リスク。
+        // delay_days は猶予を負で表すため、-3 ..= 0 が「3日以内に期限」を意味する。
+        Some(d) if d >= -3 => RiskLevel::Medium,
+        // 十分な猶予がある / 期限なし → スケジュール由来では昇格しない（内容リスク据え置き）。
+        _ => RiskLevel::Low,
+    }
 }
 
 /// AI分析の出力。
@@ -161,5 +246,74 @@ pub fn create_backend<R: tauri::Runtime>(
             // v0.3 の標準バックエンド。sidecar の実起動は最初の推論要求まで遅延する（アイドル時非消費）。
             Ok(foundation_models::FoundationModelsBackend::new(app))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn schedule_risk_thresholds() {
+        // 14日超 → High（要件の代表値 469 日も含む）。
+        assert_eq!(schedule_risk(Some(469)), RiskLevel::High);
+        assert_eq!(schedule_risk(Some(15)), RiskLevel::High);
+        // 境界: ちょうど14日は High ではなく Medium（「14日超=High」）。
+        assert_eq!(schedule_risk(Some(14)), RiskLevel::Medium);
+        assert_eq!(schedule_risk(Some(13)), RiskLevel::Medium);
+        // 1日超過 → Medium。
+        assert_eq!(schedule_risk(Some(1)), RiskLevel::Medium);
+        // 当日（0日）→ 期限間近として Medium。
+        assert_eq!(schedule_risk(Some(0)), RiskLevel::Medium);
+        // 期限まで数日（3日以内）→ Medium。
+        assert_eq!(schedule_risk(Some(-3)), RiskLevel::Medium);
+        // 4日以上の猶予 → Low（スケジュール由来では昇格しない）。
+        assert_eq!(schedule_risk(Some(-4)), RiskLevel::Low);
+        assert_eq!(schedule_risk(Some(-5)), RiskLevel::Low);
+        // 期限未設定・算出不能 → Low。
+        assert_eq!(schedule_risk(None), RiskLevel::Low);
+    }
+
+    #[test]
+    fn final_risk_is_max_of_llm_and_schedule() {
+        // Ord は Low < Medium < High。max でより高いリスクが採用される。
+        // LLM=Low・スケジュール=High（大幅超過）→ High に昇格。
+        assert_eq!(
+            RiskLevel::Low.max(schedule_risk(Some(469))),
+            RiskLevel::High
+        );
+        // LLM=High・スケジュール=Low（十分な猶予）→ High を据え置き（スケジュールで下げない）。
+        assert_eq!(
+            RiskLevel::High.max(schedule_risk(Some(-30))),
+            RiskLevel::High
+        );
+        // LLM=Low・スケジュール=Medium（期限間近）→ Medium に昇格。
+        assert_eq!(
+            RiskLevel::Low.max(schedule_risk(Some(0))),
+            RiskLevel::Medium
+        );
+        // LLM=Medium・スケジュール=Low → Medium 据え置き。
+        assert_eq!(
+            RiskLevel::Medium.max(schedule_risk(None)),
+            RiskLevel::Medium
+        );
+    }
+
+    #[test]
+    fn risk_level_storage_str_roundtrip() {
+        for lvl in [RiskLevel::High, RiskLevel::Medium, RiskLevel::Low] {
+            let s = lvl.as_storage_str();
+            assert_eq!(RiskLevel::from_storage_str(s), Some(lvl));
+        }
+        // 大文字・未知の値の扱い。
+        assert_eq!(RiskLevel::from_storage_str("HIGH"), Some(RiskLevel::High));
+        assert_eq!(RiskLevel::from_storage_str("unknown"), None);
+    }
+
+    #[test]
+    fn risk_level_ord_is_low_medium_high() {
+        assert!(RiskLevel::Low < RiskLevel::Medium);
+        assert!(RiskLevel::Medium < RiskLevel::High);
+        assert!(RiskLevel::Low < RiskLevel::High);
     }
 }
