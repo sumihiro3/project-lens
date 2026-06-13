@@ -11,8 +11,16 @@
 - On-device AI analysis powered by Apple Intelligence (FoundationModels — requires macOS 26+)
 - Automatically generates a one-line summary, risk level (High/Medium/Low), and action suggestions for each issue
 - Calculates delay days and displays a delay-risk section on the dashboard
+- Schedule risk is automatically recalculated on startup (combines LLM result and schedule-based risk without re-running the LLM)
 - AI ON/OFF toggle and availability status in Settings
 - Manual re-analysis per issue via the issue detail dialog
+
+### 🔍 Similar Issue Search
+
+- "Find Similar" button on issue cards and the issue detail dialog
+- Searches for semantically similar issues across all workspaces using on-device embeddings (Apple NaturalLanguage framework, 512-dim)
+- Displays a ranked list of similar issues and an AI-generated summary of past solutions
+- Gracefully degrades with a reason message when AI is unavailable or embeddings are not yet built
 
 ### 📊 Smart Scoring
 
@@ -128,6 +136,21 @@ pnpm run tauri:build
 - The dashboard shows a "Delay Risk" section listing issues with AI-detected risks, sorted by risk level
 - A banner on the dashboard prompts you to enable AI if Apple Intelligence is available but AI is turned off
 
+### Similar Issue Search
+
+- Click "Find Similar" on any issue card or inside the issue detail dialog
+- A dialog shows the top similar issues ranked by semantic similarity
+- Below the results, an AI-generated summary of past solutions from those issues is displayed
+- If AI is unavailable or embeddings have not been built yet, a degraded reason is shown instead
+
+### AI Settings — Corpus Configuration
+
+- In the AI Settings section, configure how many months of closed issues to import as a corpus
+- A progress bar shows how many issues have had embeddings built out of the total corpus
+- The corpus and embeddings are updated automatically during background sync
+
+> **Note:** The embedding model file (`.mlmodelc`) is not bundled in the repository. Place it manually under `src-tauri/sidecar/Sources/projectlens-ai-sidecar/Resources/` before building. Without the model, similar search degrades gracefully; all other features remain unaffected.
+
 ### Notifications
 
 - Notifications appear when new high-priority issues (score 80+) are detected
@@ -149,6 +172,9 @@ ProjectLens/
 │   │   ├── ai/             # AI Inference Module
 │   │   │   ├── mod.rs      # LlmInference trait / types
 │   │   │   ├── availability.rs  # Apple Intelligence availability check
+│   │   │   ├── cosine.rs   # Cosine similarity calculation
+│   │   │   ├── embed_worker.rs  # Background embedding worker
+│   │   │   ├── embedding.rs     # Embedding abstraction (EmbeddingBackend trait)
 │   │   │   ├── foundation_models.rs  # FoundationModels sidecar client
 │   │   │   └── worker.rs   # Background AI job worker
 │   │   ├── backlog.rs      # Backlog API Client

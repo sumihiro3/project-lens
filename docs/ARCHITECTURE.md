@@ -23,11 +23,14 @@ ProjectLens/
 │   └── app.vue                   # ルートコンポーネント
 ├── src-tauri/                    # バックエンド（Rust）
 │   ├── src/
-│   │   ├── ai/                   # AI 推論基盤（v0.3）
-│   │   │   ├── mod.rs            # LlmInference トレイト・型定義・バックエンドレジストリ
+│   │   ├── ai/                   # AI 推論・埋め込み基盤（v0.3 推論 / v0.4 埋め込み拡張）
+│   │   │   ├── mod.rs            # LlmInference トレイト・型定義・バックエンドレジストリ・schedule_risk
 │   │   │   ├── availability.rs   # 可用性チェック（macOS バージョン + sidecar 2段判定）
-│   │   │   ├── foundation_models.rs  # Swift sidecar との JSON Lines 通信バックエンド
-│   │   │   └── worker.rs         # バックグラウンド AI ワーカー（job_queue 消費）
+│   │   │   ├── foundation_models.rs  # Swift sidecar との JSON Lines 通信バックエンド（analyze + embed 共用）
+│   │   │   ├── worker.rs         # バックグラウンド AI 推論ワーカー（summarize ジョブ消費）
+│   │   │   ├── embedding.rs      # 埋め込み抽象基盤（EmbeddingBackend トレイト・EmbedPrefix・レジストリ入口）（v0.4）
+│   │   │   ├── embed_worker.rs   # バックグラウンド埋め込みワーカー（embed ジョブ消費・source_hash 再埋め込み管理）（v0.4）
+│   │   │   └── cosine.rs         # コサイン類似度計算（純粋関数・総当たり類似検索用）（v0.4）
 │   │   ├── commands.rs           # Tauri コマンド
 │   │   ├── log_commands.rs       # ログ管理コマンド
 │   │   ├── db.rs                 # データベース操作
@@ -210,7 +213,10 @@ const emit = defineEmits<{
 - **ai/mod.rs**: AI 推論の抽象基盤（トレイト・型・バックエンドレジストリ）のみ
 - **ai/availability.rs**: AI 可用性チェックのみ
 - **ai/foundation_models.rs**: FoundationModels バックエンド（Swift sidecar 通信）のみ
-- **ai/worker.rs**: バックグラウンドAIジョブ処理のみ
+- **ai/worker.rs**: バックグラウンドAI推論ジョブ（summarize）処理のみ
+- **ai/embedding.rs**: 埋め込み生成の抽象基盤（`EmbeddingBackend` トレイト・入出力型・`EmbedPrefix`・レジストリ入口）のみ（v0.4）
+- **ai/embed_worker.rs**: バックグラウンド埋め込みジョブ（embed）処理のみ（v0.4）
+- **ai/cosine.rs**: コサイン類似度計算（純粋関数。外部依存なし）のみ（v0.4）
 
 ### 2. 文字列フォーマット規約
 
@@ -274,3 +280,4 @@ pub fn calculate_score(issue: &Issue, me: &User) -> i32 {
 - 2026-06-12: 役割ヘッダー追加、プロジェクト構成を現行コードに同期（log_commands.rs / rate_limit.rs / dashboard コンポーネント / docs/releases を反映）
 - 2026-06-12: v0.2 対応（開発環境テーブル追加、pnpm / eslint.config.cjs / .claude/ をプロジェクト構成に反映、Rust format! 補間規約を追加）
 - 2026-06-13: v0.3 対応（プロジェクト構成に ai/ モジュール・sidecar/ を追加、バックエンドモジュール構成に ai/mod.rs〜ai/worker.rs を追加）
+- 2026-06-13: v0.4 対応（プロジェクト構成に ai/embedding.rs・ai/embed_worker.rs・ai/cosine.rs を追加、バックエンドモジュール一覧に同3ファイルの単一責任記述を追加）

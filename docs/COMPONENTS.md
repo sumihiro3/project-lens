@@ -26,9 +26,10 @@
   - `dashboard/RecentUpdates`
   - `dashboard/DelayRiskSection`（v0.3 追加）
   - `IssueDetailDialog`（v0.3 追加）
+  - `IssueSimilarDialog`（v0.4 追加。ページに1回だけマウントし類似検索ダイアログを提供）
 - **使用Composables**:
   - `useDashboard`（v0.3 追加。ロジック全量を分離）
-- **ステータス**: ✅ 実装済み（v0.3 で DelayRiskSection・IssueDetailDialog 統合・AI バナー・useDashboard 分離を追加）
+- **ステータス**: ✅ 実装済み（v0.4 で IssueSimilarDialog をマウント。v0.3 で DelayRiskSection・IssueDetailDialog 統合・AI バナー・useDashboard 分離を追加）
 
 ### `pages/issues.vue`
 
@@ -42,10 +43,11 @@
   - `FilterSummaryBar`
   - `IssueFilterPanel`
   - `IssueList`
+  - `IssueSimilarDialog`（v0.4 追加。ページに1回だけマウントし類似検索ダイアログを提供）
 - **使用Composables**:
   - `useIssues`
   - `useIssueFilters`
-- **ステータス**: ✅ 実装済み
+- **ステータス**: ✅ 実装済み（v0.4 で IssueSimilarDialog をマウント）
 
 ### `pages/settings.vue`
 
@@ -65,7 +67,7 @@
 
 ### `components/AiSettingsCard.vue`（v0.3 新設・settings.vue から分離）
 
-- **役割**: 設定画面の AI 機能セクション（FR-V03-003 / FR-V03-004）
+- **役割**: 設定画面の AI 機能セクション（FR-V03-003 / FR-V03-004 / FR-V04-003）
 - **Emits**:
   - `error: [message: string]` — AI 操作失敗時に親へメッセージを通知
 - **主な機能**:
@@ -74,9 +76,14 @@
   - `appleIntelligenceDisabled` 時に Apple Intelligence 設定画面への導線ボタン（`@tauri-apps/plugin-shell` の `open` で URL スキームを開く）
   - `otherBackendAvailable` が true のとき代替バックエンド案内を表示
   - キュー処理状況（`ai.settings.queueTitle` 見出し + pending 件数・processing 件数・空状態）の表示
-  - `onMounted` で `loadEnabled` / `loadAvailability` / `loadQueueStatus` を並行ロード（可用性は取得済みならスキップ）
-- **使用 Composables**: `useAiSettings`（AI 設定・可用性・キュー状況管理）
-- **ステータス**: ✅ 実装済み（v0.3）
+  - **コーパス設定セクション**（v0.4 追加）:
+    - 過去完了課題の取り込み期間スライダー（1〜24ヶ月、既定 6。`corpus_months` キーで `save_settings`/`get_settings` に保存・取得）
+    - コーパス取り込み件数表示（全ワークスペース合算）
+    - 埋め込み構築進捗表示（構築済み / 対象件数 + プログレスバー）
+    - 期間変更後は次回 sync でコーパス再取り込みが走る旨をヒント表示
+  - `onMounted` で `loadEnabled` / `loadAvailability` / `loadQueueStatus` / `loadCorpusMonths` / `loadCorpusCount` / `loadEmbeddingStatus` を並行ロード（可用性は取得済みならスキップ）
+- **使用 Composables**: `useAiSettings`（AI 設定・可用性・キュー状況・コーパス設定管理）
+- **ステータス**: ✅ 実装済み（v0.4 でコーパス設定セクションを追加）
 
 ## UIコンポーネント
 
@@ -133,6 +140,7 @@
   - プロジェクトキーバッジ
   - 課題キー・タイトル（クリックでブラウザで開く）
   - 関連度スコアバッジ
+  - 「類似を探す」ボタン（`mdi-magnify-scan`。`@click.stop` で `useSimilarSearch().openSimilar(issue)` を呼び類似ダイアログを開く。v0.4 追加）
   - 「ブラウザで開く」ボタン
   - メタデータチップ表示:
     - 種別（バグ、タスク、要望など）
@@ -147,6 +155,7 @@
   - ホバーエフェクト
   - 動的テキスト色調整（コントラスト確保）
 - **子コンポーネント**: `IssueAiSummaryRow`（AI 要約行）
+- **使用 Composables**: `useSimilarSearch`（v0.4 追加。「類似を探す」ボタン用）
 - **使用ユーティリティ**: `getChipTextColor`, `formatRelativeTime`（`utils/issueHelpers`）
 
 ### `components/IssueAiSummaryRow.vue`（v0.3 新設・IssueCard から分離）
@@ -231,9 +240,10 @@
   - メタデータチップ（種別・優先度・ステータス・担当者・期限）
   - AI 分析結果セクションは `IssueAiAnalysis` 子コンポーネントへ分離（v0.3 レビュー後に抽出）
   - 「再分析」ボタン（`useAiSettings.reanalyze` でキュー投入）
+  - 「類似を探す」ボタン（`mdi-magnify-scan`。詳細ダイアログを閉じてから `useSimilarSearch().openSimilar(issue)` を呼び、ダイアログが重ならないようにする。v0.4 追加）
   - 「ブラウザで開く」ボタン（`get_workspace_by_id` → URL 構築 → `open`）
 - **子コンポーネント**: `IssueAiAnalysis`（AI 分析結果セクション）
-- **使用 Composables**: `useAiSettings`
+- **使用 Composables**: `useAiSettings`, `useSimilarSearch`
 - **使用ユーティリティ**: `getPriorityColor`, `getStatusColor`, `getDueDateColor`, `formatDate`, `getProjectColor`, `extractProjectKey`, `getChipTextColor`（`utils/issueHelpers`）
 - **ステータス**: ✅ 実装済み（v0.3）
 
@@ -251,6 +261,41 @@
   - AI 結果なし時のフォールバック表示（`ai.issueDetail.noResult`）
 - **使用ユーティリティ**: `getRiskColor`, `getChipTextColor`（`utils/issueHelpers`。色定義は `getRiskColor` に一元化）
 - **ステータス**: ✅ 実装済み（v0.3）
+
+### `components/IssueSimilarResults.vue`（v0.4 新設・FR-V04-005）
+
+- **役割**: 類似検索結果パネル。横断類似上位 N 件の一覧と FoundationModels 解決策要約を表示するプレゼンテーション専用コンポーネント（状態は持たず props 受け取り）。`v-dialog` でラップして利用する（`IssueSimilarDialog` が担当）
+- **Props**:
+  - `queryIssue: Issue | null` — 検索の起点課題（見出し表示用）
+  - `results: SimilarIssue[]` — 類似検索結果（類似度降順）
+  - `loading: boolean` — 検索実行中フラグ
+  - `summary: string | null` — 解決策要約テキスト
+  - `summaryLoading: boolean` — 要約生成中フラグ
+  - `degradedReason: SimilarDegradedReason | null` — degrade 理由（`similar.degraded.*` i18n で文言化）
+- **Emits**:
+  - `close: []` — パネルを閉じる
+  - `open-in-browser: [item: SimilarIssue]` — 候補課題をブラウザで開く
+- **主な機能**:
+  - 類似上位 N 件の一覧（プロジェクトキーチップ・課題キー・サマリ・ステータス・担当者・類似度チップ・完了バッジ）。各行クリックで `open-in-browser`
+  - 完了（コーパス専用 `isCorpusOnly`）課題に「完了」バッジ（`mdi-check-circle-outline`）
+  - FoundationModels 解決策要約セクション（`mdi-creation` + `ai.settings.generated` 生成ラベル + `ai-text-box` スタイルを IssueAiAnalysis から踏襲。出力は UI 言語）
+  - degrade 理由の提示（埋め込み未構築＝「構築待ち」/ AI 非対応 / 検索失敗）。NFR-V04-005
+  - 検索中・要約中スピナー、結果なし・要約なしのフォールバック
+- **使用ユーティリティ**: `getProjectColor`, `getStatusColor`, `getChipTextColor`（`utils/issueHelpers`）
+- **ステータス**: ✅ 実装済み（v0.4）
+
+### `components/IssueSimilarDialog.vue`（v0.4 新設・FR-V04-005）
+
+- **役割**: 類似検索ダイアログのラッパー。`useSimilarSearch` のグローバルステートを参照し `IssueSimilarResults` を `v-dialog` でラップする。ページレベル（`index.vue` / `issues.vue`）に1回だけマウントする
+- **Props**: なし
+- **Emits**: なし
+- **主な機能**:
+  - `useSimilarSearch` の `dialogOpen` / `queryIssue` / `results` / `loading` / `summary` / `summaryLoading` / `degradedReason` を `IssueSimilarResults` へ束ねて渡す
+  - `IssueSimilarResults` の `close` / `open-in-browser` を `useSimilarSearch` の `close` / `openInBrowser` に結線
+  - `v-dialog` の閉操作（背景クリック等）を `close()` へ反映
+- **使用 Composables**: `useSimilarSearch`
+- **子コンポーネント**: `IssueSimilarResults`
+- **ステータス**: ✅ 実装済み（v0.4）
 
 ### `components/IssueList.vue`
 
@@ -286,35 +331,72 @@
   - 同期時刻の記録
   - イベントリスナー（refresh-issues）
 - **インターフェース**:
-  - `Issue`: 課題データ型定義（id, issueKey, summary, description, priority, status, issueType, assignee, dueDate, updated, relevance_score, workspace_id）。v0.3 で AI 結果フィールドを追加（`ai_summary?` / `ai_risk_level?`（`'high' | 'medium' | 'low'`） / `ai_suggestion?` / `ai_delay_days?` / `ai_processed_at?`。get_issues の `ai_results` LEFT JOIN から設定。未生成の課題はすべて `undefined`）
+  - `Issue`: 課題データ型定義（id, issueKey, summary, description, priority, status, issueType, assignee, dueDate, updated, relevance_score, workspace_id）。v0.3 で AI 結果フィールドを追加（`ai_summary?` / `ai_risk_level?`（`'high' | 'medium' | 'low'`） / `ai_suggestion?` / `ai_delay_days?` / `ai_processed_at?`。get_issues の `ai_results` LEFT JOIN から設定。未生成の課題はすべて `undefined`）。v0.4 で `embedding_ready?: boolean` を追加（埋め込みベクトル生成済みか。`false` のとき類似検索を「構築待ち」として degrade、`undefined` は未取得経路）
 - **ステータス**: ✅ 実装済み
 
 ### `composables/useAiSettings.ts`（v0.3 新設）
 
-- **役割**: AI 機能の有効化状態・可用性・ジョブキュー状況を管理する Composable（FR-V03-002 / FR-V03-003 / FR-V03-004）
+- **役割**: AI 機能の有効化状態・可用性・ジョブキュー状況・コーパス設定を管理する Composable（FR-V03-002 / FR-V03-003 / FR-V03-004 / FR-V04-003）
 - **Export**:
   - `aiEnabled`: AI 機能の有効化状態（Ref）
   - `availability`: 可用性情報（`AiAvailability | null`、Ref）
   - `queueStatus`: キュー状況 `[pending, processing]`（Ref）
   - `loadingAvailability`: 可用性取得中フラグ（Ref）
   - `loadingQueue`: キュー状況取得中フラグ（Ref）
+  - `corpusMonths`: コーパス取り込み期間（月数、Ref。既定 6）（v0.4 追加）
+  - `corpusCount`: 全ワークスペース合算コーパス件数（`number | null`、Ref）（v0.4 追加）
+  - `embeddingStatus`: 埋め込み構築進捗（`EmbeddingStatus | null`、Ref。`target`/`built` フィールド）（v0.4 追加）
+  - `loadingCorpus`: コーパス件数取得中フラグ（Ref）（v0.4 追加）
+  - `loadingEmbedding`: 埋め込み進捗取得中フラグ（Ref）（v0.4 追加）
   - `isAiReady`: AI 有効かつ利用可能（Computed）
   - `totalQueueCount`: pending + processing の合計（Computed）
+  - `embeddingProgressPercent`: 埋め込み構築進捗割合 0〜100（Computed。対象 0 件時は 100）（v0.4 追加）
   - `loadEnabled()`: DB から AI 有効化状態を読み込む
   - `loadAvailability()`: `get_ai_availability` コマンドで可用性を取得
   - `loadQueueStatus()`: `get_ai_queue_status` コマンドでキュー状況を取得
   - `enableAi()`: `save_ai_setting(true)` で AI 機能を有効化
   - `disableAi()`: `save_ai_setting(false)` で AI 機能を無効化
   - `reanalyze(workspaceId, issueId)`: `reanalyze_issue` コマンドで課題を再分析キューに投入
+  - `loadCorpusMonths()`: `get_settings('corpus_months')` で取り込み期間を DB から読み込む（v0.4 追加）
+  - `saveCorpusMonths(months)`: `save_settings('corpus_months', ...)` で取り込み期間を DB に保存（v0.4 追加）
+  - `loadCorpusCount()`: 全ワークスペースの `get_closed_issues_corpus_count` を並列呼び出しして合算（v0.4 追加）
+  - `loadEmbeddingStatus()`: 全ワークスペースの `get_embedding_status` を並列呼び出しして合算（v0.4 追加）
 - **主な機能**:
   - グローバルステートパターン（module スコープ ref）で状態を全コンポーネント間で共有
   - AI 非対応環境では静かに失敗し既存機能を阻害しない
   - `availabilityReasonToMessageKey(reason)`: `AiAvailabilityReason` を `ai.availability.*` i18n キーへマップするヘルパー（名前付きエクスポート）
+  - コーパス関連アクションは取得失敗時に 0 / null として静かに失敗し、既存 AI 機能を阻害しない（v0.4 追加）
 - **インターフェース**:
   - `AiAvailabilityReason`: 可用性理由の union 型（`available` / `unsupportedOs` / `appleIntelligenceDisabled` / `modelNotReady` / `deviceNotEligible` / `unavailable`）
   - `AiAvailability`: get_ai_availability の戻り値型（`available` / `reason` / `detail?` / `macosMajor?` / `otherBackendAvailable`）
   - `AiQueueStatus`: `[number, number]`（pending, processing）
-- **ステータス**: ✅ 実装済み（v0.3）
+  - `EmbeddingStatus`: `{ target: number; built: number }`（v0.4 追加）
+- **ステータス**: ✅ 実装済み（v0.4 でコーパス設定・埋め込み進捗管理を追加）
+
+### `composables/useSimilarSearch.ts`（v0.4 新設）
+
+- **役割**: 課題起点の横断類似検索と解決策要約を管理する Composable（FR-V04-005 / NFR-V04-005）
+- **Export**:
+  - `dialogOpen`: 類似検索ダイアログの開閉状態（Ref）
+  - `queryIssue`: 検索の起点課題（`Ref<Issue | null>`）
+  - `results`: 類似検索結果（`SimilarIssue[]`、類似度降順、Ref）
+  - `loading`: 検索実行中フラグ（Ref）
+  - `summary`: 解決策要約テキスト（`string | null`、Ref）
+  - `summaryLoading`: 要約生成中フラグ（Ref）
+  - `degradedReason`: degrade 理由（`SimilarDegradedReason | null`、Ref）
+  - `openSimilar(issue)`: ダイアログを開き `search_similar_issues` → `summarize_solutions` を順に実行
+  - `close()`: ダイアログを閉じる
+  - `openInBrowser(item)`: 類似候補（`SimilarIssue`）を `get_workspace_by_id` でドメインを引いて Backlog のチケット URL を組み立て既定ブラウザで開く（IssueCard / IssueDetailDialog の `openInBrowser` と同等。失敗は無視）
+- **主な機能**:
+  - グローバルステートパターン（module スコープ ref）で状態を全コンポーネント間で共有（同時に開くダイアログは 1 つ）
+  - 埋め込み未構築（`embedding_ready === false`）・AI 非対応・検索失敗時は例外を投げず `degradedReason` に集約して degrade（NFR-V04-005）
+  - 解決策要約の出力言語は UI 言語（vue-i18n の `locale` = 永続化済み `language` 設定）に追従し `summarize_solutions` の `lang` 引数へ渡す（`workspaceId` はクエリ課題の `workspace_id` を渡す）
+- **インターフェース**:
+  - `SimilarIssue`: `search_similar_issues` の戻り値型（`id` / `issueKey` / `summary` / `status?` / `assignee?` / `projectKey?` / `similarity` / `isCorpusOnly` / `workspaceId`）
+  - `SimilarDegradedReason`: degrade 理由の union 型（`aiUnavailable` / `embeddingNotReady` / `searchFailed`）
+- **依存コマンド**: `search_similar_issues`（横断類似検索）, `summarize_solutions`（FoundationModels 再利用の解決策要約）
+- **使用 Composables**: `useAiSettings`（`isAiReady`）
+- **ステータス**: ✅ 実装済み（v0.4）
 
 ### `composables/useDashboard.ts`（v0.3 新設）
 
@@ -435,13 +517,14 @@
 - **主な型**:
   - `AiAnalysisInput`: 分析入力（`issue_key` / `summary` / `description_head`（切り詰め済み） / `status` / `due_date` / `lang`）
   - `AiAnalysisOutput`: 構造化出力（`summary`（1行要約） / `risk_level`（RiskLevel） / `suggestion`（対応提案））。**遅延日数は SQL 算出のため含めない**
-  - `RiskLevel`: リスクレベル enum（serde で `high` / `medium` / `low` に小文字化。`ai_results.risk_level` と一致）
+  - `RiskLevel`: リスクレベル enum（serde で `high` / `medium` / `low` に小文字化。`ai_results.risk_level` と一致）。v0.4 で `Ord` を導出し **Low < Medium < High** の順に宣言（`final_risk = max(llm_risk, schedule_risk)` 合成用。FR-V04-006）。メソッド `as_storage_str()`（保存文字列へ）/ `from_storage_str(&str)`（保存文字列から復元。再計算で LLM リスクを戻す）を持つ
   - `BackendKind`: バックエンド種別 enum（v0.3 は `FoundationModels` のみ。将来 MLX/Candle を追加）
 - **主な定数**:
   - `CONTEXT_BODY_MAX_CHARS`: 課題本文の切り詰め文字数（コンテキスト上限対応の一元定義。実測後はここのみ更新）
 - **主な関数**:
+  - `schedule_risk(delay_days: Option<i64>) -> RiskLevel`（v0.4・FR-V04-006）: 遅延日数から**決定的に**スケジュール由来リスクを算出。`>14日`=High / `1〜14日`=Medium / `当日〜3日以内`(`-3..=0`)=Medium / それ以外（猶予十分・期限なし）=Low（内容リスク据え置き）。`delay_days` は SQL 算出値（正=超過・0=当日・負=猶予）。worker と `recompute_schedule_risk` で共用。しきい値はこの1関数に集約
   - `create_backend<R: tauri::Runtime>(app: AppHandle<R>, kind: BackendKind) -> Result<impl LlmInference>`: バックエンド生成のレジストリ的入口。`FoundationModels` アームは `FoundationModelsBackend::new(app)` を返す（v0.3 でスタブから実バックエンドへ更新）。v0.4 以降のバックエンドは `BackendKind` バリアントと `match` アームの追加で導入可能。複数アームが異なる具体型を返す段階になったら enum ディスパッチへ切り替える（呼び出し側シグネチャは不変）
-- **サブモジュール**: `availability`（下記）／`foundation_models`（下記）／`worker`（下記）
+- **サブモジュール**: `availability`（下記）／`embedding`（下記）／`embed_worker`（下記・v0.4）／`foundation_models`（下記）／`worker`（下記）
 - **設計方針**: 構造化出力（FR-V03-005）／遅延日数は LLM 出力に含めず SQL 算出／バックエンド差し替えを `ai/` 内に閉じる／AI 非対応環境を阻害しないため生成は `Result` で失敗許容
 - **ステータス**: ✅ 実装済み（v0.3 骨格。trait・入出力型・レジストリ入口。`create_backend` は `app` ハンドルを受け取り FoundationModels バックエンドを生成）
 
@@ -458,68 +541,114 @@
 - **テスト**: serde シリアライズ（lowercase / camelCase）・理由コードマッピング（既知/未知）・コンストラクタの 5 テスト（`#[cfg(test)]`）
 - **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト 5件 通過。コマンド層への接続・起動時判定は後続項目）
 
+### `src-tauri/src/ai/embedding.rs`
+
+- **役割**: 埋め込み生成の抽象基盤（v0.4 新設・FR-V04-001）。ローカル埋め込みモデル（`multilingual-e5-small` / 384次元）による課題テキストのベクトル化を、推論経路（`LlmInference`）とは**別経路**として抽象化する。`ai/mod.rs` の `BackendKind` / `create_backend` レジストリ設計思想を埋め込み側に対置した骨格
+- **主なトレイト**:
+  - `EmbeddingBackend`: 埋め込みバックエンドの抽象トレイト。`embed(&self, EmbeddingInput) -> impl Future<Output = Result<EmbeddingOutput>> + Send`（`prefix` を各テキスト先頭へ付与してモデルへ渡す。入出力は同順・同数）／`dim(&self) -> usize`（出力次元）／`model_name(&self) -> &str`（モデル識別名・再埋め込みポリシー判定用）を定義（native async-fn-in-trait。`+ Send` 制約のため `impl Future` 形式）
+- **主な型**:
+  - `EmbeddingInput`: 埋め込み入力（`texts`（切り詰め済み・プレフィックス未付与の対象テキスト群） / `prefix`（全要素へ一律適用））
+  - `EmbeddingOutput`: 埋め込み出力（`vectors`。入力 `texts` と同順・同数のベクトル群。次元は `dim()` と一致）
+  - `EmbedPrefix`: e5 系の入力プレフィックス enum（`Query` = `"query: "` / `Passage` = `"passage: "`。serde lowercase）。クエリと被検索文に**非対称**付与。`as_str()` / `apply(text)` ヘルパーを持つ
+  - `EmbeddingBackendKind`: 埋め込みバックエンド種別 enum（v0.4 は `MultilingualE5Small` のみ。将来 OS 同梱 `NLContextualEmbedding` 等を追加）
+- **主な定数**:
+  - `EMBEDDING_DIM`: 出力次元（= 384。`issue_embeddings` の BLOB レイアウトと一致）
+  - `EMBED_SOURCE_MAX_CHARS`: 埋め込み元テキストの切り詰め上限文字数（= 1800。512トークン対策の保守的既定値。実測判明後はここのみ更新）
+- **主な関数**:
+  - `build_embed_source(summary, description, comments) -> String`: 単一ベクトル方式の埋め込み元テキスト組み立て。タイトル→本文→コメントを改行結合し `EMBED_SOURCE_MAX_CHARS` で**文字単位（マルチバイト境界保護）**に切り詰める。空パートはスキップ。プレフィックスは付与しない（付与は `embed` の責務）
+  - `create_embedding_backend<R: tauri::Runtime>(app: AppHandle<R>, kind: EmbeddingBackendKind) -> Result<impl EmbeddingBackend>`: 埋め込みバックエンド生成のレジストリ的入口（`create_backend` と同方針）。`MultilingualE5Small` アームは `FoundationModelsBackend::new(app)` を返す（analyze と同一 sidecar・同一管理タスクを共用し `embed` 要求で 384 次元ベクトルを得る。v0.4 でスタブから実バックエンドへ更新）。可用性は `availability::check_availability` を流用し、非対応環境（Intel 等）では `embed` が `Err` を返して呼び出し側が検索機能のみ degrade（NFR-V04-004 / NFR-V04-005）
+- **設計方針**: `LlmInference` とは別経路（入出力・呼び出し頻度が異なるためトレイト/レジストリ分離）／e5 の非対称プレフィックス（クエリ=`query:` / コーパス=`passage:`）／**単一ベクトル方式を既定**（512トークン対策の「チャンク分割 vs ダイジェスト」未解決事項は単一ベクトル＋文字数切り詰めで既定化。ダイジェスト移行は結合テキスト差し替えのみで残す）／バックエンド差し替えを `ai/` 内に閉じる／埋め込み非対応環境を阻害しないため生成は `Result` で失敗許容
+- **テスト**: プレフィックス文字列・`apply` 付与（query/passage 非対称）・モックバックエンドでの `embed` プレフィックス付与・`dim`・`model_name`・`build_embed_source`（結合/空スキップ/文字数切り詰め）の 8 テスト（`#[cfg(test)]`、モックバックエンド）
+- **ステータス**: ✅ 実装済み（v0.4。trait・入出力型・`EmbedPrefix`・`build_embed_source`・`create_embedding_backend` レジストリ入口。`create_embedding_backend` は `FoundationModelsBackend`（sidecar 連携・`EmbeddingBackend` 実装）へ解決。`cargo build` / `cargo clippy -D warnings` / 単体テスト 8件 通過）
+
 ### `src-tauri/src/ai/foundation_models.rs`
 
-- **役割**: FoundationModels バックエンド（v0.3 新設）。`externalBin` 同梱の Swift sidecar を `tauri-plugin-shell` で起動し、JSON Lines over stdin/stdout で通信する `LlmInference` 実装（FR-V03-001）
+- **役割**: FoundationModels バックエンド（v0.3 新設・v0.4 で埋め込み追加）。`externalBin` 同梱の Swift sidecar を `tauri-plugin-shell` で起動し、JSON Lines over stdin/stdout で通信する `LlmInference` 実装（FR-V03-001）。v0.4 で同一 sidecar・同一管理タスクを共用する `EmbeddingBackend` 実装を兼ねる（FR-V04-001）
 - **主な公開要素**:
-  - `FoundationModelsBackend`: `LlmInference` 実装。`new(app)` で生成し、推論要求を内部の管理タスクへ MPSC 送信して oneshot で応答受信。`Clone` 可（同一管理タスク・同一状態を共有）
+  - `FoundationModelsBackend`: `LlmInference` + `EmbeddingBackend` 実装。`new(app)` で生成し、要求を内部の管理タスクへ MPSC 送信して oneshot で応答受信。`Clone` 可（同一管理タスク・同一状態を共有）
     - `infer(&self, AiAnalysisInput) -> Result<AiAnalysisOutput>`: 課題1件の構造化分析（一時停止中は即エラー）
     - `availability(&self) -> Result<AvailabilityInfo>`: 可用性問い合わせ（FR-V03-002）
+    - `embed(&self, EmbeddingInput) -> Result<EmbeddingOutput>`（`EmbeddingBackend`）: テキスト群を 384 次元ベクトルへ変換（FR-V04-001。一時停止中は即エラー。応答は件数・次元を検証）／`dim() -> usize`（= `EMBEDDING_DIM`）／`model_name() -> &str`（= `EMBEDDING_MODEL_NAME`）
     - `state(&self) -> SidecarState`: 稼働状態取得（設定画面の動作状況表示用）
     - `resume(&self)`: 一時停止解除＋失敗カウンタリセット（手動再開）
   - `AvailabilityInfo`: 可用性情報（`available` / `reason`。reason は sidecar の理由コード文字列。フロントで理由別メッセージへマップ）
   - `SidecarState`: 稼働状態 enum（`Running` / `Suspended`。serde lowercase）
-  - 定数: `SIDECAR_NAME`（externalBin ベース名 `binaries/projectlens-ai-sidecar`）/ `BACKEND_NAME`（`foundation-models`。`ai_results.model_used` に記録）/ `MAX_CONSECUTIVE_FAILURES`（一時停止閾値=3）
-- **プロセス管理・自動再起動（FR-V03-001）**: 専用の管理タスクが要求を1件ずつ直列処理（同時推論1件・NFR-V03-003）。sidecar は遅延起動（アイドル時非消費）し、正常時は常駐プロセスを再利用。異常終了（`Terminated`/`Error`/タイムアウト）を検知すると次要求で再起動。連続失敗が閾値超過で `Suspended` へ遷移し以降の推論を即エラー化、`resume()` で復帰。プロセス drop 時は `CommandChild::kill` で停止
-- **応答突合**: sidecar プロトコルに要求 ID が無く応答は送信順に1対1対応するため、管理タスクの直列処理で突合を担保。sidecar の `error` 応答は通信成立とみなし要求のみ失敗（再起動しない）
-- **テスト容易性**: sidecar 起動・通信を `SidecarTransport` / `SidecarProcess` トレイトで抽象化。本番は `ShellSidecarTransport`、テストはモックで管理タスクのロジック（要求応答・再起動・連続失敗での一時停止・プロトコル整合）を実機なしで検証（`#[cfg(test)]` で7テスト）
-- **プロトコル整合**: `src-tauri/sidecar/` の入出力契約と一致（リクエスト `availability`/`analyze`/`shutdown`、レスポンス `availability`/`result`/`error`）
-- **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト 通過。`tauri.conf.json` の `bundle.externalBin` 登録・build.sh での sidecar ビルド/署名/同梱は完了。実機での `externalBin` 起動連携は検証機での要確認）
+  - 定数: `SIDECAR_NAME`（externalBin ベース名 `binaries/projectlens-ai-sidecar`）/ `BACKEND_NAME`（`foundation-models`。`ai_results.model_used` に記録）/ `EMBEDDING_MODEL_NAME`（`multilingual-e5-small`。`issue_embeddings.model` に記録・再埋め込み判定用。バックエンド名とは別概念）/ `MAX_CONSECUTIVE_FAILURES`（一時停止閾値=3）
+- **プロセス管理・自動再起動（FR-V03-001）**: 専用の管理タスクが要求を1件ずつ直列処理（同時推論1件・NFR-V03-003）。analyze と embed は同一 sidecar プロセスを共用（直列化されるため同時実行は構造的に1件）。sidecar は遅延起動（アイドル時非消費）し、正常時は常駐プロセスを再利用。異常終了（`Terminated`/`Error`/タイムアウト）を検知すると次要求で再起動。連続失敗が閾値超過で `Suspended` へ遷移し以降の要求を即エラー化、`resume()` で復帰。プロセス drop 時は `CommandChild::kill` で停止
+- **応答突合**: sidecar プロトコルに要求 ID が無く応答は送信順に1対1対応するため、管理タスクの直列処理で突合を担保。sidecar の `error` 応答は通信成立とみなし要求のみ失敗（再起動しない）。embed 応答は件数（要求 texts 数）と各ベクトルの次元（`EMBEDDING_DIM`）を検証し、不一致は `Err`（BLOB 保存・コサイン類似度計算の前提を守る）
+- **テスト容易性**: sidecar 起動・通信を `SidecarTransport` / `SidecarProcess` トレイトで抽象化。本番は `ShellSidecarTransport`、テストはモックで管理タスクのロジック（analyze/embed の要求応答・再起動・連続失敗での一時停止・プロトコル整合・analyze と embed の sidecar 共用・embed の件数/次元検証）を実機なしで検証（`#[cfg(test)]` で 16 テスト）
+- **プロトコル整合**: `src-tauri/sidecar/` の入出力契約と一致（リクエスト `availability`/`analyze`/`embed`/`shutdown`、レスポンス `availability`/`result`/`embedding`/`error`）。embed の `prefix` は serde lowercase で `query`/`passage`（sidecar の `EmbedPrefix.rawValue` と一致）
+- **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト 16件 通過。`tauri.conf.json` の `bundle.externalBin` 登録・build.sh での sidecar ビルド/署名/同梱は完了。実機での `externalBin` 起動連携・埋め込みモデル配置後の embed 応答は検証機での要確認）
 
 ### `src-tauri/src/ai/worker.rs`
 
 - **役割**: バックグラウンドAIワーカー（v0.3 新設・FR-V03-004 / FR-V03-005）。`job_queue` の `pending` ジョブを **同時1件** で消費し、推論結果を `ai_results` に保存する独立タスク
 - **主な公開要素**:
   - `init(app: AppHandle)`: ワーカー起動（`lib.rs` の setup から DB 準備後に呼ぶ）。`create_backend` でバックエンドを生成し、生成失敗（AI 非対応環境等）ならワーカーを起動せず本体は阻害しない
-  - 定数: `SETTING_AI_ENABLED`（`ai_enabled`。値 `"true"` のときのみ処理） / `JOB_TYPE_SUMMARIZE`（`summarize`） / `MAX_JOB_RETRIES`（推論リトライ上限=3）
-- **処理フロー**（`run_loop` → `drain_queue` → `process_job`）: `POLL_INTERVAL_SECS`（30秒）ごとに、AI 機能 ON のときだけ `get_pending_jobs(1)` で1件取得 → `processing` へ遷移 → `get_issue_analysis_fields` で課題取得＋本文 SQL 切り詰め → `AiAnalysisInput` 整形（言語は `settings.language`、既定 ja）→ `infer_with_retry`（最大3回）→ `get_issue_delay_days` の **SQL 算出遅延日数** を付与 → `save_ai_result`（UPSERT）→ `done`。課題不在・全リトライ失敗は `failed` にしてスキップ記録（FR-V03-005）。1件以上処理したら `refresh-issues` イベントを emit
+  - 定数: `SETTING_AI_ENABLED`（`ai_enabled`。値 `"true"` のときのみ処理） / `JOB_TYPE_SUMMARIZE`（`summarize`） / `JOB_TYPE_EMBED`（`embed`。v0.4。埋め込み生成ジョブの種別。scheduler/手動sync が投入し埋め込み専用ワーカーが消費。`enqueue_jobs` の pending 重複抑止は種別ごとに独立に効く） / `MAX_JOB_RETRIES`（推論リトライ上限=3）
+- **処理フロー**（`run_loop` → `drain_queue` → `process_job`）: `POLL_INTERVAL_SECS`（30秒）ごとに、AI 機能 ON のときだけ `get_pending_jobs(1)` で1件取得 → `processing` へ遷移 → `get_issue_analysis_fields` で課題取得＋本文 SQL 切り詰め → `AiAnalysisInput` 整形（言語は `settings.language`、既定 ja）→ `infer_with_retry`（最大3回）→ `get_issue_delay_days` の **SQL 算出遅延日数** を付与 → **`final_risk = max(llm_risk, schedule_risk(delay_days))`** で最終リスクを合成（v0.4・FR-V04-006。期限大幅超過は LLM が低リスクでも high へ昇格）→ `save_ai_result`（UPSERT・`final_risk.as_storage_str()`）→ `done`。課題不在・全リトライ失敗は `failed` にしてスキップ記録（FR-V03-005）。1件以上処理したら `refresh-issues` イベントを emit
 - **アイドル設計（NFR-V03-003）**: AI 機能 OFF・可用性なし・キュー空のときは推論せずアイドル。同時推論1件はバックエンド側の管理タスクで担保。`sync`・UI をブロックしない独立タスク
-- **テスト**: リトライ成功（上限内）/ リトライ枯渇 / RiskLevel→保存文字列マッピング の 3 テスト（`#[cfg(test)]`、モックバックエンド）
+- **テスト**: リトライ成功（上限内）/ リトライ枯渇 / RiskLevel→保存文字列マッピング の 3 テスト（`#[cfg(test)]`、モックバックエンド）。スケジュールリスクのしきい値・`max` 合成テストは `ai/mod.rs` 側に集約
 - **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト 通過。sync 連携でのキュー投入・起動時再開トリガーは後続項目で接続）
 
-### `src-tauri/sidecar/`（Swift sidecar: FoundationModels）
+### `src-tauri/src/ai/embed_worker.rs`
 
-- **役割**: macOS 26 の FoundationModels で課題1件を guided generation 分析する常駐プロセス（v0.3 新設）。Tauri 本体から `externalBin` 同梱され、JSON Lines over stdin/stdout で通信する
+- **役割**: バックグラウンド埋め込みワーカー（v0.4 新設・FR-V04-001 / FR-V04-004）。`job_queue` の `embed` ジョブ（`JOB_TYPE_EMBED`）を **同時1件** で消費し、課題テキストの埋め込みベクトルを `issue_embeddings` に保存する独立タスク。summarize ワーカー（`worker.rs`）とは別タスクで動き、本体機能・summarize・v0.3 AI を阻害しない（NFR-V04-005）
+- **主な公開要素**:
+  - `init(app: AppHandle)`: ワーカー起動（`lib.rs` の setup から DB 準備後・summarize ワーカーと並べて呼ぶ）。`create_embedding_backend(MultilingualE5Small)` でバックエンドを生成し、生成失敗（AI 非対応環境等）ならワーカーを起動せず本体は阻害しない
+- **処理フロー**（`run_loop` → `drain_queue` → `process_job`）: `POLL_INTERVAL_SECS`（30秒）ごとに、AI 機能 ON（`worker.rs` と共有の `SETTING_AI_ENABLED`）のときだけ `get_pending_jobs(1)` で1件取得 → 先頭が `embed` 以外（summarize 等）ならその場でループ脱出（横取りせず summarize ワーカーへ委ねる）→ `embed` なら `processing` へ遷移 → `get_issue_embed_text`（本文・コメントを SQL 切り詰め）で埋め込み元テキスト取得 → `compute_source_hash` を算出し `get_embedding_source_hash` と一致なら**再埋め込みスキップで `done`**（FR-V04-004）→ 変化していれば `embed_with_retry`（`passage:` プレフィックス・最大 `MAX_JOB_RETRIES` 回）で 384 次元ベクトル生成 → 次元検証（`backend.dim()` と一致）→ `save_embedding`（BLOB UPSERT・`EMBEDDING_MODEL` / `source_hash` 記録）→ `done`。課題不在・全リトライ失敗・次元不一致は `failed` にしてスキップ記録（NFR-V04-005）
+- **再埋め込みポリシー（FR-V04-004 / 未解決事項#5）**: `source_hash` は標準ライブラリ `DefaultHasher`（SipHash・追加依存なし）で算出した 16桁16進文字列。暗号強度不要で「同一テキスト→同一ハッシュ」の変更検知のみが要件。保存済みハッシュと一致すれば埋め込みを行わず sidecar も起こさない（アイドル時非消費・NFR-V04-003）。モデル更新時の再生成は `issue_embeddings.model` 側で将来対応（本ワーカーは未実装）
+- **アイドル設計（NFR-V04-003）**: AI 機能 OFF・可用性なし（embed が `Err`）・キュー空のときは埋め込みせずアイドル。同時1件はバックエンド側の管理タスクで担保（analyze と同一 sidecar を直列共用）。`sync`・UI をブロックしない独立タスク
+- **テスト**: embed ジョブ消費→ベクトル保存→`source_hash` 不変でスキップ（完了条件）/ 課題不在で `failed` / テキスト変更で再埋め込み / `compute_source_hash` の決定性・敏感性 の 4 テスト（`#[cfg(test)]`、in-memory SQLite + 呼び出し回数を数えるモック `EmbeddingBackend`）。課題仕込みはクレート内共通の `DbClient::insert_test_issue`（`#[cfg(test)] pub(crate)`）を使用
+- **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / fmt / 単体テスト 4件 通過。`lib.rs` setup で `ai::embed_worker::init` を起動。sync 連携での embed ジョブ投入は後続項目で接続）
+
+### `src-tauri/src/ai/cosine.rs`
+
+- **役割**: コサイン類似度計算（v0.4 新設・FR-V04-004）。埋め込みベクトル（384次元）どうしの類似度を、外部依存を増やさず f32 演算の純粋関数として総当たり計算する最小モジュール。`search_similar_issues` コマンドが利用
+- **主な関数**:
+  - `cosine_similarity(a: &[f32], b: &[f32]) -> f32`: 内積・両ノルムを1パスで計算（NFR-V04-002 を意識）。**ゼロベクトル・次元不一致は `NaN` を返さず `0.0`（無相関）を返す**（上位N抽出のソート破綻防止）
+- **テスト**: 同一=1.0 / 直交=0.0 / 反転=-1.0 / スケール不変=1.0 / ゼロベクトルで NaN を返さない / 次元不一致で 0.0 / 手計算（`1/√2`）一致 の 7 テスト（`#[cfg(test)]`）
+- **ステータス**: ✅ 実装済み（v0.4。`ai/mod.rs` に `pub mod cosine` を追加。`cargo build` / `clippy -D warnings` / 単体テスト 7件 通過）
+
+### `src-tauri/sidecar/`（Swift sidecar: FoundationModels + 埋め込み）
+
+- **役割**: macOS 26 の FoundationModels で課題1件を guided generation 分析し、加えて `multilingual-e5-small`（Core ML）で課題テキストの埋め込みベクトル（384次元）を生成する常駐プロセス（v0.3 新設・v0.4 で埋め込み追加）。Tauri 本体から `externalBin` 同梱され、JSON Lines over stdin/stdout で通信する
 - **主なファイル**:
-  - `Package.swift`: Swift Package 定義（`.macOS("26.0")` / executableTarget `projectlens-ai-sidecar`）
-  - `Sources/projectlens-ai-sidecar/main.swift`: 本体。`readLine()` ブロッキング read のメインループ（アイドル時 CPU 非消費・NFR-V03-003）
-  - `README.md`: 入出力契約・ビルド要件・未解決事項の明文化
-- **入出力契約**（Rust 側 `ai/mod.rs` と一致）:
-  - リクエスト（1行 JSON）: `{type:"availability"}` / `{type:"analyze", issue_key, summary, description_head, status, due_date?, lang}` / `{type:"shutdown"}`（EOF でも終了）
-  - レスポンス（1行 JSON）: `{type:"availability", available, reason}`（reason: `available` / `appleIntelligenceNotEnabled` / `modelNotReady` / `deviceNotEligible` / `unavailableOther`） / `{type:"result", summary, risk_level, suggestion}` / `{type:"error", message}`
+  - `Package.swift`: Swift Package 定義（`.macOS("26.0")` / executableTarget `projectlens-ai-sidecar`）。v0.4 で `resources: [.copy("Resources")]` を追加し埋め込みモデルを `Bundle.module` 経由で同梱可能にした
+  - `Sources/projectlens-ai-sidecar/main.swift`: 本体。`readLine()` ブロッキング read のメインループ（アイドル時 CPU 非消費・NFR-V03-003）。v0.4 で `embed` ケース・`handleEmbed`・`EmbeddingModel`（Core ML 遅延ロード holder）を追加
+  - `Sources/projectlens-ai-sidecar/Resources/`: 埋め込みモデル（`MultilingualE5Small.mlmodelc`）・語彙の同梱先。`README.md` で入手・変換・配置手順を明文化（モデル本体は `.gitignore` で除外＝git 非追跡）
+  - `README.md`: 入出力契約・ビルド要件・埋め込みモデル配布形式・未解決事項の明文化
+- **入出力契約**（Rust 側 `ai/mod.rs` + `ai/embedding.rs` と一致）:
+  - リクエスト（1行 JSON）: `{type:"availability"}` / `{type:"analyze", issue_key, summary, description_head, status, due_date?, lang}` / `{type:"embed", texts:[...], prefix:"query|passage"}`（v0.4。texts は切り詰め済み・**プレフィックス未付与**） / `{type:"shutdown"}`（EOF でも終了）
+  - レスポンス（1行 JSON）: `{type:"availability", available, reason}`（reason: `available` / `appleIntelligenceNotEnabled` / `modelNotReady` / `deviceNotEligible` / `unavailableOther`） / `{type:"result", summary, risk_level, suggestion}` / `{type:"embedding", vectors:[[...384f...],...]}`（v0.4。入力 texts と同順・同数・384次元） / `{type:"error", message}`
+- **埋め込みプレフィックスの契約（二重付与防止）**: e5 の `query: ` / `passage: ` プレフィックス付与は**sidecar 側で行う**。Rust 側は `prefix` でどちらを付けるかを渡すだけで texts には付与しない（付与点を一箇所に固定）。sidecar の `EmbedPrefix.literal` と Rust `EmbedPrefix::as_str()`（`"query: "` / `"passage: "`）を一致させる
+- **埋め込みモデル配布形式（未解決事項#2 を確定）**: **Core ML**（`.mlmodelc`）を採用。Apple 同梱フレームワークで SwiftPM 外部依存が不要、ANE 活用で低メモリ常駐（NFR-V04-003）。`mlx-swift` 等は足さない。ライセンスは **MIT**（intfloat / multilingual-e5-small）。配布サイズ 100〜250MB 増（NFR-V04-004）のためモデル本体は git 非追跡。**Apple Silicon 前提**（Intel・非対応環境では Rust 側が埋め込みを無効化し embed を送らない）。モデル未配置でも `swift build` は成功し embed は `{type:"error"}` を返す（プロトコル成立・推論のみ degrade・NFR-V04-005）
 - **構造化出力**: `@Generable struct AnalysisGeneration`（summary / riskLevel / suggestion）+ `@Generable enum GenerationRiskLevel`（high/medium/low）。遅延日数は SQL 算出のためスキーマに含めない
 - **言語追従**: `lang`（ja/en）で instructions を切替（FR-V03-005）
-- **設計上の注意**: instructions は guided generation スキーマと合算でコンテキストを消費するため簡潔に保つ（長い日本語 instructions はコンテキスト超過を誘発したため最小化）
-- **ビルド統合**（v0.3）: `tauri.conf.json` の `bundle.externalBin` に `binaries/projectlens-ai-sidecar` を登録。build.sh が `tauri:build` の前に `swift build -c release` でビルドし、出力を `src-tauri/binaries/projectlens-ai-sidecar-<target-triple>`（triple は rustc ホストトリプル）として配置・codesign する。sidecar ビルド失敗時は AI 機能なしで本体ビルドを継続（フォールバック）。生成物 `src-tauri/binaries/` は gitignore 済み
-- **未解決事項**: notarization は検証機（macOS 26 + Developer ID）依存のため build.sh / README.md にコマンド手順を明文化するまでを完了とする（`APPLE_SIGNING_IDENTITY` 指定で Developer ID 署名→`xcrun notarytool submit`→`stapler staple`）
-- **ステータス**: ✅ 実装済み（macOS 26.3 + Xcode 26.4 + Apple Intelligence 環境で `swift build`（debug/release）成功、ja/en の構造化 JSON 出力・可用性チェック・エラーハンドリングを実機確認）。build.sh への externalBin 同梱・署名は完了（notarization は検証機依存で手順明文化のみ）
+- **設計上の注意**: instructions は guided generation スキーマと合算でコンテキストを消費するため簡潔に保つ（長い日本語 instructions はコンテキスト超過を誘発したため最小化）。埋め込みモデルは初回 `embed` 要求まで遅延ロード（`EmbeddingModelHolder`）。runLoop は単一スレッド直列処理のため holder は `@unchecked Sendable`
+- **ビルド統合**: `tauri.conf.json` の `bundle.externalBin` に `binaries/projectlens-ai-sidecar` を登録。build.sh が `tauri:build` の前に `swift build -c release` でビルドし、出力を `src-tauri/binaries/projectlens-ai-sidecar-<target-triple>`（triple は rustc ホストトリプル）として配置・codesign する。v0.4 で SwiftPM 生成のリソースバンドル（`projectlens-ai-sidecar_projectlens-ai-sidecar.bundle`）を `binaries/` へ複製しモデル同梱状況・サイズを表示。sidecar ビルド失敗時は AI 機能なしで本体ビルドを継続（フォールバック）。生成物 `src-tauri/binaries/` は gitignore 済み
+- **未解決事項**: (1) 埋め込みモデルの実配置と `EmbeddingModel.embed(_:)` の入出力結線（トークナイズ + mean pooling + L2 正規化）。(2) リソースバンドルを最終 `.app/Contents/MacOS/` の実行ファイル隣へ運ぶ結線（`Bundle.module` 解決の前提・リリースビルド統合の別作業項目）。(3) notarization は検証機（Developer ID）依存で手順明文化まで（`APPLE_SIGNING_IDENTITY`→`xcrun notarytool submit`→`stapler staple`）
+- **ステータス**: ✅ 実装済み（macOS 26.3.1 + Xcode 26.4 + Apple Intelligence + Apple Silicon で `swift build -c release` 成功。`availability` / `analyze` / `embed`（モデル未配置時の error・空入力の空ベクトル・prefix/texts 欠落の入力検証）を各入力1行1応答で実機確認）。埋め込みモデル本体の配置・入出力結線とリソースバンドルの `.app` 同梱は後続項目
 
 ### `src-tauri/src/backlog.rs`
 
 - **役割**: Backlog APIクライアント
 - **主な構造体**:
   - `BacklogClient`: APIクライアント
-  - `Issue`: 課題データ。v0.3 で AI 結果フィールドを追加（`ai_summary` / `ai_risk_level` / `ai_suggestion` / `ai_delay_days` / `ai_processed_at`。すべて `#[serde(default)]` で、`get_issues` の `ai_results` JOIN 結果から設定。raw_data に無くても欠落初期値になりフロントへそのまま渡る）
+  - `Issue`: 課題データ。v0.3 で AI 結果フィールドを追加（`ai_summary` / `ai_risk_level` / `ai_suggestion` / `ai_delay_days` / `ai_processed_at`。すべて `#[serde(default)]` で、`get_issues` の `ai_results` JOIN 結果から設定。raw_data に無くても欠落初期値になりフロントへそのまま渡る）。v0.4 で `is_corpus_only: bool`（`#[serde(skip_deserializing, default)]`）を追加。完了課題コーパス取り込み時に `true` を立て、`save_issues` で `issues.is_corpus_only` カラムへ保存する（FR-V04-003）
   - `Priority`: 優先度
   - `Status`: ステータス
   - `IssueType`: 種別
   - `User`: ユーザー
   - `Project`: プロジェクト
 - **主な機能**:
-  - 課題一覧取得
+  - 課題一覧取得（`get_issues(project, status_ids)`）
   - プロジェクト一覧取得
   - 現在のユーザー情報取得
-- **ステータス**: ✅ 実装済み
+  - コメント差分取得（v0.4）: `get_comments(issue_id_or_key, min_id)` — `GET /issues/:id/comments` を `minId`（指定時のみ）・`order=asc`・`count=100` で呼び、`(Vec<db::Comment>, RateLimitInfo)` を返す（FR-V04-002）。返却型は `db::Comment` を共有（serde `alias = "created"` で API の投稿日時を取り込む）
+  - 完了課題コーパス取得（v0.4）: `get_closed_issues(project, updated_since, offset)` — `statusId[]=4`（完了）+ `updatedSince`（指定時のみ）+ `count=100` + `offset` で完了課題をページング取得し、各 `Issue` に `is_corpus_only = true` を立てて返す（FR-V04-003）
+  - クエリ組み立て（純粋関数・テスト対象）: `build_comments_query(api_key, min_id)` / `build_closed_issues_query(api_key, project_id, updated_since, offset)`
+- **ステータス**: ✅ 実装済み（v0.4 コメント差分取得・完了課題コーパス取得を追加。クエリ組み立ての単体テスト6件・`cargo test` / `clippy -D warnings` / `fmt --check` 通過）
 
 ### `src-tauri/src/commands.rs`
 
@@ -528,9 +657,9 @@
   - `greet`: テスト用挨拶コマンド
   - `save_settings`: 設定保存
   - `get_settings`: 設定取得
-  - `fetch_issues`: 課題取得・スコアリング（手動sync。保存後に新規・更新チケットを差分検出して AIジョブをキュー投入。v0.3）
+  - `fetch_issues`: 課題取得・スコアリング（手動sync。保存後に新規・更新チケットを差分検出して AIジョブをキュー投入。v0.3）。v0.4 で末尾に `scheduler::sync_corpus_and_embeddings` を呼び、完了課題コーパス取り込み・コメント差分取得・embed ジョブ投入を手動sync経路でも実行（レート残量でバックオフ。scheduler 経路と実装共有）
   - `fetch_projects`: プロジェクト一覧取得
-  - `get_issues`: 保存済み課題取得（`ai_results` LEFT JOIN で AI 結果を同梱。v0.3）
+  - `get_issues`: 保存済み課題取得（`ai_results` LEFT JOIN で AI 結果を同梱。v0.3）。v0.4 で `issue_embeddings` も LEFT JOIN し、各課題に `embedding_ready`（埋め込み構築済みなら `true`。FR-V04-005 の「構築待ち」表示用）を同梱
   - `get_workspaces`: ワークスペース一覧取得
   - `get_workspace_by_id`: ワークスペース取得(ID指定)
   - `save_workspace`: ワークスペース保存
@@ -541,7 +670,11 @@
   - `save_ai_setting(enabled)`: AI機能ON/OFF設定を保存（v0.3。`save_setting` 流用で `'ai_enabled'` に `true`/`false` を書き込む）
   - `get_ai_queue_status`: AIキューの処理状況を取得（v0.3・FR-V03-004。`(pending, processing)` の残件数・処理中件数タプルを返す）
   - `reanalyze_issue(workspace_id, issue_id)`: 課題を手動で再分析キューに投入（v0.3。`enqueue_jobs` で `summarize` ジョブを投入。pending 重複は抑止。新規投入件数を返す）
-- **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト通過。v0.3 の AI コマンド5種を追加・`lib.rs` の invoke_handler に登録）
+  - `search_similar_issues(workspace_id, issue_id, limit?)`: 課題起点の横断類似検索（v0.4・FR-V04-004/FR-V04-005）。クエリ課題の埋め込みを取得→`get_all_embeddings`（コーパス含む全件を1回ロード。NFR-V04-002）と総当たりで `cosine_similarity` を計算→クエリ自身を除外→しきい値（`SIMILARITY_THRESHOLD = 0.80`・未解決事項#4 の暫定既定）以上を類似度降順に並べ、上位 `limit`（未指定時 `DEFAULT_SIMILAR_LIMIT = 10`）件を返す。各件は `SimilarIssue`（`issueId`/`issueKey`/`summary`/`status`/`assignee`/`projectKey`（issue_key プレフィックスから導出）/`similarity`/`isCorpusOnly`。camelCase）。クエリ課題の埋め込み未構築時は空リスト（エラーにしない・degrade）。中核ランキングは純粋関数 `rank_similar` に分離して単体テスト
+  - `summarize_solutions(workspace_id, issue_ids, lang)`: 過去事例の解決策要点を要約（v0.4・FR-V04-005）。類似上位群（`issue_ids`）の「タイトル+本文先頭+コメント先頭」を結合した context を作り、v0.3 の FoundationModels バックエンド（`create_backend`）を**再利用**して解決策要点を生成する。出力言語は `lang`（UI 言語追従 ja/en）。**sidecar は改修せず既存 `analyze` 経路を流用**し、context を `description_head` に載せて `infer` を呼び、返ってきた `suggestion`（対応提案＝解決策要点）に `summary`（補足1行）を添えて文字列で返す（設計判断はコマンドの doc コメント参照）。context は完了課題（コーパス＝解決済み）を優先（`SUMMARIZE_MAX_ISSUES = 5` 件・本文/コメント各 `400` 文字・全体 `SUMMARIZE_CONTEXT_MAX_CHARS = 3000` 文字で切り詰め）。AI 非対応・生成失敗・対象なしは `Err` にせず**空文字**へ degrade し、検索一覧を壊さない（NFR-V04-005）。context 結合（完了課題優先・件数/文字数切り詰め）は純粋関数 `build_solution_context` に分離して単体テスト
+  - `get_embedding_status(workspace_id)`: 埋め込み構築進捗を取得（v0.4・FR-V04-005）。`(target, built)` = (対象件数=ワークスペース内全課題数（コーパス含む）, 構築済み件数=`issue_embeddings` 行数) のタプルを返す
+  - `get_closed_issues_corpus_count(workspace_id)`: コーパス（完了課題）件数を取得（v0.4・FR-V04-003/FR-V04-005）。`count_corpus_issues`（`is_corpus_only = 1`）を返す
+- **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト通過。v0.3 の AI コマンド5種に加え、v0.4 の類似検索・解決策要約コマンド4種を追加・`lib.rs` の invoke_handler に登録。`rank_similar`/`project_key_from_issue_key`/`build_solution_context` の単体テスト10件追加）
 
 ### `src-tauri/src/db.rs`
 
@@ -550,23 +683,41 @@
   - `WorkspaceInput`: `save_workspace()` に渡すワークスペース各カラムの値をまとめた入力構造体
   - `AiResult`: `ai_results` テーブル1行に対応するAI分析結果（要約・リスクレベル・遅延日数・対応提案など。v0.3）
   - `AiJob`: `job_queue` テーブル1行に対応するAIジョブ（v0.3）
+  - `Comment`（v0.4 新設）: コメント1件。`issue_comments` テーブル1行（`sqlx::FromRow`）と Backlog API レスポンスのデシリアライズを **共有**（DRY）。`comment_id`（API の `id`）/ `content` / `created_at`（API の `created` を serde `alias` で取り込む）/ `created_user`（API の `createdUser`。任意・`#[sqlx(default)]` で DB 読み出し時は `None`）。`backlog::get_comments` の戻り値型・`save_comments` の入力型・差分取得・埋め込み入力で使用
+  - `IssueSearchMeta`（v0.4 新設）: 類似検索の結果表示用メタ情報（`issue_key`/`summary`/`status`/`assignee`/`is_corpus_only`）。`issues` テーブルの個別カラム（`save_issues` で名称展開済み）から取得し raw_data デシリアライズを避ける（NFR-V04-002）。`get_issue_search_meta` の戻り値要素
+- **主な定数・ヘルパー関数**:
+  - `EMBEDDING_MODEL`（v0.4）: 埋め込みモデルの論理識別子 `"multilingual-e5-small"`。`issue_embeddings.model` に保存
+  - `EMBEDDING_DIM`（v0.4）: 埋め込み次元数 `384`
+  - `vector_to_blob(&[f32]) -> Vec<u8>` / `blob_to_vector(&[u8]) -> Vec<f32>`（v0.4）: f32 ベクトル ↔ リトルエンディアン BLOB の手実装変換（`bytemuck` 等の依存を増やさない。端数バイトは切り捨て）
 - **主なテーブル**:
   - `settings` / `sync_state` / `workspaces` / `issues`（既存）
   - `ai_results`（v0.3 新設）: 課題単位のAI分析結果。PK は `(workspace_id, issue_id)`。`delay_days` は SQL 算出値を保存。**既存 `issues.ai_summary` カラムは ai_results 新設に伴い不使用**
   - `job_queue`（v0.3 新設）: バックグラウンドAI処理キュー（`status`: pending / processing / done / failed）
+  - `issue_comments`（v0.4 新設）: コメント本文保存。PK は `(workspace_id, issue_id, comment_id)`。差分取得のコンテンツ保管専用
+  - `issue_comment_state`（v0.4 新設）: コメント差分取得状態管理。PK は `(workspace_id, issue_id)`。`last_comment_id`（最終取得 ID）/ `status`（idle/fetching/done/failed）/ `retry_count` を保持
+  - `issue_embeddings`（v0.4 新設）: multilingual-e5-small 384次元ベクトルを BLOB 保存。PK は `(workspace_id, issue_id)`。`source_hash` でコンテンツ変更検知・再埋め込みトリガー
+  - `issues.is_corpus_only`（v0.4 追加カラム）: `INTEGER DEFAULT 0`。完了課題コーパス行の分離フラグ。`1` の行は類似検索コーパスのみに使用し、`get_issues`（ダッシュボード・一覧）からは除外する
 - **主な機能**:
   - SQLiteマイグレーション（IF NOT EXISTS / ALTER エラー無視のインクリメンタル方式。新テーブルも非破壊で追加）
   - 設定の保存・取得
-  - 課題の保存・取得（`get_issues` は `ai_results` を `(workspace_id, issue_id)` で LEFT JOIN し、AI 結果を `Issue` の `ai_*` フィールドへ設定。AI 未生成は NULL→`None`。v0.3）
-  - プロジェクト選択解除時のクリーンアップ
+  - 課題の保存・取得（`get_issues` は `ai_results` を `(workspace_id, issue_id)` で LEFT JOIN し、AI 結果を `Issue` の `ai_*` フィールドへ設定。AI 未生成は NULL→`None`。`is_corpus_only = 1` 行は除外。v0.3/v0.4）
+  - `save_issues` のコーパス対応クリーンアップ（v0.4 / FR-V04-003）: バッチ全件が `is_corpus_only` なら「コーパスバッチ」とみなしプロジェクト単位の破壊的クリーンアップ（同期欠落課題削除・未選択プロジェクト削除）を**スキップ**（コーパス課題の保持・除去は `cleanup_corpus_out_of_range` が一元管理。通常 sync とコーパス sync は別バッチで呼ばれ、混在削除を防ぐ）。通常バッチのクリーンアップは `COALESCE(is_corpus_only,0)=0` で完了課題コーパスを削除対象から除外（取り込んだコーパスを通常 sync で消さない）。空バッチは通常バッチ扱い
+  - プロジェクト選択解除時のクリーンアップ（v0.4 新テーブルの孤児掃除も含む）
   - ワークスペース保存（`save_workspace(input: WorkspaceInput)`）
   - ワークスペース使用状況の保存
-  - 無効ワークスペースの課題削除
+  - 無効ワークスペースの課題削除（`delete_workspace_issues` も v0.4 新テーブルを掃除）
+  - ワークスペース削除（`delete_workspace` も v0.4 新テーブルを掃除）
   - AIジョブキュー操作（v0.3）: `enqueue_jobs`（pending重複回避） / `get_pending_jobs(limit)` / `update_job_status` / `count_pending_jobs` / `count_processing_jobs`（処理中件数。設定画面のキュー状況表示用）
   - AI結果操作（v0.3）: `save_ai_result`（issue単位UPSERT） / `get_ai_result(workspace_id, issue_id)`
+  - スケジュールリスク再計算（v0.4・FR-V04-006）: `recompute_schedule_risk()`（既保存 `ai_results` を **LLM 再実行なし**で再計算する起動時バッチ。各行で `issues.due_date` から最新の遅延日数を SQL 算出し、`final_risk = max(from_storage_str(保存済み risk_level), schedule_risk(delay_days))` を取り直して `risk_level` / `delay_days` を更新。`risk_level` も `delay_days` も無変更の行は UPDATE せず更新件数に数えない＝冪等。しきい値は `ai::schedule_risk` に集約し SQL へ複製しない。`lib.rs` の setup で `reset_stale_jobs` の直後に1回呼ぶ）
   - 遅延日数のSQL算出（v0.3）: `get_issue_delay_days(workspace_id, issue_id)`（julianday ベース。期限切れ判定は LLM ではなく SQL で確実に算出）
   - AI入力用フィールド取得（v0.3）: `get_issue_analysis_fields(workspace_id, issue_id, body_max_chars)`（ワーカーが `AiAnalysisInput` を組み立てるためのフィールド取得。本文は `substr` で SQL 側切り詰め・status/description は空文字正規化）
-- **ステータス**: ✅ 実装済み（v0.3 のAIテーブル・メソッドはDB基盤として実装済み。`get_issue_analysis_fields` はワーカーから、`enqueue_jobs` は sync 両経路から接続済み。`get_ai_result` など残りの呼び出し側は後続項目で接続）
+  - 埋め込み操作（v0.4）: `save_embedding(workspace_id, issue_id, model, dim, vector, source_hash)`（issue単位UPSERT・f32→BLOB） / `get_embedding(ws, id)`（BLOB→f32 復元） / `get_all_embeddings(workspace_id)`（類似検索の総当たり用。コーパス含む全件） / `get_embedding_source_hash(ws, id)`（再埋め込み判定。FR-V04-004） / `count_embeddings(Option<workspace_id>)`（進捗集計。`None` で全体）
+  - 類似検索の進捗・メタ取得（v0.4・FR-V04-005）: `count_issues(workspace_id)`（コーパス含む全課題数=埋め込み対象件数の母数） / `get_embedding_status(workspace_id)`（`(target, built)` を返す。`count_issues` と `count_embeddings` の組） / `get_issue_search_meta(workspace_id, &[issue_id])`（上位N件の表示用メタを `HashMap<i64, IssueSearchMeta>` でまとめ取得。IN 句のプレースホルダを動的生成。空入力は DB アクセスせず空マップ）
+  - コメント操作（v0.4）: `save_comments(ws, id, &[Comment])`（コメント単位UPSERT） / `get_comments_text(ws, id, max_chars)`（comment_id 昇順で改行連結・char 単位切り詰め。埋め込み入力用） / `get_comment_state(ws, id)`（`(last_comment_id, status, retry_count)`。未作成は `(None, "idle", 0)`） / `set_comment_state(ws, id, last_comment_id, status, retry_count)`（差分取得状態 UPSERT。FR-V04-002）
+  - コーパス操作（v0.4）: `get_issue_embed_text(ws, id, body_max, comment_max)`（タイトル+本文+コメントを連結し source_hash 計算・埋め込み入力テキストを返す。本文は SQL 切り詰め・コメントは `get_comments_text` 再利用） / `cleanup_corpus_out_of_range(ws, oldest_updated)`（期間短縮時に範囲外コーパス課題と埋め込み・コメント・状態を連鎖削除。`is_corpus_only = 1` のみ対象。FR-V04-003） / `count_corpus_issues(ws)`（設定画面のコーパス件数表示） / `get_corpus_issue_ids(ws)`（v0.4。`is_corpus_only=1` の課題IDを列挙。埋め込み未構築時の初回コメント全件取得対象の特定に使用。FR-V04-002）
+- **テスト**: `#[cfg(test)] mod tests`（v0.4 新設）。in-memory SQLite（`sqlite::memory:`）でマイグレーション→各CRUDのラウンドトリップを検証（ベクトル一致・source_hash スキップ判定・コメント連結/切り詰め・コーパス連鎖削除・`save_issues` のコーパス保持/通常・コーパス分離クリーンアップ・`recompute_schedule_risk` の 469日超過課題が high へ昇格＋猶予課題は据え置き＋冪等性 など）
+- **ステータス**: ✅ 実装済み（v0.4 DBスキーマ拡張＋スケジューラ結線対応完了。`issue_comments` / `issue_comment_state` / `issue_embeddings` テーブル新設・`issues.is_corpus_only` カラム追加・削除/クリーンアップ経路での新テーブル孤児掃除・`get_issues` でのコーパス除外フィルタ・`save_issues` のコーパス対応クリーンアップ・`get_corpus_issue_ids` を追加。`cargo clippy -D warnings` / 単体テスト通過）
 
 ### `src-tauri/src/log_commands.rs`
 
@@ -594,9 +745,18 @@
   - 高スコア課題の通知（80点以上）
   - フロントエンドへのイベント送信
   - AIジョブのキュー投入（v0.3 / FR-V03-004）: 自動sync の保存後に新規・更新チケットを差分検出してキュー投入。無効ワークスペースは投入対象外
+  - 完了課題コーパス取り込み・コメント差分取得・埋め込みジョブ投入（v0.4 / FR-V04-002・003・004）: 通常sync 直後にバックグラウンドで実行し sync・UI を阻害しない。失敗は本体を止めない（NFR-V04-002 / NFR-V04-005）
+- **主な定数**: `SETTING_CORPUS_MONTHS`（`corpus_months`。完了課題コーパス取り込み期間の設定キー） / `DEFAULT_CORPUS_MONTHS`（既定 6ヶ月。未解決事項#3 既定値） / `RATE_LIMIT_BACKOFF_THRESHOLD`（残量 ≤50 で追加取得をバックオフ） / `MAX_CORPUS_PAGES`（1サイクル20ページ上限） / `MAX_COMMENT_FETCH_PER_CYCLE`（1サイクル100課題上限） / `MAX_COMMENT_RETRIES`（コメント取得リトライ上限=3）
 - **主な関数**:
-  - `enqueue_changed_issues(db, workspace_id, issues, existing_updated_map)`（`pub(crate)`）: 同期前DBスナップショットの `updated`（最終更新日時）と突き合わせ、新規（マップ未登録）・更新（`updated` 変化）分のみ `enqueue_jobs` で投入する差分検出ヘルパー。scheduler・commands(`fetch_issues`) 両経路で共通利用。投入失敗は非阻害（ログのみ）
-- **ステータス**: ✅ 実装済み（v0.3 で sync→AIジョブ投入の差分検出を追加）
+  - `enqueue_changed_issues(db, workspace_id, issues, existing_updated_map)`（`pub(crate)`）: 新規・更新分のみ `enqueue_jobs` で `summarize` 投入する差分検出ヘルパー。scheduler・commands(`fetch_issues`) 両経路で共通利用。投入失敗は非阻害（ログのみ）
+  - `changed_issue_ids(workspace_id, issues, existing_updated_map)`: 差分検出の純粋ロジック（同期前スナップショットの `updated` と突き合わせ、新規＝マップ未登録・更新＝`updated` 変化を抽出）。要約ジョブ投入とコメント差分取得・embed 投入で共通利用
+  - `sync_corpus_and_embeddings(db, client, workspace_id, project_keys, issues, existing_updated_map, rate_remaining)`（`pub(crate)`・v0.4）: コーパス取り込み→（初回のみ）コーパス全件コメント取得→変更課題のコメント差分取得＋embed 投入を行うバックグラウンド処理の入口。レート残量が `RATE_LIMIT_BACKOFF_THRESHOLD` 以下ならバックオフして次サイクルへ繰り越す。scheduler・commands(`fetch_issues`) 両経路で共通利用
+  - `fetch_corpus(...)`: `get_closed_issues` を offset ページング（最大 `MAX_CORPUS_PAGES`）で取得し `is_corpus_only=true` の課題を `save_issues`（コーパスバッチ＝破壊的クリーンアップなし）で保存
+  - `fetch_comments_and_enqueue_embed(...)`: 課題ごとに `get_comment_state` の `minId`・retry_count を読み、`get_comments(min_id)` で新規コメントのみ取得→`save_comments`＋`set_comment_state`（最大コメントIDを次回起点に）。失敗は `retry_count++`／`status="failed"` で記録、上限到達でコメント取得はスキップ。最後に `JOB_TYPE_EMBED` を `enqueue_jobs` で投入（`summarize` と並行）
+  - `resolve_corpus_months(db)` / `corpus_updated_since(months)`（`yyyy-MM-dd`）/ `corpus_oldest_updated(months)`（RFC3339）/ `is_rate_backoff(remaining)`: 設定解決・期間境界算出・バックオフ判定の純粋/補助ヘルパー
+- **初回ビルド判定**: `count_embeddings(Some(workspace_id)) == 0` を「埋め込み未構築」とみなし、コーパス全課題に1回だけコメント全件取得＋embed 投入する
+- **テスト**: `is_rate_backoff`（閾値境界）/ `changed_issue_ids`（新規・更新のみ抽出）/ `corpus_updated_since`（日付書式）/ `resolve_corpus_months`（既定・クランプ・パース失敗）の4テスト（`#[cfg(test)]`、in-memory SQLite）
+- **ステータス**: ✅ 実装済み（v0.4 でコーパス取り込み・コメント差分取得・embed 投入を結線。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト通過。実機でのコーパス取得・コメント差分・embed ワーカー消費は埋め込み専用ワーカー項目と合わせて要確認）
 
 ### `src-tauri/src/scoring.rs`
 
@@ -669,3 +829,14 @@ Claude Code のスラッシュコマンド定義（Markdown）。
 - 2026-06-12: v0.3 設定画面 AI セクション(settings.vue に AI 機能セクションを追加。トグル・可用性状態チップ・Apple Intelligence 設定導線ボタン・キュー処理状況を実装。useAiSettings を統合し onMounted で loadEnabled / loadAvailability / loadQueueStatus を並行ロード。docs/COMPONENTS.md の settings.vue エントリを更新)
 - 2026-06-12: v0.3 ビルド統合(tauri.conf.json の bundle.externalBin に binaries/projectlens-ai-sidecar を登録。build.sh に tauri:build 前の swift build -c release・rustc ホストトリプル付き名でのbinaries/配置・codesign 署名ステップを追加。sidecar ビルド失敗時は AI 機能なしで本体ビルド継続のフォールバックを実装。notarization は検証機依存のため build.sh コメントに手順明文化。src-tauri/.gitignore に /binaries/ を追加。SKIP_AI_SIDECAR / TAURI_ENV_TARGET_TRIPLE / APPLE_SIGNING_IDENTITY 環境変数で制御可能)
 - 2026-06-13: v0.3 レビュー指摘の修正(16件)。バグ: 可用性 reason を camelCase 化しフロントと一致(availability.rs)・起動時に processing ジョブを pending へ戻す reset_stale_jobs を追加(db.rs / lib.rs)・削除系メソッドで ai_results / job_queue の孤児を掃除(db.rs)・sysctl を spawn_blocking 化(availability.rs)。性能: fetch_issues の差分検出を軽量 get_issue_updated_map に置換(commands.rs / db.rs)・enqueue_jobs を単一の条件付き INSERT 化+job_queue インデックス2本追加(db.rs)・可用性をキャッシュし再 spawn を回避(useAiSettings.ts)。規約: AI 要約行を IssueAiSummaryRow に、AI 分析セクションを IssueAiAnalysis に、設定 AI セクションを AiSettingsCard に分離。IssueDetailDialog のリスク色を getRiskColor に統一。i18n: ai.settings.queueTitle を追加しキュー見出しを分離、未使用キー(ai.banner.skip / ai.settings.reanalyze / ai.riskLevel.label / ai.issueDetail.delayDays)を削除、IssueCard のバッジを ai_risk_level でガード)
+- 2026-06-13: v0.4 DBスキーマ拡張(db.rs)。新テーブル3件追加: `issue_comments`（コメント本文保存）/ `issue_comment_state`（差分取得状態管理）/ `issue_embeddings`（384次元 BLOB ベクトル保存・source_hash 付き）。`issues` に `is_corpus_only INTEGER DEFAULT 0` カラム追加（完了課題コーパス分離用）。`delete_workspace` / `delete_workspace_issues` / `save_issues` の孤児掃除に新テーブルを追加。`get_issues` に `is_corpus_only = 0` フィルタを追加しコーパス行をダッシュボード・一覧から除外。`cargo clippy -D warnings` 通過
+- 2026-06-13: v0.4 埋め込み抽象基盤(ai/embedding.rs を新設・FR-V04-001)。`LlmInference` とは別経路の埋め込み API として `EmbeddingBackend` trait（`embed` / `dim` / `model_name`）・`EmbeddingInput` / `EmbeddingOutput` 型・`EmbedPrefix` enum（e5 の `query:` / `passage:` 非対称プレフィックス）・`EmbeddingBackendKind` enum・`create_embedding_backend` レジストリ入口・`build_embed_source`（単一ベクトル方式の結合＋文字数切り詰め）・`EMBEDDING_DIM`(384) / `EMBED_SOURCE_MAX_CHARS`(1800) 定数を追加。512トークン対策は単一ベクトル方式を既定採用（コメントに方針明記）。`create_embedding_backend` は骨格のため `unimplemented!()`（sidecar 連携は後続項目）。ai/mod.rs に `pub mod embedding` を追加。`cargo build` / `clippy -D warnings` / 単体テスト 8件 通過
+- 2026-06-13: v0.4 埋め込みバックエンド本体(ai/foundation_models.rs・ai/embedding.rs・FR-V04-001)。`FoundationModelsBackend` に `EmbeddingBackend` を実装し、analyze と同一 sidecar・同一管理タスクで `embed` を扱う方針を採用。`SidecarRequest` に `Embed{texts, prefix}`・`SidecarResponse` に `Embedding{vectors}` バリアント、`ManagerCommand::Embed`・`ExpectedResponse::Embedding`・`parse_embedding`（件数=要求texts数・次元=`EMBEDDING_DIM` を検証）・`embed_internal`（一時停止チェック→MPSC→oneshot）を追加。`EMBEDDING_MODEL_NAME`(`multilingual-e5-small`) 定数を追加し `model_name()` で返す（`issue_embeddings.model` 記録・再埋め込み判定用。バックエンド名とは別）。`create_embedding_backend` の `MultilingualE5Small` アームを `unimplemented!()` から `FoundationModelsBackend::new(app)` へ差し替え（`NoopEmbeddingBackend` 削除）。可用性は `check_availability` 流用・非対応環境では `embed` が `Err` を返し検索のみ degrade（NFR-V04-005）。モック transport で embed のベクトル応答・再起動・連続失敗での Suspended・件数/次元不一致・error 応答・analyze と embed の sidecar 共用を検証する単体テスト9件を追加（foundation_models 計16件）。`cargo build` / `clippy -D warnings` / `cargo fmt --check` / 単体テスト 通過
+- 2026-06-13: v0.4 DB CRUD 拡張(db.rs)。埋め込み・コメント・コーパスの CRUD メソッドと `Comment` 構造体・`EMBEDDING_MODEL`/`EMBEDDING_DIM` 定数・`vector_to_blob`/`blob_to_vector`(f32↔リトルエンディアン BLOB 手実装) を追加。埋め込み系: `save_embedding`(UPSERT) / `get_embedding` / `get_all_embeddings`(コーパス含む総当たり用) / `get_embedding_source_hash`(再埋め込み判定 FR-V04-004) / `count_embeddings(Option<ws>)`。コメント系: `save_comments` / `get_comments_text`(comment_id 昇順連結・切り詰め) / `get_comment_state`(未作成は `(None,"idle",0)`) / `set_comment_state`(UPSERT FR-V04-002)。コーパス系: `get_issue_embed_text`(タイトル+本文+コメント連結・source_hash 計算用) / `cleanup_corpus_out_of_range`(期間短縮時に範囲外コーパスと関連データを連鎖削除 FR-V04-003) / `count_corpus_issues`。`#[cfg(test)] mod tests` を新設し in-memory SQLite でラウンドトリップ8件を検証(ベクトル一致・source_hash スキップ判定・コメント連結/切り詰め・コーパス連鎖削除)。`cargo test` / `clippy -D warnings` / `fmt --check` 通過
+- 2026-06-13: v0.4 コメント差分取得・完了課題コーパス取得(backlog.rs・db.rs・FR-V04-002/003)。`BacklogClient` に `get_comments(issue_id_or_key, min_id)`(`GET /issues/:id/comments` を `minId`/`order=asc`/`count=100` で呼び `(Vec<db::Comment>, RateLimitInfo)` を返す) / `get_closed_issues(project, updated_since, offset)`(`statusId[]=4`+`updatedSince`+`count=100`+`offset` で完了課題をページング取得し各 Issue に `is_corpus_only=true` を設定) を追加。クエリ組み立てを純粋関数 `build_comments_query`/`build_closed_issues_query` に分離しテスト可能化。`Issue` に `is_corpus_only: bool`(`#[serde(skip_deserializing, default)]`) を追加し `save_issues` の INSERT に `is_corpus_only` カラムを追加。`db::Comment` を API デシリアライズ兼 DB 行の共有型に拡張(serde `alias="created"` で投稿日時取り込み・`created_user: Option<User>` を `createdUser`/`#[sqlx(default)]` で追加)。backlog.rs に `#[cfg(test)] mod tests` を新設しクエリ組み立て(minId 付与・statusId[]=4・updatedSince・offset)とコメント/完了課題のデシリアライズを検証する単体テスト6件を追加。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト(計46件) 通過
+- 2026-06-13: v0.4 スケジューラ結線(scheduler.rs・commands.rs・db.rs・ai/worker.rs・FR-V04-002/003/004)。`worker.rs` に `JOB_TYPE_EMBED`(`embed`) 定数を追加。`scheduler.rs` に `sync_corpus_and_embeddings`(`pub(crate)`) を新設し通常sync 直後にコーパス取り込み→(初回のみ)コーパス全件コメント取得→変更課題コメント差分取得＋embed 投入を実行。`fetch_corpus`(`get_closed_issues` を offset ページング・`is_corpus_only=true` でコーパスバッチ保存) / `fetch_comments_and_enqueue_embed`(課題ごとに `get_comment_state` の minId・retry を読み `get_comments(min_id)` で新規コメントのみ取得→`save_comments`＋`set_comment_state`、失敗は retry_count++/`failed` 記録・上限到達でスキップ、最後に `JOB_TYPE_EMBED` を投入) を追加。差分検出を `changed_issue_ids` に共通化(`enqueue_changed_issues` と共有)。設定キー `SETTING_CORPUS_MONTHS`(`corpus_months`・既定6ヶ月) と `resolve_corpus_months`(1〜24 クランプ)・`corpus_updated_since`(yyyy-MM-dd)・`corpus_oldest_updated`(RFC3339)・`is_rate_backoff`(残量≤`RATE_LIMIT_BACKOFF_THRESHOLD`=50 でバックオフ) を追加。初回ビルド判定は `count_embeddings==0`。`db.save_issues` をコーパス対応に改修(コーパスバッチは破壊的クリーンアップをスキップ・通常バッチは `COALESCE(is_corpus_only,0)=0` でコーパス行を削除対象から除外)。`db.rs` に `get_corpus_issue_ids` を追加(初回コメント全件取得対象の特定)。`commands.rs::fetch_issues` 末尾でも同関数を呼び手動sync経路でも実行(`last_remaining` を取得しバックオフ判定)。scheduler.rs に単体テスト4件(バックオフ閾値・差分抽出・コーパス日付書式・期間設定クランプ)・db.rs に `save_issues` コーパス保持/分離クリーンアップのテスト1件を追加。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト(計51件) 通過
+- 2026-06-13: v0.4 類似検索(ai/cosine.rs・commands.rs・db.rs・backlog.rs・lib.rs・FR-V04-004/005)。`ai/cosine.rs` を新設し純粋関数 `cosine_similarity(&[f32],&[f32])->f32`(内積・ノルム1パス・ゼロベクトル/次元不一致で `NaN` でなく `0.0`)・単体テスト7件を追加(`ai/mod.rs` に `pub mod cosine`)。`commands.rs` に `search_similar_issues(workspace_id, issue_id, limit?)`(クエリ埋め込み取得→`get_all_embeddings`(コーパス含む全件1回ロード)と総当たり→自身除外→しきい値 `SIMILARITY_THRESHOLD=0.80`→降順→上位 `DEFAULT_SIMILAR_LIMIT=10`。未構築時は空リストで degrade。`SimilarIssue`(camelCase) を返す) / `get_embedding_status(workspace_id)`(`(target, built)`) / `get_closed_issues_corpus_count(workspace_id)` を追加。中核ランキングを純粋関数 `rank_similar` に分離し `project_key_from_issue_key`(issue_key プレフィックス導出) とあわせ単体テスト5件を追加。`db.rs` に `IssueSearchMeta` 構造体・`count_issues`・`get_embedding_status`・`get_issue_search_meta`(IN 句動的プレースホルダ・空入力は早期 return) を追加し、`get_issues` の SELECT に `issue_embeddings` LEFT JOIN を足して `embedding_ready`(FR-V04-005) を `Issue` に載せる。`backlog::Issue` に `embedding_ready: bool`(`#[serde(default)]`) を追加。`lib.rs` invoke_handler に3コマンドを登録。db.rs に進捗・メタ・embedding_ready のテスト3件を追加。`cargo build` / `clippy --all-targets -D warnings` / 単体テスト(計70件) 通過
+- 2026-06-13: v0.4 解決策要約コマンド(commands.rs・lib.rs・useSimilarSearch.ts・FR-V04-005)。`commands.rs` に `summarize_solutions(workspace_id, issue_ids, lang)` を追加。類似上位群の本文・コメント・コーパス種別を `get_issue_analysis_fields`/`get_comments_text`/`get_issue_search_meta` で集め、純粋関数 `build_solution_context`(完了課題=コーパス優先で並べ替え→`SUMMARIZE_MAX_ISSUES=5` 件→課題ごとに見出し付き連結→`SUMMARIZE_CONTEXT_MAX_CHARS=3000` 文字で切り詰め)で1本の context に結合。設計判断: **sidecar は改修せず既存 `analyze` 経路を流用**(新 `summarize_text` 経路は Swift sidecar の改修・再配布を要するため見送り)。context を `AiAnalysisInput.description_head` に載せ `create_backend`(FoundationModels 再利用)→`infer` を呼び、`suggestion`(対応提案=解決策要点)に `summary`(補足1行)を添えて返す。AI 非対応・生成失敗・対象なしは `Err` にせず空文字へ degrade(NFR-V04-005)。`lib.rs` invoke_handler に登録。フロント `useSimilarSearch.ts` の `summarizeResults` を `lang`/`workspaceId` 引数に合わせて更新。`build_solution_context` の単体テスト5件(コーパス優先・件数切り詰め・全要素包含・文字数上限・空入力)を追加。`cargo build` / `clippy --all-targets -D warnings` / `fmt --check` / 単体テスト(計81件) / eslint / prettier 通過
+- 2026-06-13: v0.4 遅延日数のリスク織り込み(ai/mod.rs・ai/worker.rs・db.rs・lib.rs・FR-V04-006)。`ai/mod.rs` に決定的ヘルパー `schedule_risk(Option<i64>)->RiskLevel`(>14日=High / 1〜14日=Medium / 当日〜3日以内=Medium / それ以外=Low)を追加し、`RiskLevel` に `Ord`(Low<Medium<High に宣言順を入れ替え)・`as_storage_str()`/`from_storage_str()` を導入。`worker.rs::process_job` で `final_risk = max(llm_risk, schedule_risk(delay_days))` を算出して `ai_results.risk_level` に保存(従来の `risk_level_to_str` を `RiskLevel::as_storage_str` へ統合)。`db.rs` に `recompute_schedule_risk()`(既保存 `ai_results` を LLM 再実行なしで再計算する起動時バッチ。`issues.due_date` から遅延日数を SQL 算出し `max` を取り直して `risk_level`/`delay_days` を UPDATE・無変更行はスキップで冪等)を追加し、`lib.rs` setup の `reset_stale_jobs` 直後に1回呼ぶ。`ai/mod.rs` に `schedule_risk` しきい値(14/13/0/-5日)・`max` 合成・`Ord`・保存文字列往復のテスト4件、`db.rs` に 469日超過課題が high へ昇格＋猶予課題据え置き＋冪等性のテスト2件を追加。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト(計76件) 通過
+- 2026-06-13: v0.4 類似検索 UI + 「類似を探す」ボタン結線(IssueSimilarResults.vue・IssueSimilarDialog.vue・IssueCard.vue・IssueDetailDialog.vue・index.vue・issues.vue・useSimilarSearch.ts・locales/{ja,en}.json・FR-V04-005)。`IssueSimilarResults.vue` を新設(状態を持たないプレゼンテーション専用。類似上位 N 件の一覧=プロジェクトキーチップ・課題キー・サマリ・ステータス・担当者・類似度チップ・完了バッジ、行クリックで `open-in-browser`、FoundationModels 解決策要約セクションは `mdi-creation`+`ai.settings.generated`+`ai-text-box` を IssueAiAnalysis から踏襲、degrade 理由=構築待ち/AI 非対応/検索失敗を `v-alert` で提示)。`IssueSimilarDialog.vue` を新設し `useSimilarSearch` のグローバルステートを `v-dialog`+`IssueSimilarResults` に束ね、`index.vue`/`issues.vue` のページレベルに1回だけマウント。`IssueCard.vue` にスコアバッジ右へ「類似を探す」ボタン(`mdi-magnify-scan`・`@click.stop`)、`IssueDetailDialog.vue` のアクション行に同ボタン(詳細を閉じてから開きダイアログ重なりを回避)を追加し双方 `useSimilarSearch().openSimilar(issue)` を呼ぶ。`useSimilarSearch.ts` に `openInBrowser(item)` アクション(`get_workspace_by_id`→Backlog URL→`@tauri-apps/plugin-shell` `open`)を追加し export。`locales/{ja,en}.json` に `similar.*`(title/searchButton/queryLabel/searching/resultsCount/noResults/similarityValue/completedBadge/solutionTitle/summarizing/noSummary/degraded.{aiUnavailable,embeddingNotReady,searchFailed})を日英で追加。`pnpm run lint`(0 errors)/`pnpm run format:check`/`pnpm run generate`(ビルド成功・全6ルート prerender) 通過
+- 2026-06-13: v0.4 ドキュメント同期(COMPONENTS.md・ARCHITECTURE.md)。COMPONENTS.md は IssueSimilarResults.vue・IssueSimilarDialog.vue・useSimilarSearch.ts・AiSettingsCard.vue(コーパス設定セクション)・useAiSettings.ts(コーパス/埋め込み進捗)・useIssues.ts(embedding_ready)・ai/embedding.rs・ai/embed_worker.rs・ai/cosine.rs・sidecar(embed プロトコル拡張)・db.rs(新テーブル4件)・commands.rs(v0.4 コマンド5種)・scheduler.rs(v0.4 拡張)の各エントリを v0.4 実装に合わせて記載済み。ARCHITECTURE.md のバックエンドモジュール一覧に ai/embedding.rs(埋め込み抽象)・ai/embed_worker.rs(埋め込みジョブ処理)・ai/cosine.rs(類似度計算)を単一責任記述で追加し、プロジェクト構成ツリーを更新
