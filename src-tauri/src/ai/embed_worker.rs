@@ -339,12 +339,16 @@ async fn embed_with_retry<B: EmbeddingBackend>(backend: &B, source_text: &str) -
 /// 一致判定に十分（両者を同じバイナリで計算するため衝突確率も無視できる）。EMBEDDING_DIM の変化のような
 /// モデル差し替えは `issue_embeddings.model` 側で別途扱う。
 ///
+/// `pub(crate)` に昇格しており、背景要約キャッシュ（FR-V045-004）でも同一の SipHash 方式を
+/// 再利用できる（`crate::ai::embed_worker::compute_source_hash` で参照）。
+///
 /// # 引数
-/// * `source_text` - 埋め込み元テキスト（タイトル＋本文＋コメント結合）。
+/// * `source_text` - ハッシュ対象テキスト（埋め込み用途はタイトル＋本文＋コメント結合、
+///   背景要約用途はコメント本文結合）。
 ///
 /// # 戻り値
 /// 16進数文字列のハッシュ（`source_hash` カラムへ保存する）。
-fn compute_source_hash(source_text: &str) -> String {
+pub(crate) fn compute_source_hash(source_text: &str) -> String {
     let mut hasher = DefaultHasher::new();
     source_text.hash(&mut hasher);
     format!("{:016x}", hasher.finish())

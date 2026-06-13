@@ -63,6 +63,10 @@ pub fn run() {
             commands::summarize_solutions,            // 過去事例の解決策要約（v0.4）
             commands::get_embedding_status,           // 埋め込み構築の進捗を取得（v0.4）
             commands::get_closed_issues_corpus_count, // コーパス（完了課題）件数を取得（v0.4）
+            commands::get_background_summary,         // 課題の背景・経緯の要約（v0.4.5）
+            commands::generate_reports,               // レポート/サマリーを生成して保存（v0.4.5）
+            commands::get_reports,                    // 保存済みレポート/サマリーを取得（v0.4.5）
+            commands::list_report_periods,            // レポートの期間キー一覧を取得（v0.4.5）
             log_commands::get_log_directory,          // ログディレクトリのパスを取得
             log_commands::open_log_directory          // ログディレクトリを開く
         ])

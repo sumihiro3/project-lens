@@ -44,6 +44,12 @@ pub struct Issue {
     pub due_date: Option<String>,
     /// 最終更新日時
     pub updated: Option<String>,
+    /// 作成日時（Backlog API の `created`）。
+    ///
+    /// v0.4.5 の週次/月次アクティビティレポート（FR-V045-003）で「期間内の新規作成件数」を
+    /// 集計するために取り込む。raw_data に含めて保存し、`issues.created_at` カラムへも展開する。
+    #[serde(default)]
+    pub created: Option<String>,
     /// 関連度スコア（デシリアライズ時はスキップ、後で計算して設定）
     #[serde(skip_deserializing, default)]
     pub relevance_score: i32,
