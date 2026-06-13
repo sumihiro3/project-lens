@@ -1,2 +1,9 @@
 # Swift Package Manager のビルド成果物
 .build/
+
+# 埋め込みモデル本体（v0.4。サイズが大きいため commit しない。Resources/README.md 参照）
+Sources/projectlens-ai-sidecar/Resources/*.mlmodelc
+Sources/projectlens-ai-sidecar/Resources/*.mlpackage
+Sources/projectlens-ai-sidecar/Resources/*.bin
+Sources/projectlens-ai-sidecar/Resources/*.json
+Sources/projectlens-ai-sidecar/Resources/*.txt

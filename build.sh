@@ -94,6 +94,37 @@ build_ai_sidecar() {
     chmod +x "$dest"
     echo "📂 sidecar を配置しました: $dest"
 
+    # ---- 埋め込みモデルのリソースバンドル同梱（v0.4 / FR-V04-001） -----------
+    # Package.swift が Resources/ を .copy で同梱しているため、SwiftPM は
+    #   .build/release/projectlens-ai-sidecar_projectlens-ai-sidecar.bundle
+    # というリソースバンドルを生成する。multilingual-e5-small（.mlmodelc）は
+    # この bundle 内 Resources/ に入る。`Bundle.module` は **実行ファイルの隣** に
+    # この .bundle が在ることを前提に解決するため、Tauri が externalBin を配置する
+    # 実行ファイルの隣（バンドル後は *.app/Contents/MacOS/）に同名で運ぶ必要がある。
+    # ここでは binaries/ にも複製して同梱漏れを防ぐ（Tauri が externalBin と一緒に拾えるよう前段で用意）。
+    #
+    # 注意（配布サイズ NFR-V04-004）: モデル本体（100〜250MB）を Resources/ に配置すると
+    # この .bundle がその分肥大し、最終 .app / .dmg のサイズ増につながる。モデル未配置時は
+    # bundle はほぼ空（Resources/README.md のみ）でサイズ増は無い。
+    local res_bundle_name="${SIDECAR_BIN_NAME}_${SIDECAR_BIN_NAME}.bundle"
+    local res_bundle_src="$SIDECAR_DIR/.build/release/$res_bundle_name"
+    if [ -d "$res_bundle_src" ]; then
+        local res_bundle_dest="$BINARIES_DIR/$res_bundle_name"
+        rm -rf "$res_bundle_dest"
+        cp -R "$res_bundle_src" "$res_bundle_dest"
+        echo "📦 埋め込みリソースバンドルを配置しました: $res_bundle_dest"
+        # モデル本体が含まれるか（同梱状況）を表示し、配布サイズ増の確認に供する。
+        if find "$res_bundle_dest" -name '*.mlmodelc' -print -quit | grep -q .; then
+            local bundle_size
+            bundle_size=$(du -sh "$res_bundle_dest" 2>/dev/null | cut -f1)
+            echo "🧬 埋め込みモデルを同梱します（バンドルサイズ: ${bundle_size:-?}。NFR-V04-004: 配布100〜250MB増の確認対象）。"
+        else
+            echo "ℹ️  埋め込みモデル（.mlmodelc）は未配置です。検索機能は degrade します（Resources/README.md 参照）。"
+        fi
+    else
+        echo "ℹ️  リソースバンドルが見つかりません（$res_bundle_src）。埋め込みモデルなしで継続します。"
+    fi
+
     # codesign で署名する。
     # APPLE_SIGNING_IDENTITY が指定されていればそれを、無ければアドホック署名 "-" を使う。
     # アドホック署名でもローカル / CI でのビルドは通る（配布にはハードンドランタイムでの
@@ -107,6 +138,15 @@ build_ai_sidecar() {
         codesign --force --sign "$identity" "$dest"
     fi
     echo "✅ AI sidecar の準備が完了しました。"
+
+    # ---- 未解決事項: リソースバンドルの .app 同梱（リリース統合・別作業項目） --------
+    # Tauri の externalBin は「名前付き実行ファイル」のみを *.app/Contents/MacOS/ に運ぶ。
+    # 上で binaries/ に複製した埋め込みリソースバンドル
+    # （projectlens-ai-sidecar_projectlens-ai-sidecar.bundle）を、最終 .app 内の
+    # 実行ファイルの隣（Contents/MacOS/）へ確実に運ぶ結線（tauri.conf.json の resources、
+    # または tauri:build 後のフックでのコピー）は別作業項目（リリースビルド統合）で行う。
+    # `Bundle.module` は実行ファイルの隣にこの .bundle が在ることを前提に解決するため、
+    # 実機での埋め込み動作にはこの同梱結線が必須。詳細は src-tauri/sidecar/README.md を参照。
 
     # ---- 未解決事項: notarization（検証機依存） -----------------------------
     # 配布用に Apple へ notarization するには、検証機（macOS 26）での以下が必要:
