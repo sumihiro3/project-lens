@@ -2,6 +2,14 @@ import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
+ * 埋め込み構築進捗（target: 対象件数, built: 構築済み件数）
+ */
+export interface EmbeddingStatus {
+  target: number
+  built: number
+}
+
+/**
  * AI 可用性の理由別 enum（Rust 側 AiAvailabilityReason の camelCase シリアライズに対応）
  */
 export type AiAvailabilityReason =
@@ -46,6 +54,16 @@ const queueStatus = ref<AiQueueStatus>([0, 0])
 const loadingAvailability = ref(false)
 /** キュー状況のロード中フラグ */
 const loadingQueue = ref(false)
+/** コーパス取り込み期間（月数。既定 6）*/
+const corpusMonths = ref<number>(6)
+/** コーパス件数（コーパス専用課題の合計） */
+const corpusCount = ref<number | null>(null)
+/** 埋め込み構築進捗 */
+const embeddingStatus = ref<EmbeddingStatus | null>(null)
+/** コーパス件数のロード中フラグ */
+const loadingCorpus = ref(false)
+/** 埋め込み進捗のロード中フラグ */
+const loadingEmbedding = ref(false)
 
 /**
  * AiAvailabilityReason を i18n メッセージキーへマップするヘルパー
@@ -77,6 +95,13 @@ export function useAiSettings() {
 
   /** pending + processing の合計（設定画面のキュー表示用） */
   const totalQueueCount = computed(() => queueStatus.value[0] + queueStatus.value[1])
+
+  /** 埋め込み構築の進捗割合（0〜100。対象 0 件時は 100 とみなす） */
+  const embeddingProgressPercent = computed(() => {
+    const s = embeddingStatus.value
+    if (!s || s.target === 0) return 100
+    return Math.round((s.built / s.target) * 100)
+  })
 
   /**
    * AI 機能の有効化状態を DB から読み込む
@@ -176,6 +201,96 @@ export function useAiSettings() {
     }
   }
 
+  /**
+   * コーパス取り込み期間を DB から読み込む
+   *
+   * `corpus_months` キーが未設定の場合は既定値 6 を使用する。
+   */
+  async function loadCorpusMonths() {
+    try {
+      const val = await invoke<string | null>('get_settings', { key: 'corpus_months' })
+      if (val !== null) {
+        const n = parseInt(val, 10)
+        if (!isNaN(n) && n >= 1 && n <= 24) {
+          corpusMonths.value = n
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load corpus_months:', e)
+    }
+  }
+
+  /**
+   * コーパス取り込み期間を DB に保存する
+   *
+   * 保存後は次回 sync でコーパス再取り込みが走る前提。
+   *
+   * @param months - 取り込み期間（月数。1〜24）
+   */
+  async function saveCorpusMonths(months: number) {
+    try {
+      await invoke('save_settings', { key: 'corpus_months', value: String(months) })
+      corpusMonths.value = months
+    } catch (e) {
+      console.error('Failed to save corpus_months:', e)
+      throw e
+    }
+  }
+
+  /**
+   * 全ワークスペースのコーパス（完了課題）件数を合算して取得する
+   *
+   * 各ワークスペースの `get_closed_issues_corpus_count` を並列呼び出しし合算する。
+   * 取得失敗時は 0 件扱いとして静かに失敗する。
+   */
+  async function loadCorpusCount() {
+    loadingCorpus.value = true
+    try {
+      const workspaces = await invoke<{ id: number }[]>('get_workspaces')
+      const counts = await Promise.all(
+        workspaces.map(ws =>
+          invoke<number>('get_closed_issues_corpus_count', { workspaceId: ws.id }).catch(() => 0)
+        )
+      )
+      corpusCount.value = counts.reduce((sum, c) => sum + c, 0)
+    } catch (e) {
+      console.error('Failed to load corpus count:', e)
+      corpusCount.value = 0
+    } finally {
+      loadingCorpus.value = false
+    }
+  }
+
+  /**
+   * 全ワークスペースの埋め込み構築進捗を合算して取得する
+   *
+   * 各ワークスペースの `get_embedding_status` を並列呼び出しし合算する。
+   * 取得失敗時は {target: 0, built: 0} として静かに失敗する。
+   */
+  async function loadEmbeddingStatus() {
+    loadingEmbedding.value = true
+    try {
+      const workspaces = await invoke<{ id: number }[]>('get_workspaces')
+      const statuses = await Promise.all(
+        workspaces.map(ws =>
+          invoke<[number, number]>('get_embedding_status', { workspaceId: ws.id }).catch(
+            () => [0, 0] as [number, number]
+          )
+        )
+      )
+      const total = statuses.reduce(
+        (acc, [target, built]) => ({ target: acc.target + target, built: acc.built + built }),
+        { target: 0, built: 0 }
+      )
+      embeddingStatus.value = total
+    } catch (e) {
+      console.error('Failed to load embedding status:', e)
+      embeddingStatus.value = { target: 0, built: 0 }
+    } finally {
+      loadingEmbedding.value = false
+    }
+  }
+
   return {
     // state
     aiEnabled,
@@ -183,9 +298,15 @@ export function useAiSettings() {
     queueStatus,
     loadingAvailability,
     loadingQueue,
+    corpusMonths,
+    corpusCount,
+    embeddingStatus,
+    loadingCorpus,
+    loadingEmbedding,
     // computed
     isAiReady,
     totalQueueCount,
+    embeddingProgressPercent,
     // actions
     loadEnabled,
     loadAvailability,
@@ -193,5 +314,9 @@ export function useAiSettings() {
     enableAi,
     disableAi,
     reanalyze,
+    loadCorpusMonths,
+    saveCorpusMonths,
+    loadCorpusCount,
+    loadEmbeddingStatus,
   }
 }

@@ -90,6 +90,15 @@
           {{ $t('ai.issueDetail.reanalyze') }}
         </v-btn>
         <div class="d-flex gap-2">
+          <v-btn
+            size="small"
+            variant="tonal"
+            color="purple-darken-1"
+            prepend-icon="mdi-magnify-scan"
+            @click="handleSearchSimilar"
+          >
+            {{ $t('similar.searchButton') }}
+          </v-btn>
           <v-btn size="small" variant="tonal" prepend-icon="mdi-open-in-new" @click="openInBrowser">
             {{ $t('issue.openInBrowser') }}
           </v-btn>
@@ -108,6 +117,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
 import type { Issue } from '../composables/useIssues'
 import { useAiSettings } from '../composables/useAiSettings'
+import { useSimilarSearch } from '../composables/useSimilarSearch'
 import IssueAiAnalysis from './IssueAiAnalysis.vue'
 import {
   getPriorityColor,
@@ -132,6 +142,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const { reanalyze } = useAiSettings()
+const { openSimilar } = useSimilarSearch()
 const reanalyzing = ref(false)
 
 const projectColor = computed(() => getProjectColor(props.issue.issueKey))
@@ -151,6 +162,16 @@ async function openInBrowser() {
   } catch (e) {
     console.error('Failed to open in browser:', e)
   }
+}
+
+/**
+ * 類似検索ダイアログを開く
+ *
+ * 詳細ダイアログを閉じてから類似ダイアログを開き、2 つのダイアログが重ならないようにする。
+ */
+function handleSearchSimilar() {
+  emit('update:modelValue', false)
+  openSimilar(props.issue)
 }
 
 /**

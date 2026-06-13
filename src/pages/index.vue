@@ -122,6 +122,9 @@
 
     <!-- 課題詳細ダイアログ -->
     <IssueDetailDialog v-if="detailIssue" v-model="detailDialogOpen" :issue="detailIssue" />
+
+    <!-- 類似検索ダイアログ（グローバルステート参照・ページに1回だけマウント） -->
+    <IssueSimilarDialog />
   </v-container>
 </template>
 
@@ -134,6 +137,7 @@ import PriorityChart from '../components/dashboard/PriorityChart.vue'
 import RecentUpdates from '../components/dashboard/RecentUpdates.vue'
 import DelayRiskSection from '../components/dashboard/DelayRiskSection.vue'
 import IssueDetailDialog from '../components/IssueDetailDialog.vue'
+import IssueSimilarDialog from '../components/IssueSimilarDialog.vue'
 
 const {
   issues,

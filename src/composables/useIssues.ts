@@ -24,6 +24,12 @@ export interface Issue {
   ai_delay_days?: number
   /** AI処理完了日時（ISO 8601 文字列） */
   ai_processed_at?: string
+  /**
+   * この課題の埋め込みベクトルが生成済みかどうか（v0.4 類似検索用）
+   * - false のとき類似検索は「構築待ち」として degrade する（FR-V04-001 / NFR-V04-005）
+   * - undefined の場合は未取得（埋め込み基盤が未提供の経路）として扱う
+   */
+  embedding_ready?: boolean
 }
 
 /**
