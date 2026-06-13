@@ -26,6 +26,11 @@
           to="/issues"
         ></v-list-item>
         <v-list-item
+          prepend-icon="mdi-file-chart"
+          :title="$t('app.reports')"
+          to="/reports"
+        ></v-list-item>
+        <v-list-item
           prepend-icon="mdi-cog"
           :title="$t('app.settings')"
           to="/settings"
