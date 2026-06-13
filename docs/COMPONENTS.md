@@ -65,6 +65,85 @@
 - **使用コンポーネント**: `AiSettingsCard`
 - **ステータス**: ✅ 実装済み（v0.3 で AI 機能セクションを追加・分離）
 
+### `pages/reports.vue`（v0.4.5 新設・FR-V045-001）
+
+- **役割**: レポート/サマリーページ（プロジェクト横断サマリ + 週次/月次アクティビティ）。ロジックは `useReports` へ委譲し、ページはワークスペース選択とセクション配置のみを担う
+- **主な機能**:
+  - 有効ワークスペースの選択（`get_workspaces` で `enabled` のみ抽出。複数あるときだけセレクタ表示、単一なら自動選択）。ドメインのサブドメイン部分を表示ラベルにする
+  - 有効ワークスペースなしは `v-alert` でガイド表示（`reports.noWorkspace`）
+  - 横断サマリセクションと週次/月次セクションを配置
+  - 種別切替（週次⇔月次）に追従して `weekly` / `monthly` の state バンドルを切り替え（`periodState` computed）
+  - 横断テーブルのプロジェクト行クリックで `useIssueFilters` の `filters.selectedProjects` をセットして `/issues` へ絞り込み遷移（dashboard と同方式の global state 連携）
+  - ワークスペース選択変更を `watch` してレポートを再ロード
+- **使用コンポーネント**: `reports/CrossSummarySection`, `reports/WeeklyMonthlySection`
+- **使用 Composables**: `useReports`（状態・degrade・コマンド呼び出し全量）、`useIssueFilters` / `useIssues`（課題一覧への絞り込み導線用）
+- **ステータス**: ✅ 実装済み（v0.4.5）
+
+### `components/reports/CrossSummarySection.vue`（v0.4.5 新設・FR-V045-002）
+
+- **役割**: 複数プロジェクト横断サマリのプレゼンテーション専用セクション。プロジェクト別統計テーブル（SQL 集計）と AI narrative（注目点・見出し）を表示し、再生成導線を提供する
+- **Props**:
+  - `stats: CrossSummaryStat[]` — プロジェクト別横断統計（未生成時は空配列）
+  - `headline: string | null` — AI 生成の1行見出し
+  - `narrative: string | null` — AI 生成の narrative テキスト
+  - `generatedAt: string | null` — 最終生成日時（ISO8601）
+  - `loading: boolean` — 初期ロード中フラグ
+  - `regenerating: boolean` — 再生成中フラグ（ボタンスピナー用）
+  - `degradedReason: ReportDegradedReason | null` — narrative 非表示の degrade 理由
+- **Emits**:
+  - `regenerate: []` — 再生成ボタン押下（親が `generate_reports` を呼ぶ）
+  - `select-project: [projectKey: string]` — プロジェクト行クリック（課題一覧の絞り込み導線）
+- **主な機能**:
+  - 統計テーブル（未完了・期限超過・停滞・自分担当・リスク分布(高/中/低)）。期限超過 > 0 は強調表示。行クリックで `select-project`。統計は SQL 集計のため degrade 対象外で常に表示
+  - 統計なし（未生成）は `reports.noStats` の `v-alert`
+  - 「再生成」ボタン（`mdi-refresh` + 生成中スピナー + 前回生成時刻表示）
+  - AI narrative セクション（`mdi-creation` + `ai.settings.generated` 生成ラベル + `ai-text-box` スタイルを IssueSimilarResults から踏襲）
+  - narrative なしは degrade 理由を `v-alert` で提示（`aiUnavailable`=warning / その他=info。NFR-V045-003）
+- **使用ユーティリティ**: `getProjectColor`, `formatDate`（`utils/issueHelpers`）
+- **ステータス**: ✅ 実装済み（v0.4.5）
+
+### `components/reports/WeeklyMonthlySection.vue`（v0.4.5 新設・FR-V045-003）
+
+- **役割**: 週次/月次アクティビティレポートのプレゼンテーション専用セクション。種別切替・期間セレクタ・統計テーブル（SQL 集計）・AI narrative（期間ハイライト）を表示し、再生成導線を提供する
+- **Props**:
+  - `reportType: PeriodReportType` — 現在の種別（`weekly` / `monthly`）
+  - `selectedPeriod: string | null` — 選択中の期間キー
+  - `periods: string[]` — 保存済み期間キー一覧（生成日時降順）
+  - `stats: PeriodActivityStat[]` — 選択期間のプロジェクト別統計
+  - `narrative: string | null` — 選択期間の AI narrative
+  - `generatedAt: string | null` — 選択期間の生成日時（ISO8601）
+  - `loading: boolean` — ロード中フラグ（期間切替含む）
+  - `regenerating: boolean` — 再生成中フラグ（ボタンスピナー用）
+  - `degradedReason: ReportDegradedReason | null` — narrative 非表示の degrade 理由
+- **Emits**:
+  - `update:reportType: [reportType: PeriodReportType]` — 種別切替（`v-model:report-type` パターン）
+  - `select-period: [reportType, periodKey]` — 期間セレクタの選択変更
+  - `regenerate: [reportType]` — 再生成ボタン押下
+- **主な機能**:
+  - 種別切替トグル（週次/月次。`v-btn-toggle` mandatory）と期間セレクタ（期間履歴がある場合のみ）
+  - 統計テーブル（新規・更新・完了）。完了 > 0 は強調表示。統計は degrade 対象外で常に表示
+  - 「再生成」ボタン（`mdi-refresh` + スピナー + 前回生成時刻表示）。生成は現在の種別の期間キーで行われる
+  - AI narrative セクション（CrossSummarySection と同方式の生成ラベル + `ai-text-box`）
+  - narrative なしは degrade 理由を `v-alert` で提示（NFR-V045-003）
+- **使用ユーティリティ**: `getProjectColor`, `formatDate`（`utils/issueHelpers`）
+- **ステータス**: ✅ 実装済み（v0.4.5）
+
+### `components/reports/ReportNarrative.vue`（v0.4.5 新設・FR-V045-002/003）
+
+- **役割**: レポートの AI narrative ブロック（生成ラベル + 見出し + 本文 + degrade）を表示するプレゼンテーション専用コンポーネント。`CrossSummarySection` と `WeeklyMonthlySection` で共用する
+- **Props**:
+  - `title: string` — 生成ラベルに続けて表示するセクション見出し（例: 「注目点」「期間ハイライト」）
+  - `headline?: string | null` — AI 生成の1行見出し（横断サマリのみ。無ければ null）
+  - `narrative: string | null` — AI 生成 narrative 本文（未生成・degrade 時は null）
+  - `degradedReason: ReportDegradedReason | null` — narrative 非表示時の degrade 理由（正常時は null）
+- **主な機能**:
+  - `mdi-creation` + `reports.aiGeneratedLabel` + `title` による生成ラベル表示
+  - `headline` があれば見出し1行を表示（横断サマリのみ利用）
+  - `narrative` がある場合は `ai-text-box` スタイルで本文表示
+  - `narrative` が null かつ `degradedReason` がある場合は degrade 理由を `v-alert` で提示（`aiUnavailable`=warning / その他=info。NFR-V045-003）
+  - 左ボーダースタイルで AI セクションを視覚的に区別
+- **ステータス**: ✅ 実装済み（v0.4.5）
+
 ### `components/AiSettingsCard.vue`（v0.3 新設・settings.vue から分離）
 
 - **役割**: 設定画面の AI 機能セクション（FR-V03-003 / FR-V03-004 / FR-V04-003）
@@ -240,12 +319,13 @@
   - メタデータチップ（種別・優先度・ステータス・担当者・期限）
   - AI 分析結果セクションは `IssueAiAnalysis` 子コンポーネントへ分離（v0.3 レビュー後に抽出）
   - 「再分析」ボタン（`useAiSettings.reanalyze` でキュー投入）
+  - 「背景・経緯を要約」ボタン（`mdi-text-box-search`。`useReports().generateBackgroundSummary(workspace_id, id, locale)` を呼ぶ。結果は本文の折りたたみセクションに `mdi-creation`+生成ラベルつきで表示。生成中はスピナー、空文字（コメントなし・degrade）時は「コメントなし（要約対象なし）」を表示。2回目以降は Rust 側の `source_hash`+`lang` キャッシュで即返し。状態は `useReports` の per-issue 背景要約 state（`backgroundSummary`/`backgroundSummaryLoading`/`backgroundSummaryLoaded`）を共用し、ダイアログを開くたびに `resetBackgroundSummary` でクリアして取り違えを防ぐ。v0.4.5・FR-V045-004 追加）
   - 「類似を探す」ボタン（`mdi-magnify-scan`。詳細ダイアログを閉じてから `useSimilarSearch().openSimilar(issue)` を呼び、ダイアログが重ならないようにする。v0.4 追加）
   - 「ブラウザで開く」ボタン（`get_workspace_by_id` → URL 構築 → `open`）
 - **子コンポーネント**: `IssueAiAnalysis`（AI 分析結果セクション）
-- **使用 Composables**: `useAiSettings`, `useSimilarSearch`
+- **使用 Composables**: `useAiSettings`, `useSimilarSearch`, `useReports`（背景要約の生成・state 共有）
 - **使用ユーティリティ**: `getPriorityColor`, `getStatusColor`, `getDueDateColor`, `formatDate`, `getProjectColor`, `extractProjectKey`, `getChipTextColor`（`utils/issueHelpers`）
-- **ステータス**: ✅ 実装済み（v0.3）
+- **ステータス**: ✅ 実装済み（v0.3。v0.4.5 で背景・経緯の要約導線を追加）
 
 ### `components/IssueAiAnalysis.vue`（v0.3 新設・IssueDetailDialog から分離）
 
@@ -261,6 +341,20 @@
   - AI 結果なし時のフォールバック表示（`ai.issueDetail.noResult`）
 - **使用ユーティリティ**: `getRiskColor`, `getChipTextColor`（`utils/issueHelpers`。色定義は `getRiskColor` に一元化）
 - **ステータス**: ✅ 実装済み（v0.3）
+
+### `components/IssueBackgroundSummary.vue`（v0.4.5 新設・FR-V045-004）
+
+- **役割**: 課題詳細ダイアログ内の背景・経緯の要約セクション（表示専用）。生成トリガー（ボタン）は親の `IssueDetailDialog` に置き、本コンポーネントは `useReports` のグローバルステートを受けて表示に専念する
+- **Props**:
+  - `open: boolean` — ダイアログ開閉状態。開いたら前の課題の要約をクリアして取り違えを防ぐ
+- **主な機能**:
+  - `open` の watch でダイアログを開くたびに `resetBackgroundSummary()` を呼び、per-issue 背景要約 state を初期化（課題取り違え防止）
+  - `show` computed（`backgroundSummaryLoading || backgroundSummaryLoaded`）が true のときだけテンプレートを表示（一度も生成を実行していない段階では非表示）
+  - 生成中: `v-progress-circular` スピナー + `ai.issueDetail.backgroundSummarizing` ラベル
+  - 要約あり: `ai-text-box` スタイルで要約テキストを表示（`mdi-creation` + `ai.issueDetail.backgroundSummaryTitle` 生成ラベル付き）
+  - コメントなし（空文字 + Loaded=true）: `mdi-comment-off-outline` + `ai.issueDetail.backgroundNoComments`
+- **使用 Composables**: `useReports`（`backgroundSummary` / `backgroundSummaryLoading` / `backgroundSummaryLoaded` / `resetBackgroundSummary`）
+- **ステータス**: ✅ 実装済み（v0.4.5）
 
 ### `components/IssueSimilarResults.vue`（v0.4 新設・FR-V04-005）
 
@@ -397,6 +491,37 @@
 - **依存コマンド**: `search_similar_issues`（横断類似検索）, `summarize_solutions`（FoundationModels 再利用の解決策要約）
 - **使用 Composables**: `useAiSettings`（`isAiReady`）
 - **ステータス**: ✅ 実装済み（v0.4）
+
+### `composables/useReports.ts`（v0.4.5 新設）
+
+- **役割**: レポート/サマリー画面（`pages/reports.vue`）の状態管理・degrade 制御・コマンド呼び出しを集約する Composable（FR-V045-002 / FR-V045-003 / FR-V045-004 / FR-V045-005 / FR-V045-006 / NFR-V045-003）
+- **Export**:
+  - `crossSummary`: 横断サマリ state（`stats` / `headline` / `narrative` / `generatedAt`、Ref）
+  - `weekly` / `monthly`: 週次・月次レポート state（`selectedPeriod` / `periods` / `stats` / `narrative` / `generatedAt`、Ref）
+  - `loadingCross` / `loadingWeekly` / `loadingMonthly`: 種別ごとのロード中フラグ（Ref）
+  - `regenerating`: 再生成中フラグ（`Record<ReportType, boolean>`、Ref。再生成スピナー用）
+  - `degradedReason`: 種別ごとの degrade 理由（`Record<ReportType, ReportDegradedReason | null>`、Ref）
+  - `backgroundSummary` / `backgroundSummaryLoading` / `backgroundSummaryLoaded`: per-issue 背景要約 state（要約テキスト / 生成中フラグ / 取得完了フラグ、Ref。IssueDetailDialog は同時1つのため `useSimilarSearch` 同様のモジュール単一インスタンスで共有。空文字 + `Loaded=true` で「コメントなし」表示を出し分け）
+  - `loadReports(workspaceId)`: 横断サマリ + 週次/月次（期間一覧取得 → 最新期間の内容取得）をまとめて読み込む
+  - `selectPeriod(workspaceId, reportType, periodKey)`: 週次/月次の表示期間を切り替える（期間セレクタ用）
+  - `regenerate(workspaceId, reportType)`: `generate_reports` を invoke して即時再生成し state を更新（週次/月次は期間一覧も取り直す）
+  - `generateBackgroundSummary(workspaceId, issueId, lang?)`: `get_background_summary` を invoke し背景・経緯の要約文字列を返しつつ per-issue 背景要約 state を更新（IssueDetailDialog から呼ぶ。`lang` 省略時は UI 言語に追従。コメントなし・AI 非対応・生成失敗・DB エラーは空文字へ degrade。2回目以降は Rust 側 `source_hash`+`lang` キャッシュで即返し）
+  - `resetBackgroundSummary()`: per-issue 背景要約 state を初期化（ダイアログを開き直したときに前の課題の要約を残さない）
+- **主な機能**:
+  - グローバルステートパターン（module スコープ ref）で状態を共有（`/reports` は単一インスタンス）
+  - 数値（統計テーブル）は SQL 集約で常に表示でき、narrative のみ AI 非対応・未生成・取得失敗時に例外を投げず `degradedReason` に集約して degrade（NFR-V045-003）
+  - `report_summaries.stats_json`（文字列）を `parseCrossStats` / `parsePeriodStats` で配列へパース（失敗時は空配列へ degrade）
+  - 出力言語は UI 言語（vue-i18n の `locale` = 永続化済み `language` 設定）に追従し各コマンドの `lang` 引数へ渡す
+- **インターフェース**:
+  - `ReportType`: レポート種別 union（`cross_summary` / `weekly` / `monthly`）
+  - `PeriodReportType`: 期間履歴を持つ種別 union（`weekly` / `monthly`）
+  - `ReportSummary`: `get_reports` / `generate_reports` の戻り値型（`workspaceId` / `reportType` / `periodKey` / `lang` / `statsJson` / `headline` / `narrative` / `generatedAt`）
+  - `CrossSummaryStat`: 横断サマリ統計1行（`projectKey` / `openCount` / `overdueCount` / `staleCount` / `myActionableCount` / `riskHigh` / `riskMedium` / `riskLow`）
+  - `PeriodActivityStat`: 週次/月次統計1行（`projectKey` / `createdCount` / `updatedCount` / `completedCount`）
+  - `ReportDegradedReason`: degrade 理由の union 型（`aiUnavailable` / `notGenerated` / `loadFailed`）
+- **依存コマンド**: `get_reports`（保存済みレポート取得）, `list_report_periods`（期間キー一覧）, `generate_reports`（生成・保存）, `get_background_summary`（課題の背景・経緯の要約）
+- **使用 Composables**: `useAiSettings`（`isAiReady`）
+- **ステータス**: ✅ 実装済み（v0.4.5）
 
 ### `composables/useDashboard.ts`（v0.3 新設）
 
@@ -635,7 +760,7 @@
 - **役割**: Backlog APIクライアント
 - **主な構造体**:
   - `BacklogClient`: APIクライアント
-  - `Issue`: 課題データ。v0.3 で AI 結果フィールドを追加（`ai_summary` / `ai_risk_level` / `ai_suggestion` / `ai_delay_days` / `ai_processed_at`。すべて `#[serde(default)]` で、`get_issues` の `ai_results` JOIN 結果から設定。raw_data に無くても欠落初期値になりフロントへそのまま渡る）。v0.4 で `is_corpus_only: bool`（`#[serde(skip_deserializing, default)]`）を追加。完了課題コーパス取り込み時に `true` を立て、`save_issues` で `issues.is_corpus_only` カラムへ保存する（FR-V04-003）
+  - `Issue`: 課題データ。v0.3 で AI 結果フィールドを追加（`ai_summary` / `ai_risk_level` / `ai_suggestion` / `ai_delay_days` / `ai_processed_at`。すべて `#[serde(default)]` で、`get_issues` の `ai_results` JOIN 結果から設定。raw_data に無くても欠落初期値になりフロントへそのまま渡る）。v0.4 で `is_corpus_only: bool`（`#[serde(skip_deserializing, default)]`）を追加。完了課題コーパス取り込み時に `true` を立て、`save_issues` で `issues.is_corpus_only` カラムへ保存する（FR-V04-003）。v0.4.5 で `created: Option<String>`（API の `created`・`#[serde(default)]`）を追加し、`save_issues` で `issues.created_at` カラムへ展開（週次/月次レポートの新規作成件数集計用。FR-V045-003）
   - `Priority`: 優先度
   - `Status`: ステータス
   - `IssueType`: 種別
@@ -674,7 +799,22 @@
   - `summarize_solutions(workspace_id, issue_ids, lang)`: 過去事例の解決策要点を要約（v0.4・FR-V04-005）。類似上位群（`issue_ids`）の「タイトル+本文先頭+コメント先頭」を結合した context を作り、v0.3 の FoundationModels バックエンド（`create_backend`）を**再利用**して解決策要点を生成する。出力言語は `lang`（UI 言語追従 ja/en）。**sidecar は改修せず既存 `analyze` 経路を流用**し、context を `description_head` に載せて `infer` を呼び、返ってきた `suggestion`（対応提案＝解決策要点）に `summary`（補足1行）を添えて文字列で返す（設計判断はコマンドの doc コメント参照）。context は完了課題（コーパス＝解決済み）を優先（`SUMMARIZE_MAX_ISSUES = 5` 件・本文/コメント各 `400` 文字・全体 `SUMMARIZE_CONTEXT_MAX_CHARS = 3000` 文字で切り詰め）。AI 非対応・生成失敗・対象なしは `Err` にせず**空文字**へ degrade し、検索一覧を壊さない（NFR-V04-005）。context 結合（完了課題優先・件数/文字数切り詰め）は純粋関数 `build_solution_context` に分離して単体テスト
   - `get_embedding_status(workspace_id)`: 埋め込み構築進捗を取得（v0.4・FR-V04-005）。`(target, built)` = (対象件数=ワークスペース内全課題数（コーパス含む）, 構築済み件数=`issue_embeddings` 行数) のタプルを返す
   - `get_closed_issues_corpus_count(workspace_id)`: コーパス（完了課題）件数を取得（v0.4・FR-V04-003/FR-V04-005）。`count_corpus_issues`（`is_corpus_only = 1`）を返す
-- **ステータス**: ✅ 実装済み（cargo build / clippy `-D warnings` / 単体テスト通過。v0.3 の AI コマンド5種に加え、v0.4 の類似検索・解決策要約コマンド4種を追加・`lib.rs` の invoke_handler に登録。`rank_similar`/`project_key_from_issue_key`/`build_solution_context` の単体テスト10件追加）
+  - `generate_reports(app, workspace_id, report_type, lang) -> ReportSummary`: レポート/サマリーを生成して保存する Tauri コマンド（v0.4.5・FR-V045-002/003/006）。実体は **`pub(crate) generate_report(&app, &db, workspace_id, report_type, lang)`** に切り出し済みで、コマンドは薄いラッパー（`State<DbClient>` を `&DbClient` へ剥がして委譲）。`generate_report` をスケジューラの1日1回バックグラウンド生成（`scheduler::generate_due_reports`・FR-V045-005）と共有することで、手動再生成と自動生成が同一の生成経路を通る。`report_type`（`'cross_summary'`/`'weekly'`/`'monthly'`）に応じて統計を **SQL で決定的に集計**（横断=`get_cross_summary_stats`→`Vec<CrossSummaryStat>` を `stats_json` へ／週次月次=現在の期間境界で `get_period_activity_stats`→`Vec<PeriodActivityStat>` を `stats_json` へ）し、注目上位 N 件（`collect_report_highlight_inputs`→`select_report_highlights`→`build_report_context`）から `generate_report_narrative` で narrative（見出し・注目点）を生成して `save_report_summary` で UPSERT（横断は `period_key='latest'`／週次月次は現在の期間キー）。保存後に `get_report_summary` で読み戻して返す。横断の `me_user_id` は `get_workspaces` から当該 ws の `user_id` を解決。AI 非対応・narrative 失敗は `Err` にせず統計のみ保存し headline/narrative は `None`（degrade。NFR-V045-003）。未知 `report_type` のみ `Err`
+  - `get_reports(workspace_id, report_type, period_key, lang) -> Option<ReportSummary>`: 保存済みレポートを1件取得（v0.4.5・FR-V045-006）。`get_report_summary` の薄いラッパー。未生成は `None`
+  - `list_report_periods(workspace_id, report_type) -> Vec<String>`: レポートの期間キー一覧を生成日時降順で取得（v0.4.5・FR-V045-003/006）。`list_report_periods`（db）の薄いラッパー。週次/月次の期間セレクタ用
+  - `get_background_summary(app, workspace_id, issue_id, lang) -> String`: 課題の背景・経緯・決定事項の要点をコメントから要約（v0.4.5・FR-V045-004）。`get_comments_text`（comment_id 昇順＝時系列順・`BACKGROUND_SUMMARY_COMMENTS_MAX_CHARS = 2000` で先頭優先に切り詰め）でコメント本文を取得し、**コメント空なら LLM を起こさず空文字**を返す（UI が「コメントなし」を表示）。コメント本文の `source_hash`（`crate::ai::embed_worker::compute_source_hash`＝埋め込みと同一 SipHash を再利用）を算出し、`get_background_summary`（db）の保存済みハッシュと **一致すればキャッシュ即返し**（LLM・sidecar を起こさない）。不一致 or 未生成のみ `summarize_solutions` と同方式（**sidecar 改修なしで既存 `analyze` 経路を流用**・`create_backend` FoundationModels 再利用→`infer`・`suggestion`＝要点に `summary`＝補足1行を結合）で生成し、`save_background_summary`（db）でキャッシュ保存して返す。AI 非対応・生成失敗は `Err` にせず空文字へ degrade（NFR-V045-003）。空生成はキャッシュせず次回再試行できるようにする。DB エラーのみ `Err`
+- **レポート生成コア（v0.4.5・FR-V045-002/003。`generate_reports` から利用される内部ヘルパー群）**:
+  - 定数群（`SUMMARIZE_*` の隣）: `REPORT_HIGHLIGHT_MAX_ISSUES = 8`（注目上位件数の上限。目安5〜10の中庸）/ `REPORT_STALE_THRESHOLD_DAYS = 14`（停滞判定の未更新日数。`get_cross_summary_stats`/`get_report_highlight_inputs` と定義を揃える）/ `REPORT_CONTEXT_MAX_CHARS = SUMMARIZE_CONTEXT_MAX_CHARS`（≈3000。compact context の全体上限）/ `CROSS_SUMMARY_REGEN_HOURS = 20`（`pub(crate)`。横断サマリのバックグラウンド再生成の最小間隔。FR-V045-005。スケジューラ `cross_summary_is_due` が `report_summaries.cross_summary/latest` の `generated_at` 経過時間判定に参照）
+  - `iso_week_key(date) -> "YYYY-Www"` / `month_key(date) -> "YYYY-MM"`（`pub(crate)` 純粋関数）: 期間キーの算出。週次は **`strftime` ではなく chrono の `Datelike::iso_week`** で ISO 週番号（月曜起点・ISO 基準年）を確実に得る（年境界で暦年と ISO 基準年が食い違うケースを正しく扱う）。スケジューラの週/月ロールオーバ判定（現在の期間キーで `get_report_summary` が `None` か）でも参照
+  - `iso_week_bounds(date)` / `month_bounds(date) -> (start, end)`（純粋関数）: 期間の半開区間 `[start, end)` を `YYYY-MM-DDT00:00:00Z`（UTC 真夜中）で返す。`get_period_activity_stats` の文字列辞書順比較に渡す。週次は月曜00:00〜翌週月曜00:00、月次は当月1日〜翌月1日（12月は翌年へ繰り上げ）
+  - `collect_report_highlight_inputs(db, workspace_id) -> Vec<ReportHighlightInput>`: `get_report_highlight_inputs`（db）で通常課題のメタ（課題キー・既存 ai_summary・risk・遅延日数・停滞）を一括取得し `ReportHighlightInput` へ変換（プロジェクトキーは `project_key_from_issue_key` 導出・risk は `RiskLevel::from_storage_str`）。**新規 LLM 呼び出しゼロ**
+  - `ReportType`（enum）: `CrossSummary` / `Weekly` / `Monthly`。`report_summaries.report_type` と一致し、narrative 生成指示文の言い回しを切り替える
+  - `ReportHighlightInput`（struct）: 注目上位選定の入力1件分（`issue_key` / `project_key` / `ai_summary`（既存 `ai_results.summary` の1行要約）/ `risk_level`（`Option<RiskLevel>`）/ `delay_days`（SQL算出）/ `is_stale`）。DB/LLM 依存を持たず純粋関数で採点・連結できる
+  - `report_highlight_score(item)`（純粋関数）: 重み付けスコア。**主**=期限超過日数（正の超過のみ・上限60日でクランプ）+ リスク（high=50/medium=25/low=5/未生成=0）、**従**=停滞（+10）の合算
+  - `select_report_highlights(items)`（純粋関数）: `report_highlight_score` で採点しスコア降順（安定ソートで同点は入力順保持）に並べ上位 `REPORT_HIGHLIGHT_MAX_ISSUES` 件へクランプ
+  - `build_report_context(items)`（純粋関数）: 注目上位群を「`[project] issue_key / overdue Nd / risk R / stale` + 既存 ai_summary」の1〜2行に詰めて連結し `REPORT_CONTEXT_MAX_CHARS` で切り詰め。**新規 per-issue LLM 呼び出しゼロ**で既存 `ai_results` を再利用（NFR-V045-002）
+  - `generate_report_narrative(app, context, lang, report_type) -> (headline, narrative)`: `summarize_solutions` と同様 **sidecar 改修なしで既存 `analyze` 経路を流用**。context を `AiAnalysisInput.description_head` に、`report_type`/`lang` 別の指示文を `summary` に載せ `create_backend`（FoundationModels 再利用）→`infer`。`output.summary`→headline（見出し1行）/ `output.suggestion`→narrative（注目点）にマップ。context 空・AI 非対応・生成失敗は `Err` にせず空タプル `(String::new(), String::new())` へ degrade（NFR-V045-003）
+- **ステータス**: ✅ 実装済み（cargo build / clippy `--all-targets -D warnings` / 単体テスト通過。v0.3 の AI コマンド5種に加え、v0.4 の類似検索・解決策要約コマンド4種を追加・`lib.rs` の invoke_handler に登録。`rank_similar`/`project_key_from_issue_key`/`build_solution_context` の単体テスト10件。v0.4.5 でレポート生成コア（定数4 / `ReportType` / `ReportHighlightInput` / `report_highlight_score` / `select_report_highlights` / `build_report_context` / `generate_report_narrative`）と期間キーヘルパー（`iso_week_key`/`iso_week_bounds`/`month_key`/`month_bounds`/`date_to_utc_midnight`）・生成コマンド3種（`generate_reports`/`get_reports`/`list_report_periods`）を追加し `lib.rs` に登録。重み付け・N件クランプ・超過60日クランプ・context 包含/文字数上限・空入力に加え、ISO 週番号/年境界(2027-01-01→2026-W53)/週月境界(月曜〜翌月曜・当月1日〜翌月1日・12月の年繰り上げ)の単体テストで commands::tests 22件。さらに v0.4.5 課題背景要約コマンド `get_background_summary`（定数 `BACKGROUND_SUMMARY_COMMENTS_MAX_CHARS = 2000`・コメント `source_hash` キャッシュ付き）を追加し `lib.rs` に登録（`compute_source_hash` は埋め込みと共用するため `pub(crate)` 化済み）。v0.4.5 スケジューラ結線（FR-V045-005）に向けて `generate_reports` の生成コアを `pub(crate) generate_report(&app, &db, …)` へ抽出し、`CROSS_SUMMARY_REGEN_HOURS`・`iso_week_key`・`month_key` を `pub(crate)` 化して `scheduler::generate_due_reports` から共有（コマンドと自動生成が同一経路）。1日1回バックグラウンド自動生成の判定・実行は `scheduler.rs` 側に実装済み）
 
 ### `src-tauri/src/db.rs`
 
@@ -685,6 +825,10 @@
   - `AiJob`: `job_queue` テーブル1行に対応するAIジョブ（v0.3）
   - `Comment`（v0.4 新設）: コメント1件。`issue_comments` テーブル1行（`sqlx::FromRow`）と Backlog API レスポンスのデシリアライズを **共有**（DRY）。`comment_id`（API の `id`）/ `content` / `created_at`（API の `created` を serde `alias` で取り込む）/ `created_user`（API の `createdUser`。任意・`#[sqlx(default)]` で DB 読み出し時は `None`）。`backlog::get_comments` の戻り値型・`save_comments` の入力型・差分取得・埋め込み入力で使用
   - `IssueSearchMeta`（v0.4 新設）: 類似検索の結果表示用メタ情報（`issue_key`/`summary`/`status`/`assignee`/`is_corpus_only`）。`issues` テーブルの個別カラム（`save_issues` で名称展開済み）から取得し raw_data デシリアライズを避ける（NFR-V04-002）。`get_issue_search_meta` の戻り値要素
+  - `ReportSummary`（v0.4.5 新設）: `report_summaries` テーブル1行。横断サマリ・週次/月次レポートの統計 JSON・AI narrative・見出しを保持。`report_type`('cross_summary'/'weekly'/'monthly') / `period_key`(横断='latest'・週次='YYYY-Www'・月次='YYYY-MM') / `lang` / `stats_json` / `headline` / `narrative` / `generated_at`
+  - `IssueBackgroundSummary`（v0.4.5 新設）: `issue_background_summary` テーブル1行。課題1件あたりのコメント要約キャッシュ（FR-V045-004）。`workspace_id` / `issue_id` / `lang` / `summary_text` / `source_hash`（コメント変化検知用） / `generated_at`
+  - `CrossSummaryStat`（v0.4.5 新設・FR-V045-002）: 横断サマリのプロジェクト別集計1行（`#[serde(rename_all = "camelCase")]`）。`projectKey` / `openCount`（未完了） / `overdueCount`（期限超過） / `staleCount`（停滞） / `myActionableCount`（自分担当の要対応） / `riskHigh` / `riskMedium` / `riskLow`（`ai_results` の risk 分布）。`get_cross_summary_stats` の戻り値要素であり、`report_summaries.stats_json` の配列形状を確定する基準（フロント型定義・後段生成コマンドが従う）
+  - `PeriodActivityStat`（v0.4.5 新設・FR-V045-003）: 週次/月次アクティビティのプロジェクト別集計1行（`#[serde(rename_all = "camelCase")]`）。`projectKey` / `createdCount`（期間内作成） / `updatedCount`（期間内更新） / `completedCount`（期間内完了＝`is_corpus_only=1` かつ更新が期間内）。`get_period_activity_stats` の戻り値要素
 - **主な定数・ヘルパー関数**:
   - `EMBEDDING_MODEL`（v0.4）: 埋め込みモデルの論理識別子 `"multilingual-e5-small"`。`issue_embeddings.model` に保存
   - `EMBEDDING_DIM`（v0.4）: 埋め込み次元数 `384`
@@ -697,6 +841,9 @@
   - `issue_comment_state`（v0.4 新設）: コメント差分取得状態管理。PK は `(workspace_id, issue_id)`。`last_comment_id`（最終取得 ID）/ `status`（idle/fetching/done/failed）/ `retry_count` を保持
   - `issue_embeddings`（v0.4 新設）: multilingual-e5-small 384次元ベクトルを BLOB 保存。PK は `(workspace_id, issue_id)`。`source_hash` でコンテンツ変更検知・再埋め込みトリガー
   - `issues.is_corpus_only`（v0.4 追加カラム）: `INTEGER DEFAULT 0`。完了課題コーパス行の分離フラグ。`1` の行は類似検索コーパスのみに使用し、`get_issues`（ダッシュボード・一覧）からは除外する
+  - `issues.created_at`（v0.4.5 追加カラム）: `TEXT`（非破壊 ALTER）。Backlog API の `created`（課題作成日時）を `save_issues` で展開保存し、週次/月次レポートの「期間内新規作成件数」集計（FR-V045-003）に使う。旧 DB の既存行は再 sync まで NULL（集計は created_at の有無で範囲判定するため未取り込み行は新規作成件数に混入しない＝degrade）
+  - `report_summaries`（v0.4.5 新設）: レポート/サマリー保存。PK は `(workspace_id, report_type, period_key, lang)`。`stats_json`（プロジェクト別集計 JSON）/ `headline`（AI 見出し）/ `narrative`（AI narrative）/ `generated_at`。横断サマリは `period_key='latest'` で最新上書き、週次/月次は期間キーで履歴保持（FR-V045-006）
+  - `issue_background_summary`（v0.4.5 新設）: 課題背景・経緯の要約キャッシュ。PK は `(workspace_id, issue_id, lang)`。`summary_text`（AI 要約テキスト）/ `source_hash`（コメント変化検知）/ `generated_at`（FR-V045-004）
 - **主な機能**:
   - SQLiteマイグレーション（IF NOT EXISTS / ALTER エラー無視のインクリメンタル方式。新テーブルも非破壊で追加）
   - 設定の保存・取得
@@ -705,8 +852,8 @@
   - プロジェクト選択解除時のクリーンアップ（v0.4 新テーブルの孤児掃除も含む）
   - ワークスペース保存（`save_workspace(input: WorkspaceInput)`）
   - ワークスペース使用状況の保存
-  - 無効ワークスペースの課題削除（`delete_workspace_issues` も v0.4 新テーブルを掃除）
-  - ワークスペース削除（`delete_workspace` も v0.4 新テーブルを掃除）
+  - 無効ワークスペースの課題削除（`delete_workspace_issues` も v0.4 / v0.4.5 新テーブルを掃除）
+  - ワークスペース削除（`delete_workspace` も v0.4 / v0.4.5 新テーブルを掃除）
   - AIジョブキュー操作（v0.3）: `enqueue_jobs`（pending重複回避） / `get_pending_jobs(limit)` / `update_job_status` / `count_pending_jobs` / `count_processing_jobs`（処理中件数。設定画面のキュー状況表示用）
   - AI結果操作（v0.3）: `save_ai_result`（issue単位UPSERT） / `get_ai_result(workspace_id, issue_id)`
   - スケジュールリスク再計算（v0.4・FR-V04-006）: `recompute_schedule_risk()`（既保存 `ai_results` を **LLM 再実行なし**で再計算する起動時バッチ。各行で `issues.due_date` から最新の遅延日数を SQL 算出し、`final_risk = max(from_storage_str(保存済み risk_level), schedule_risk(delay_days))` を取り直して `risk_level` / `delay_days` を更新。`risk_level` も `delay_days` も無変更の行は UPDATE せず更新件数に数えない＝冪等。しきい値は `ai::schedule_risk` に集約し SQL へ複製しない。`lib.rs` の setup で `reset_stale_jobs` の直後に1回呼ぶ）
@@ -716,8 +863,11 @@
   - 類似検索の進捗・メタ取得（v0.4・FR-V04-005）: `count_issues(workspace_id)`（コーパス含む全課題数=埋め込み対象件数の母数） / `get_embedding_status(workspace_id)`（`(target, built)` を返す。`count_issues` と `count_embeddings` の組） / `get_issue_search_meta(workspace_id, &[issue_id])`（上位N件の表示用メタを `HashMap<i64, IssueSearchMeta>` でまとめ取得。IN 句のプレースホルダを動的生成。空入力は DB アクセスせず空マップ）
   - コメント操作（v0.4）: `save_comments(ws, id, &[Comment])`（コメント単位UPSERT） / `get_comments_text(ws, id, max_chars)`（comment_id 昇順で改行連結・char 単位切り詰め。埋め込み入力用） / `get_comment_state(ws, id)`（`(last_comment_id, status, retry_count)`。未作成は `(None, "idle", 0)`） / `set_comment_state(ws, id, last_comment_id, status, retry_count)`（差分取得状態 UPSERT。FR-V04-002）
   - コーパス操作（v0.4）: `get_issue_embed_text(ws, id, body_max, comment_max)`（タイトル+本文+コメントを連結し source_hash 計算・埋め込み入力テキストを返す。本文は SQL 切り詰め・コメントは `get_comments_text` 再利用） / `cleanup_corpus_out_of_range(ws, oldest_updated)`（期間短縮時に範囲外コーパス課題と埋め込み・コメント・状態を連鎖削除。`is_corpus_only = 1` のみ対象。FR-V04-003） / `count_corpus_issues(ws)`（設定画面のコーパス件数表示） / `get_corpus_issue_ids(ws)`（v0.4。`is_corpus_only=1` の課題IDを列挙。埋め込み未構築時の初回コメント全件取得対象の特定に使用。FR-V04-002）
-- **テスト**: `#[cfg(test)] mod tests`（v0.4 新設）。in-memory SQLite（`sqlite::memory:`）でマイグレーション→各CRUDのラウンドトリップを検証（ベクトル一致・source_hash スキップ判定・コメント連結/切り詰め・コーパス連鎖削除・`save_issues` のコーパス保持/通常・コーパス分離クリーンアップ・`recompute_schedule_risk` の 469日超過課題が high へ昇格＋猶予課題は据え置き＋冪等性 など）
-- **ステータス**: ✅ 実装済み（v0.4 DBスキーマ拡張＋スケジューラ結線対応完了。`issue_comments` / `issue_comment_state` / `issue_embeddings` テーブル新設・`issues.is_corpus_only` カラム追加・削除/クリーンアップ経路での新テーブル孤児掃除・`get_issues` でのコーパス除外フィルタ・`save_issues` のコーパス対応クリーンアップ・`get_corpus_issue_ids` を追加。`cargo clippy -D warnings` / 単体テスト通過）
+  - レポート/サマリー操作（v0.4.5・FR-V045-006/003）: `save_report_summary(ws, report_type, period_key, lang, stats_json, headline, narrative)`（`report_summaries` を `INSERT OR REPLACE` で UPSERT・`generated_at` は now 自動設定・横断は `period_key='latest'` で上書き／週次月次は期間キーで履歴保持。narrative=`None` の degrade 保存可） / `get_report_summary(ws, report_type, period_key, lang)`（`ReportSummary` を1行取得。未生成は `None`） / `list_report_periods(ws, report_type)`（DISTINCT な `period_key` を `MAX(generated_at)` 降順で返す期間セレクタ用。同一期間に複数言語があっても重複しない）
+  - 課題背景要約キャッシュ操作（v0.4.5・FR-V045-004）: `save_background_summary(ws, issue_id, lang, summary_text, source_hash)`（`issue_background_summary` を UPSERT・`generated_at` は now 自動設定） / `get_background_summary(ws, issue_id, lang)`（`(summary_text, source_hash, generated_at)` を返す。NULL カラムは空文字へ正規化し呼び出し側を分岐させない。未生成は `None`。呼び出し側はコメントから再計算した `source_hash` と比較して再生成要否を判定）
+  - レポート決定的集計（v0.4.5・FR-V045-002/003）: `get_cross_summary_stats(ws, me_user_id, stale_threshold_days)`（横断サマリ。通常課題（`is_corpus_only=0`）をプロジェクト別に集計し `Vec<CrossSummaryStat>` を返す。期限超過＝`due_date < 今日`・停滞＝`updated_at` が `stale_threshold_days` 日以上前・自分担当の要対応＝担当者が `me_user_id`（raw_data の `assignee.id` を `json_extract`）かつ期限超過 or 停滞・risk 分布は `ai_results` を LEFT JOIN。日付判定は `julianday(substr(...,1,10))` で統一。プロジェクトキー導出は SQL では難しいため課題1行のフラグを SQL 算出→Rust で `commands::project_key_from_issue_key` 相当により集約） / `get_period_activity_stats(ws, period_start, period_end)`（週次/月次。半開区間 `[start, end)` の文字列辞書順比較で作成/更新/完了を判定し `Vec<PeriodActivityStat>` を返す。完了は `is_corpus_only=1` かつ更新が期間内・期間内アクティビティが無い課題は行を返さない） / `get_report_highlight_inputs(ws, stale_threshold_days)`（注目上位選定用。通常課題（`is_corpus_only=0`）の `(issue_key, ai_summary, risk_level, delay_days, is_stale)` を1クエリで返す。`ai_results` を LEFT JOIN し既存 `summary`/`risk_level` を再利用＝**新規 LLM 呼び出しゼロ**・遅延日数は `get_issue_delay_days` と同じ julianday 差を Rust 側で符号反転・停滞は `get_cross_summary_stats` と同じ julianday 比較。`commands::collect_report_highlight_inputs` が `ReportHighlightInput` へ変換）。停滞しきい値・期間境界は呼び出し側（scheduler/commands の定数）で決め、メソッドは引数で受ける
+- **テスト**: `#[cfg(test)] mod tests`（v0.4 新設）。in-memory SQLite（`sqlite::memory:`）でマイグレーション→各CRUDのラウンドトリップを検証（ベクトル一致・source_hash スキップ判定・コメント連結/切り詰め・コーパス連鎖削除・`save_issues` のコーパス保持/通常・コーパス分離クリーンアップ・`recompute_schedule_risk` の 469日超過課題が high へ昇格＋猶予課題は据え置き＋冪等性・v0.4.5 のレポート保存/取得/上書き＋camelCase シリアライズ・`list_report_periods` の生成日時降順/DISTINCT・背景要約の保存/取得/上書き/言語別キャッシュ・v0.4.5 集計 `get_cross_summary_stats` の期限超過/停滞境界(更新-14日ちょうどは停滞・-13日は非停滞)/自分担当の要対応/risk 分布/コーパス除外/`me_user_id=None`・`get_period_activity_stats` の作成/更新/完了の半開区間境界(開始境界は含む・終了境界は含まない)/created_at NULL の degrade/期間外は空 など）
+- **ステータス**: ✅ 実装済み（v0.4 DBスキーマ拡張＋スケジューラ結線対応完了。v0.4.5 で `report_summaries` / `issue_background_summary` テーブル新設・`ReportSummary`（`#[serde(rename_all = "camelCase")]`） / `IssueBackgroundSummary` 構造体追加・`delete_workspace` / `delete_workspace_issues` / `save_issues` の孤児掃除に両テーブルを追加・レポート/背景要約の CRUD メソッド5件（`save_report_summary` / `get_report_summary` / `list_report_periods` / `save_background_summary` / `get_background_summary`）を追加。さらに決定的集計メソッド2件（`get_cross_summary_stats` / `get_period_activity_stats`）と集計結果構造体 `CrossSummaryStat` / `PeriodActivityStat`（serde camelCase）を追加・`issues.created_at` カラム（非破壊 ALTER）と `save_issues` への `created_at` 展開・`Issue.created`（backlog.rs）取り込み・`commands::project_key_from_issue_key` を `pub(crate)` 化。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト 88件通過）
 
 ### `src-tauri/src/log_commands.rs`
 
@@ -746,7 +896,8 @@
   - フロントエンドへのイベント送信
   - AIジョブのキュー投入（v0.3 / FR-V03-004）: 自動sync の保存後に新規・更新チケットを差分検出してキュー投入。無効ワークスペースは投入対象外
   - 完了課題コーパス取り込み・コメント差分取得・埋め込みジョブ投入（v0.4 / FR-V04-002・003・004）: 通常sync 直後にバックグラウンドで実行し sync・UI を阻害しない。失敗は本体を止めない（NFR-V04-002 / NFR-V04-005）
-- **主な定数**: `SETTING_CORPUS_MONTHS`（`corpus_months`。完了課題コーパス取り込み期間の設定キー） / `DEFAULT_CORPUS_MONTHS`（既定 6ヶ月。未解決事項#3 既定値） / `RATE_LIMIT_BACKOFF_THRESHOLD`（残量 ≤50 で追加取得をバックオフ） / `MAX_CORPUS_PAGES`（1サイクル20ページ上限） / `MAX_COMMENT_FETCH_PER_CYCLE`（1サイクル100課題上限） / `MAX_COMMENT_RETRIES`（コメント取得リトライ上限=3）
+  - レポート/サマリーの1日1回バックグラウンド自動生成（v0.4.5 / FR-V045-005）: 通常sync のワークスペースループ直後に実行する独立ブロック（トレイ更新の前）。AI ON（`settings.ai_enabled == "true"`）かつ可用性ありのときだけ、横断サマリ=経過時間（`CROSS_SUMMARY_REGEN_HOURS`≈20h）、週次/月次=現在の期間キーが未生成（ロールオーバ）を判定して生成。`job_queue` を介さず `commands::generate_report`（内部で `create_backend`→`infer`）を直接呼ぶ。AI OFF・可用性なしはアイドル（生成しない）。失敗は本体（通常 sync）を止めない（NFR-V045-003）
+- **主な定数**: `SETTING_CORPUS_MONTHS`（`corpus_months`。完了課題コーパス取り込み期間の設定キー） / `DEFAULT_CORPUS_MONTHS`（既定 6ヶ月。未解決事項#3 既定値） / `RATE_LIMIT_BACKOFF_THRESHOLD`（残量 ≤50 で追加取得をバックオフ） / `MAX_CORPUS_PAGES`（1サイクル20ページ上限） / `MAX_COMMENT_FETCH_PER_CYCLE`（1サイクル100課題上限） / `MAX_COMMENT_RETRIES`（コメント取得リトライ上限=3） / `SETTING_LANGUAGE`（`language`。レポート出力言語の設定キー。AI ワーカーと同一）+ `DEFAULT_REPORT_LANG`（既定 `ja`）/ `REPORT_TYPE_CROSS_SUMMARY`・`REPORT_TYPE_WEEKLY`・`REPORT_TYPE_MONTHLY`（生成対象種別）/ `CROSS_SUMMARY_PERIOD_KEY`（横断サマリの固定期間キー `latest`）
 - **主な関数**:
   - `enqueue_changed_issues(db, workspace_id, issues, existing_updated_map)`（`pub(crate)`）: 新規・更新分のみ `enqueue_jobs` で `summarize` 投入する差分検出ヘルパー。scheduler・commands(`fetch_issues`) 両経路で共通利用。投入失敗は非阻害（ログのみ）
   - `changed_issue_ids(workspace_id, issues, existing_updated_map)`: 差分検出の純粋ロジック（同期前スナップショットの `updated` と突き合わせ、新規＝マップ未登録・更新＝`updated` 変化を抽出）。要約ジョブ投入とコメント差分取得・embed 投入で共通利用
@@ -754,9 +905,14 @@
   - `fetch_corpus(...)`: `get_closed_issues` を offset ページング（最大 `MAX_CORPUS_PAGES`）で取得し `is_corpus_only=true` の課題を `save_issues`（コーパスバッチ＝破壊的クリーンアップなし）で保存
   - `fetch_comments_and_enqueue_embed(...)`: 課題ごとに `get_comment_state` の `minId`・retry_count を読み、`get_comments(min_id)` で新規コメントのみ取得→`save_comments`＋`set_comment_state`（最大コメントIDを次回起点に）。失敗は `retry_count++`／`status="failed"` で記録、上限到達でコメント取得はスキップ。最後に `JOB_TYPE_EMBED` を `enqueue_jobs` で投入（`summarize` と並行）
   - `resolve_corpus_months(db)` / `corpus_updated_since(months)`（`yyyy-MM-dd`）/ `corpus_oldest_updated(months)`（RFC3339）/ `is_rate_backoff(remaining)`: 設定解決・期間境界算出・バックオフ判定の純粋/補助ヘルパー
+  - `generate_due_reports(app, db)`（v0.4.5 / FR-V045-005）: レポート自動生成の入口。AI OFF・可用性なしは即 return（アイドル）。有効ワークスペースごとに横断/週次/月次の生成要否を判定し `generate_report_quietly` を呼ぶ。`lang` は `resolve_report_lang`、現在の週/月キーは `commands::iso_week_key`/`month_key` で1回算出して使い回す
+  - `is_ai_enabled(db)`（`settings.ai_enabled == "true"`。AI ワーカーと同一キー・既定 OFF）/ `resolve_report_lang(db)`（`settings.language`・既定 `ja`）/ `ai_is_available(app)`（FoundationModels バックエンドを一時生成し `availability == available` を判定）: 自動生成のゲート
+  - `cross_summary_is_due(db, ws, lang)`: 横断サマリ再生成要否。`report_summaries.cross_summary/latest` の `generated_at`（RFC3339）と現在時刻の差が `commands::CROSS_SUMMARY_REGEN_HOURS`（20h）以上なら `true`。未生成・`generated_at` 欠落・パース失敗はすべて `true`（取りこぼし防止）
+  - `period_report_is_due(db, ws, report_type, period_key, lang)`: 週次/月次のロールオーバ判定。現在の期間キーで `get_report_summary` が `None`（未生成）なら `true`。取得失敗も `true`
+  - `generate_report_quietly(app, db, ws, report_type, lang)`: `commands::generate_report` を呼び成否をログに出す非阻害ラッパー（`generate_report` 自体が AI 非対応・narrative 失敗を degrade で `Ok` 返しするため `Err` は未知種別・DB エラーのみ）
 - **初回ビルド判定**: `count_embeddings(Some(workspace_id)) == 0` を「埋め込み未構築」とみなし、コーパス全課題に1回だけコメント全件取得＋embed 投入する
-- **テスト**: `is_rate_backoff`（閾値境界）/ `changed_issue_ids`（新規・更新のみ抽出）/ `corpus_updated_since`（日付書式）/ `resolve_corpus_months`（既定・クランプ・パース失敗）の4テスト（`#[cfg(test)]`、in-memory SQLite）
-- **ステータス**: ✅ 実装済み（v0.4 でコーパス取り込み・コメント差分取得・embed 投入を結線。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト通過。実機でのコーパス取得・コメント差分・embed ワーカー消費は埋め込み専用ワーカー項目と合わせて要確認）
+- **テスト**: `is_rate_backoff`（閾値境界）/ `changed_issue_ids`（新規・更新のみ抽出）/ `corpus_updated_since`（日付書式）/ `resolve_corpus_months`（既定・クランプ・パース失敗）に加え、v0.4.5 で `is_ai_enabled`（`"true"` のときだけ有効）/ `resolve_report_lang`（既定 `ja`・設定追従）/ `cross_summary_is_due`（未生成→true・生成直後→false）/ `period_report_is_due`（未生成→true・生成済み→false）の計8テスト（`#[cfg(test)]`、in-memory SQLite）
+- **ステータス**: ✅ 実装済み（v0.4 でコーパス取り込み・コメント差分取得・embed 投入を結線。v0.4.5 でレポート/サマリーの1日1回バックグラウンド自動生成（FR-V045-005）を結線。`cargo build` / `clippy --all-targets -D warnings` / `fmt --check` / 単体テスト（scheduler::tests 8件）通過。AI ON 環境での横断/週次/月次の実際の自動生成、AI OFF でのアイドルは実機ログでの確認が残る）
 
 ### `src-tauri/src/scoring.rs`
 
@@ -836,7 +992,14 @@ Claude Code のスラッシュコマンド定義（Markdown）。
 - 2026-06-13: v0.4 コメント差分取得・完了課題コーパス取得(backlog.rs・db.rs・FR-V04-002/003)。`BacklogClient` に `get_comments(issue_id_or_key, min_id)`(`GET /issues/:id/comments` を `minId`/`order=asc`/`count=100` で呼び `(Vec<db::Comment>, RateLimitInfo)` を返す) / `get_closed_issues(project, updated_since, offset)`(`statusId[]=4`+`updatedSince`+`count=100`+`offset` で完了課題をページング取得し各 Issue に `is_corpus_only=true` を設定) を追加。クエリ組み立てを純粋関数 `build_comments_query`/`build_closed_issues_query` に分離しテスト可能化。`Issue` に `is_corpus_only: bool`(`#[serde(skip_deserializing, default)]`) を追加し `save_issues` の INSERT に `is_corpus_only` カラムを追加。`db::Comment` を API デシリアライズ兼 DB 行の共有型に拡張(serde `alias="created"` で投稿日時取り込み・`created_user: Option<User>` を `createdUser`/`#[sqlx(default)]` で追加)。backlog.rs に `#[cfg(test)] mod tests` を新設しクエリ組み立て(minId 付与・statusId[]=4・updatedSince・offset)とコメント/完了課題のデシリアライズを検証する単体テスト6件を追加。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト(計46件) 通過
 - 2026-06-13: v0.4 スケジューラ結線(scheduler.rs・commands.rs・db.rs・ai/worker.rs・FR-V04-002/003/004)。`worker.rs` に `JOB_TYPE_EMBED`(`embed`) 定数を追加。`scheduler.rs` に `sync_corpus_and_embeddings`(`pub(crate)`) を新設し通常sync 直後にコーパス取り込み→(初回のみ)コーパス全件コメント取得→変更課題コメント差分取得＋embed 投入を実行。`fetch_corpus`(`get_closed_issues` を offset ページング・`is_corpus_only=true` でコーパスバッチ保存) / `fetch_comments_and_enqueue_embed`(課題ごとに `get_comment_state` の minId・retry を読み `get_comments(min_id)` で新規コメントのみ取得→`save_comments`＋`set_comment_state`、失敗は retry_count++/`failed` 記録・上限到達でスキップ、最後に `JOB_TYPE_EMBED` を投入) を追加。差分検出を `changed_issue_ids` に共通化(`enqueue_changed_issues` と共有)。設定キー `SETTING_CORPUS_MONTHS`(`corpus_months`・既定6ヶ月) と `resolve_corpus_months`(1〜24 クランプ)・`corpus_updated_since`(yyyy-MM-dd)・`corpus_oldest_updated`(RFC3339)・`is_rate_backoff`(残量≤`RATE_LIMIT_BACKOFF_THRESHOLD`=50 でバックオフ) を追加。初回ビルド判定は `count_embeddings==0`。`db.save_issues` をコーパス対応に改修(コーパスバッチは破壊的クリーンアップをスキップ・通常バッチは `COALESCE(is_corpus_only,0)=0` でコーパス行を削除対象から除外)。`db.rs` に `get_corpus_issue_ids` を追加(初回コメント全件取得対象の特定)。`commands.rs::fetch_issues` 末尾でも同関数を呼び手動sync経路でも実行(`last_remaining` を取得しバックオフ判定)。scheduler.rs に単体テスト4件(バックオフ閾値・差分抽出・コーパス日付書式・期間設定クランプ)・db.rs に `save_issues` コーパス保持/分離クリーンアップのテスト1件を追加。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト(計51件) 通過
 - 2026-06-13: v0.4 類似検索(ai/cosine.rs・commands.rs・db.rs・backlog.rs・lib.rs・FR-V04-004/005)。`ai/cosine.rs` を新設し純粋関数 `cosine_similarity(&[f32],&[f32])->f32`(内積・ノルム1パス・ゼロベクトル/次元不一致で `NaN` でなく `0.0`)・単体テスト7件を追加(`ai/mod.rs` に `pub mod cosine`)。`commands.rs` に `search_similar_issues(workspace_id, issue_id, limit?)`(クエリ埋め込み取得→`get_all_embeddings`(コーパス含む全件1回ロード)と総当たり→自身除外→しきい値 `SIMILARITY_THRESHOLD=0.80`→降順→上位 `DEFAULT_SIMILAR_LIMIT=10`。未構築時は空リストで degrade。`SimilarIssue`(camelCase) を返す) / `get_embedding_status(workspace_id)`(`(target, built)`) / `get_closed_issues_corpus_count(workspace_id)` を追加。中核ランキングを純粋関数 `rank_similar` に分離し `project_key_from_issue_key`(issue_key プレフィックス導出) とあわせ単体テスト5件を追加。`db.rs` に `IssueSearchMeta` 構造体・`count_issues`・`get_embedding_status`・`get_issue_search_meta`(IN 句動的プレースホルダ・空入力は早期 return) を追加し、`get_issues` の SELECT に `issue_embeddings` LEFT JOIN を足して `embedding_ready`(FR-V04-005) を `Issue` に載せる。`backlog::Issue` に `embedding_ready: bool`(`#[serde(default)]`) を追加。`lib.rs` invoke_handler に3コマンドを登録。db.rs に進捗・メタ・embedding_ready のテスト3件を追加。`cargo build` / `clippy --all-targets -D warnings` / 単体テスト(計70件) 通過
+- 2026-06-13: v0.4.5 DBスキーマ拡張(db.rs・FR-V045-006/004)。`report_summaries` テーブル新設（PK=(workspace_id, report_type, period_key, lang)・stats_json/headline/narrative/generated_at）/ `issue_background_summary` テーブル新設（PK=(workspace_id, issue_id, lang)・summary_text/source_hash/generated_at）。`ReportSummary` / `IssueBackgroundSummary` 構造体を追加。孤児掃除を3経路に追加: `delete_workspace` トランザクションに両テーブルの DELETE、`delete_workspace_issues` に同様、`save_issues` 末尾の孤児掃除ブロックに `issue_background_summary`（report_summaries はワークスペース粒度のため save_issues では触らない）。`cargo build` / 単体テスト 81件通過
 - 2026-06-13: v0.4 解決策要約コマンド(commands.rs・lib.rs・useSimilarSearch.ts・FR-V04-005)。`commands.rs` に `summarize_solutions(workspace_id, issue_ids, lang)` を追加。類似上位群の本文・コメント・コーパス種別を `get_issue_analysis_fields`/`get_comments_text`/`get_issue_search_meta` で集め、純粋関数 `build_solution_context`(完了課題=コーパス優先で並べ替え→`SUMMARIZE_MAX_ISSUES=5` 件→課題ごとに見出し付き連結→`SUMMARIZE_CONTEXT_MAX_CHARS=3000` 文字で切り詰め)で1本の context に結合。設計判断: **sidecar は改修せず既存 `analyze` 経路を流用**(新 `summarize_text` 経路は Swift sidecar の改修・再配布を要するため見送り)。context を `AiAnalysisInput.description_head` に載せ `create_backend`(FoundationModels 再利用)→`infer` を呼び、`suggestion`(対応提案=解決策要点)に `summary`(補足1行)を添えて返す。AI 非対応・生成失敗・対象なしは `Err` にせず空文字へ degrade(NFR-V04-005)。`lib.rs` invoke_handler に登録。フロント `useSimilarSearch.ts` の `summarizeResults` を `lang`/`workspaceId` 引数に合わせて更新。`build_solution_context` の単体テスト5件(コーパス優先・件数切り詰め・全要素包含・文字数上限・空入力)を追加。`cargo build` / `clippy --all-targets -D warnings` / `fmt --check` / 単体テスト(計81件) / eslint / prettier 通過
 - 2026-06-13: v0.4 遅延日数のリスク織り込み(ai/mod.rs・ai/worker.rs・db.rs・lib.rs・FR-V04-006)。`ai/mod.rs` に決定的ヘルパー `schedule_risk(Option<i64>)->RiskLevel`(>14日=High / 1〜14日=Medium / 当日〜3日以内=Medium / それ以外=Low)を追加し、`RiskLevel` に `Ord`(Low<Medium<High に宣言順を入れ替え)・`as_storage_str()`/`from_storage_str()` を導入。`worker.rs::process_job` で `final_risk = max(llm_risk, schedule_risk(delay_days))` を算出して `ai_results.risk_level` に保存(従来の `risk_level_to_str` を `RiskLevel::as_storage_str` へ統合)。`db.rs` に `recompute_schedule_risk()`(既保存 `ai_results` を LLM 再実行なしで再計算する起動時バッチ。`issues.due_date` から遅延日数を SQL 算出し `max` を取り直して `risk_level`/`delay_days` を UPDATE・無変更行はスキップで冪等)を追加し、`lib.rs` setup の `reset_stale_jobs` 直後に1回呼ぶ。`ai/mod.rs` に `schedule_risk` しきい値(14/13/0/-5日)・`max` 合成・`Ord`・保存文字列往復のテスト4件、`db.rs` に 469日超過課題が high へ昇格＋猶予課題据え置き＋冪等性のテスト2件を追加。`cargo build` / `clippy -D warnings` / `fmt --check` / 単体テスト(計76件) 通過
 - 2026-06-13: v0.4 類似検索 UI + 「類似を探す」ボタン結線(IssueSimilarResults.vue・IssueSimilarDialog.vue・IssueCard.vue・IssueDetailDialog.vue・index.vue・issues.vue・useSimilarSearch.ts・locales/{ja,en}.json・FR-V04-005)。`IssueSimilarResults.vue` を新設(状態を持たないプレゼンテーション専用。類似上位 N 件の一覧=プロジェクトキーチップ・課題キー・サマリ・ステータス・担当者・類似度チップ・完了バッジ、行クリックで `open-in-browser`、FoundationModels 解決策要約セクションは `mdi-creation`+`ai.settings.generated`+`ai-text-box` を IssueAiAnalysis から踏襲、degrade 理由=構築待ち/AI 非対応/検索失敗を `v-alert` で提示)。`IssueSimilarDialog.vue` を新設し `useSimilarSearch` のグローバルステートを `v-dialog`+`IssueSimilarResults` に束ね、`index.vue`/`issues.vue` のページレベルに1回だけマウント。`IssueCard.vue` にスコアバッジ右へ「類似を探す」ボタン(`mdi-magnify-scan`・`@click.stop`)、`IssueDetailDialog.vue` のアクション行に同ボタン(詳細を閉じてから開きダイアログ重なりを回避)を追加し双方 `useSimilarSearch().openSimilar(issue)` を呼ぶ。`useSimilarSearch.ts` に `openInBrowser(item)` アクション(`get_workspace_by_id`→Backlog URL→`@tauri-apps/plugin-shell` `open`)を追加し export。`locales/{ja,en}.json` に `similar.*`(title/searchButton/queryLabel/searching/resultsCount/noResults/similarityValue/completedBadge/solutionTitle/summarizing/noSummary/degraded.{aiUnavailable,embeddingNotReady,searchFailed})を日英で追加。`pnpm run lint`(0 errors)/`pnpm run format:check`/`pnpm run generate`(ビルド成功・全6ルート prerender) 通過
 - 2026-06-13: v0.4 ドキュメント同期(COMPONENTS.md・ARCHITECTURE.md)。COMPONENTS.md は IssueSimilarResults.vue・IssueSimilarDialog.vue・useSimilarSearch.ts・AiSettingsCard.vue(コーパス設定セクション)・useAiSettings.ts(コーパス/埋め込み進捗)・useIssues.ts(embedding_ready)・ai/embedding.rs・ai/embed_worker.rs・ai/cosine.rs・sidecar(embed プロトコル拡張)・db.rs(新テーブル4件)・commands.rs(v0.4 コマンド5種)・scheduler.rs(v0.4 拡張)の各エントリを v0.4 実装に合わせて記載済み。ARCHITECTURE.md のバックエンドモジュール一覧に ai/embedding.rs(埋め込み抽象)・ai/embed_worker.rs(埋め込みジョブ処理)・ai/cosine.rs(類似度計算)を単一責任記述で追加し、プロジェクト構成ツリーを更新
+- 2026-06-13: v0.4.5 レポート/背景要約の DB CRUD(db.rs・FR-V045-006/003/004)。`db.rs` に公開メソッド5件を追加。レポート: `save_report_summary(ws, report_type, period_key, lang, stats_json, headline, narrative)`(`INSERT OR REPLACE` の UPSERT・`generated_at` は now 自動設定・横断は `latest` 上書き／週次月次は期間キーで履歴保持・narrative=`None` の degrade 保存可。PK4列+保存3列で引数8のため `#[allow(clippy::too_many_arguments)]` を付与=scheduler.rs に前例あり) / `get_report_summary(...)`(`ReportSummary` を1行取得・未生成は `None`) / `list_report_periods(ws, report_type)`(DISTINCT `period_key` を `MAX(generated_at)` 降順で返す期間セレクタ用)。背景要約: `save_background_summary(ws, issue_id, lang, summary_text, source_hash)`(UPSERT) / `get_background_summary(ws, issue_id, lang)`(`(summary_text, source_hash, generated_at)` を返し NULL は空文字正規化・未生成は `None`)。`ReportSummary` に `#[serde(rename_all = "camelCase")]` を付与しフロント連携用に camelCase シリアライズ。`#[cfg(test)] mod tests` に round-trip テスト3件追加(レポート保存/取得/上書き+別言語別期間独立+camelCase 検証、`list_report_periods` の生成日時降順/DISTINCT/別ws別種別の分離、背景要約の保存/取得/上書き/言語別キャッシュ/未生成 None)。`cargo build` / `clippy --all-targets -D warnings` / `fmt --check` / 単体テスト(db::tests 17件・計84件) 通過
+- 2026-06-13: v0.4.5 レポート生成コマンド(commands.rs・db.rs・lib.rs・FR-V045-002/003/006)。`commands.rs` に Tauri コマンド3件を追加し `lib.rs` invoke_handler に登録。`generate_reports(app, workspace_id, report_type, lang) -> ReportSummary`(report_type 別に SQL 決定的集計→`stats_json`(横断=`get_cross_summary_stats`→`Vec<CrossSummaryStat>`／週次月次=現在期間境界で `get_period_activity_stats`→`Vec<PeriodActivityStat>`)→注目上位 N 件から `generate_report_narrative`→`save_report_summary` UPSERT→`get_report_summary` 読み戻し。横断は `period_key='latest'`・週次/月次は現在の期間キー。`me_user_id` は `get_workspaces` から解決。AI 非対応・narrative 失敗は `Err` にせず統計のみ保存で degrade・未知 report_type のみ `Err`) / `get_reports(...) -> Option<ReportSummary>`(`get_report_summary` ラッパー) / `list_report_periods(ws, report_type) -> Vec<String>`(`list_report_periods`(db) ラッパー)。期間キーは純粋関数 `iso_week_key`/`month_key`、期間境界は `iso_week_bounds`/`month_bounds`/`date_to_utc_midnight` で算出(**`strftime` ではなく chrono の `Datelike::iso_week`** で ISO 週番号を確実に得る)。注目入力収集 `collect_report_highlight_inputs` は新規 DB メソッド `get_report_highlight_inputs(ws, stale_threshold_days)`(通常課題の `(issue_key, ai_summary, risk_level, delay_days, is_stale)` を `ai_results` LEFT JOIN で1クエリ取得=新規 LLM 呼び出しゼロ)を `ReportHighlightInput` へ変換。レポート生成コア(`ReportType`/`ReportHighlightInput`/`report_highlight_score`/`select_report_highlights`/`build_report_context`/`generate_report_narrative`)と DB の集計/CRUD メソッドから `#[allow(dead_code)]` を解除(`CROSS_SUMMARY_REGEN_HOURS` のみスケジューラ未結線で残置)。期間キーヘルパーの単体テスト5件(ISO 週番号・2027-01-01→2026-W53 の年境界・月曜〜翌月曜・当月1日〜翌月1日・12月の年繰り上げ)を追加。`cargo build` / `clippy -D warnings` / 単体テスト(commands::tests 22件・計100件) 通過
+- 2026-06-14: v0.4.5 課題背景要約コマンド(commands.rs・db.rs・lib.rs・FR-V045-004)。`commands.rs` に Tauri コマンド `get_background_summary(app, workspace_id, issue_id, lang) -> String` を追加し `lib.rs` invoke_handler に登録。処理: `get_comments_text`(comment_id 昇順=時系列順・新定数 `BACKGROUND_SUMMARY_COMMENTS_MAX_CHARS=2000` で先頭優先に切り詰め)でコメント本文取得→空なら LLM を起こさず空文字(UI が「コメントなし」表示)→`crate::ai::embed_worker::compute_source_hash`(埋め込みと同一 SipHash を再利用)でハッシュ算出→`get_background_summary`(db) の保存済みハッシュと一致すれば**キャッシュ即返し**(LLM/sidecar を起こさない)→不一致 or 未生成のみ `summarize_solutions` と同方式(**sidecar 改修なしで既存 `analyze` 経路流用**・`create_backend` FoundationModels 再利用→`infer`・`suggestion`=要点に `summary`=補足1行を結合)で生成し `save_background_summary`(db) でキャッシュ保存して返す。AI 非対応・生成失敗は `Err` にせず空文字へ degrade(NFR-V045-003)・空生成はキャッシュせず次回再試行可・DB エラーのみ `Err`。`db.rs` の `get_background_summary`/`save_background_summary` から `#[allow(dead_code)]` を解除(本コマンドから使用)。`compute_source_hash` は v0.4.5 DB 拡張時に既に `pub(crate)` 化済み。キャッシュ即返しは決定的 2 ピース(`compute_source_hash` の同一入力=同一ハッシュ・db round-trip の保存ハッシュ一致)の合成で保証され、それぞれ既存単体テストで担保(embed_worker の hash 一致テスト・db::tests `background_summary_roundtrip_and_upsert`)。LLM/sidecar 経路は FoundationModels 実機(macOS)が要るためコマンド E2E のテストは追加せず。`cargo build` / `clippy -D warnings` 通過(注: db.rs の日付相対テスト3件は本作業と無関係に当日付替わりで境界がずれ失敗。詳細は所見参照)
+- 2026-06-14: v0.4.5 ドキュメント同期。`reports/ReportNarrative.vue`（AI narrative 共用コンポーネント・Props: title/headline/narrative/degradedReason・CrossSummarySection と WeeklyMonthlySection で共用）と `IssueBackgroundSummary.vue`（背景・経緯の要約表示専用・Props: open・useReports グローバルステートを参照・IssueDetailDialog にマウント）の2エントリを追加。ARCHITECTURE.md に `components/reports/` ディレクトリを追加。REQUIREMENTS.md の v0.4.5 ステータスを実装済みに更新
+- 2026-06-14: v0.4.5 課題詳細ダイアログに背景・経緯の要約導線を追加(IssueDetailDialog.vue・useReports.ts・locales/{ja,en}.json・FR-V045-004)。`IssueDetailDialog.vue` のアクション群(再分析・類似を探すと並ぶ位置)に「背景・経緯を要約」ボタン(`size='small' variant='tonal' color='purple-darken-1' prepend-icon='mdi-text-box-search'`・`:loading=backgroundSummaryLoading`)を追加。クリックで `useReports().generateBackgroundSummary(issue.workspace_id, issue.id, locale)` を呼び、本文の `IssueAiAnalysis` 直下に折りたたみセクションを表示(`mdi-creation`+生成ラベル・生成中は `v-progress-circular` スピナー・要約テキストは `ai-text-box`・空文字時は `mdi-comment-off-outline`+「コメントなし（要約対象なし）」)。セクションは一度でも生成を実行したら表示(`showBackgroundSummary` = loading || loaded)。状態は `useReports` 側の per-issue 背景要約 state(`backgroundSummary`/`backgroundSummaryLoading`/`backgroundSummaryLoaded`)を共用し(IssueDetailDialog は同時1つのため `useSimilarSearch` 同様のモジュール単一グローバルステート)、`modelValue` の watch でダイアログを開くたびに `resetBackgroundSummary` でクリアし課題の取り違えを防止。2回目は Rust 側 `source_hash`+`lang` キャッシュで即返し。`useReports.ts` に per-issue state 3本(`backgroundSummary`/`backgroundSummaryLoading`/`backgroundSummaryLoaded`)・`resetBackgroundSummary` を追加し、`generateBackgroundSummary` に optional `lang` 引数(省略時 UI 言語追従)を追加して state 駆動へ変更(コメントなし・AI 非対応・生成失敗・DB エラーは空文字へ degrade)。`locales/{ja,en}.json` の `ai.issueDetail` に `summarizeBackground`/`backgroundSummaryTitle`/`backgroundSummarizing`/`backgroundNoComments` を日英で追加。`pnpm run lint`(0 errors)/`pnpm run format:check` 通過
+- 2026-06-14: v0.4.5 レポート1日1回バックグラウンド自動生成のスケジューラ結線(scheduler.rs・commands.rs・FR-V045-005)。`commands.rs` の `generate_reports` 生成コアを `pub(crate) generate_report(&app, &db, workspace_id, report_type, lang)` へ抽出し、コマンドは薄いラッパーに(コマンドと自動生成が同一経路)。`CROSS_SUMMARY_REGEN_HOURS`(`#[allow(dead_code)]` 解除)・`iso_week_key`・`month_key` を `pub(crate)` 化。`scheduler.rs` の `sync_and_notify` のワークスペースループ直後(トレイ更新の前)に `generate_due_reports(app, &db)` を追加。AI ON(`is_ai_enabled`=`settings.ai_enabled=="true"`)かつ可用性あり(`ai_is_available`=FoundationModels バックエンドを一時生成し `availability==available`)のときだけ実行、それ以外はアイドル(可用性問い合わせの sidecar 起動も AI ON 時のみ)。有効ワークスペースごとに横断サマリ=`cross_summary_is_due`(`generated_at` 経過≥`CROSS_SUMMARY_REGEN_HOURS`・未生成/欠落/パース失敗は true)、週次/月次=`period_report_is_due`(現在の `iso_week_key`/`month_key` で `get_report_summary` が `None`)を判定し、`generate_report_quietly`→`commands::generate_report`(`job_queue` を介さず直接 `create_backend`→`infer`)で生成。失敗は本体(通常 sync)を止めずログのみ(NFR-V045-003)。新定数 `SETTING_LANGUAGE`/`DEFAULT_REPORT_LANG`(`ja`)/`REPORT_TYPE_*`/`CROSS_SUMMARY_PERIOD_KEY`。scheduler.rs に単体テスト4件追加(`is_ai_enabled` の `"true"` のみ有効・`resolve_report_lang` の既定/追従・`cross_summary_is_due` の未生成→true/生成直後→false・`period_report_is_due` の未生成→true/生成済み→false。in-memory SQLite。背景日時 backdate は db.pool が private のため省略)。`cargo build` / `clippy --all-targets -D warnings` / `fmt --check` / 単体テスト(scheduler::tests 8件) 通過。AI ON 環境での実生成・AI OFF アイドルの実機ログ確認は残(注: db.rs の日付相対テスト3件は本作業と無関係に当日付替わりで失敗。baseline でも再現確認済み)
