@@ -43,24 +43,28 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         // フロントエンドから呼び出せるコマンドを登録
         .invoke_handler(tauri::generate_handler![
-            commands::greet,                    // テスト用挨拶コマンド
-            commands::save_settings,            // 設定保存
-            commands::get_settings,             // 設定取得
-            commands::fetch_issues,             // Backlogから課題を取得してスコアリング
-            commands::fetch_projects,           // Backlogからプロジェクト一覧を取得
-            commands::get_issues,               // 保存済み課題一覧を取得
-            commands::get_workspaces,           // ワークスペース一覧を取得
-            commands::get_workspace_by_id,      // ワークスペースIDから取得
-            commands::save_workspace,           // ワークスペースを保存
-            commands::delete_workspace,         // ワークスペースを削除
-            commands::toggle_workspace_enabled, // ワークスペースの有効・無効を切り替え
-            commands::get_ai_availability,      // AI機能の可用性を取得（v0.3）
-            commands::get_ai_settings,          // AI機能のON/OFF設定を取得（v0.3）
-            commands::save_ai_setting,          // AI機能のON/OFF設定を保存（v0.3）
-            commands::get_ai_queue_status,      // AIキューの処理状況を取得（v0.3）
-            commands::reanalyze_issue,          // 課題を手動で再分析キューに投入（v0.3）
-            log_commands::get_log_directory,    // ログディレクトリのパスを取得
-            log_commands::open_log_directory    // ログディレクトリを開く
+            commands::greet,                          // テスト用挨拶コマンド
+            commands::save_settings,                  // 設定保存
+            commands::get_settings,                   // 設定取得
+            commands::fetch_issues,                   // Backlogから課題を取得してスコアリング
+            commands::fetch_projects,                 // Backlogからプロジェクト一覧を取得
+            commands::get_issues,                     // 保存済み課題一覧を取得
+            commands::get_workspaces,                 // ワークスペース一覧を取得
+            commands::get_workspace_by_id,            // ワークスペースIDから取得
+            commands::save_workspace,                 // ワークスペースを保存
+            commands::delete_workspace,               // ワークスペースを削除
+            commands::toggle_workspace_enabled,       // ワークスペースの有効・無効を切り替え
+            commands::get_ai_availability,            // AI機能の可用性を取得（v0.3）
+            commands::get_ai_settings,                // AI機能のON/OFF設定を取得（v0.3）
+            commands::save_ai_setting,                // AI機能のON/OFF設定を保存（v0.3）
+            commands::get_ai_queue_status,            // AIキューの処理状況を取得（v0.3）
+            commands::reanalyze_issue,                // 課題を手動で再分析キューに投入（v0.3）
+            commands::search_similar_issues,          // 課題起点の横断類似検索（v0.4）
+            commands::summarize_solutions,            // 過去事例の解決策要約（v0.4）
+            commands::get_embedding_status,           // 埋め込み構築の進捗を取得（v0.4）
+            commands::get_closed_issues_corpus_count, // コーパス（完了課題）件数を取得（v0.4）
+            log_commands::get_log_directory,          // ログディレクトリのパスを取得
+            log_commands::open_log_directory          // ログディレクトリを開く
         ])
         // アプリケーション起動時のセットアップ処理
         .setup(|app| {
@@ -233,6 +237,17 @@ pub fn run() {
                     Err(e) => log::warn!("Failed to reset stale AI jobs on startup: {e}"),
                 }
 
+                // 既保存 AI 結果のスケジュールリスクを LLM 再実行なしで再計算する（v0.4 / FR-V04-006）。
+                // 起動のたびに「今日」基準で遅延日数を取り直し、期限超過が進んだ課題のリスクを
+                // final_risk = max(LLM, schedule_risk) で昇格させる。決定的・非 LLM のため安価。
+                match db_client.recompute_schedule_risk().await {
+                    Ok(n) if n > 0 => {
+                        log::info!("Recomputed schedule risk for {n} AI result(s) on startup")
+                    }
+                    Ok(_) => {}
+                    Err(e) => log::warn!("Failed to recompute schedule risk on startup: {e}"),
+                }
+
                 app_handle.manage(db_client);
 
                 // バックグラウンドスケジューラーを初期化
@@ -243,6 +258,11 @@ pub fn run() {
                 // job_queue の pending を同時1件で消費し、ai_results へ保存する。
                 // AI 機能 OFF・可用性なし・キュー空のときはアイドルし、本体機能を阻害しない。
                 ai::worker::init(app_handle.clone());
+
+                // バックグラウンド埋め込みワーカーを起動（v0.4 / FR-V04-001・FR-V04-004）
+                // job_queue の embed ジョブを同時1件で消費し、issue_embeddings へベクトルを保存する。
+                // summarize ワーカーとは独立タスクで動き、本体機能・v0.3 AI を阻害しない。
+                ai::embed_worker::init(app_handle.clone());
 
                 // 起動ログを出力（ログファイル生成のため）
                 log::info!("Application initialized successfully");

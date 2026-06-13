@@ -21,6 +21,17 @@
         <v-chip color="purple" size="small" variant="flat" class="score-chip">
           {{ $t('issue.score', { score: issue.relevance_score }) }}
         </v-chip>
+        <v-tooltip :text="$t('similar.searchButton')" location="bottom">
+          <template #activator="{ props: tooltipProps }">
+            <v-btn
+              v-bind="tooltipProps"
+              icon="mdi-magnify-scan"
+              size="small"
+              variant="text"
+              @click.stop="openSimilar(issue)"
+            ></v-btn>
+          </template>
+        </v-tooltip>
         <v-tooltip :text="$t('issue.openInBrowser')" location="bottom">
           <template #activator="{ props: tooltipProps }">
             <v-btn
@@ -114,6 +125,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
 import { useI18n } from 'vue-i18n'
 import type { Issue } from '../composables/useIssues'
+import { useSimilarSearch } from '../composables/useSimilarSearch'
 import IssueAiSummaryRow from './IssueAiSummaryRow.vue'
 import {
   getPriorityColor,
@@ -137,6 +149,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const { t } = useI18n()
+const { openSimilar } = useSimilarSearch()
 
 const projectColor = computed(() => getProjectColor(props.issue.issueKey))
 const projectKey = computed(() => extractProjectKey(props.issue.issueKey))

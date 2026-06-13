@@ -80,6 +80,80 @@
           {{ $t('ai.settings.queueEmpty') }}
         </div>
       </template>
+
+      <!-- コーパス設定 -->
+      <v-divider class="mb-3 mt-2" />
+      <div class="text-caption text-grey mb-2">{{ $t('ai.corpus.title') }}</div>
+
+      <!-- 取り込み期間スライダー -->
+      <div class="mb-1">
+        <div class="d-flex align-center justify-space-between mb-1">
+          <span class="text-body-2">{{ $t('ai.corpus.monthsLabel') }}</span>
+          <span class="text-body-2 font-weight-medium">
+            {{ $t('ai.corpus.monthsValue', { months: corpusMonths }) }}
+          </span>
+        </div>
+        <v-slider
+          :model-value="corpusMonths"
+          :min="1"
+          :max="24"
+          :step="1"
+          color="primary"
+          hide-details
+          thumb-label
+          class="mt-1"
+          @update:model-value="onCorpusMonthsChange"
+        />
+        <div class="text-caption text-grey mt-1">
+          {{ $t('ai.corpus.monthsHint') }}
+        </div>
+      </div>
+
+      <!-- コーパス件数 -->
+      <div class="d-flex align-center ga-2 mt-2">
+        <span class="text-body-2 text-grey">{{ $t('ai.corpus.corpusCount') }}</span>
+        <span v-if="loadingCorpus" class="text-body-2">
+          <v-progress-circular size="12" width="2" indeterminate color="primary" />
+        </span>
+        <span v-else class="text-body-2 font-weight-medium">
+          {{
+            corpusCount !== null ? $t('ai.corpus.corpusCountValue', { count: corpusCount }) : '—'
+          }}
+        </span>
+      </div>
+
+      <!-- 埋め込み構築進捗 -->
+      <div class="mt-2">
+        <div class="d-flex align-center justify-space-between mb-1">
+          <span class="text-body-2 text-grey">{{ $t('ai.corpus.embeddingProgress') }}</span>
+          <span v-if="loadingEmbedding" class="text-body-2">
+            <v-progress-circular size="12" width="2" indeterminate color="primary" />
+          </span>
+          <span v-else-if="embeddingStatus" class="text-body-2">
+            {{
+              $t('ai.corpus.embeddingProgressValue', {
+                built: embeddingStatus.built,
+                target: embeddingStatus.target,
+              })
+            }}
+          </span>
+          <span v-else class="text-body-2 text-grey">—</span>
+        </div>
+        <v-progress-linear
+          v-if="embeddingStatus && embeddingStatus.target > 0"
+          :model-value="embeddingProgressPercent"
+          color="primary"
+          height="6"
+          rounded
+          bg-color="surface-variant"
+        />
+        <div
+          v-if="embeddingStatus && embeddingStatus.built < embeddingStatus.target"
+          class="text-caption text-grey mt-1"
+        >
+          {{ $t('ai.corpus.embeddingHint') }}
+        </div>
+      </div>
     </v-card-text>
   </v-card>
 </template>
@@ -103,16 +177,33 @@ const {
   loadingAvailability,
   loadingQueue,
   totalQueueCount,
+  corpusMonths,
+  corpusCount,
+  embeddingStatus,
+  loadingCorpus,
+  loadingEmbedding,
+  embeddingProgressPercent,
   loadEnabled,
   loadAvailability,
   loadQueueStatus,
   enableAi,
   disableAi,
+  loadCorpusMonths,
+  saveCorpusMonths,
+  loadCorpusCount,
+  loadEmbeddingStatus,
 } = useAiSettings()
 
 onMounted(async () => {
-  // AI 設定・可用性・キュー状況を並行ロード（可用性は取得済みならスキップされる）
-  await Promise.all([loadEnabled(), loadAvailability(), loadQueueStatus()])
+  // AI 設定・可用性・キュー状況・コーパス設定を並行ロード（可用性は取得済みならスキップされる）
+  await Promise.all([
+    loadEnabled(),
+    loadAvailability(),
+    loadQueueStatus(),
+    loadCorpusMonths(),
+    loadCorpusCount(),
+    loadEmbeddingStatus(),
+  ])
 })
 
 /**
@@ -140,6 +231,23 @@ async function openAppleIntelligenceSettings() {
     await open('x-apple.systempreferences:com.apple.preference.security?Privacy_AppleIntelligence')
   } catch (e) {
     console.error('Failed to open Apple Intelligence settings:', e)
+    emit('error', String(e))
+  }
+}
+
+/**
+ * コーパス取り込み期間スライダーの変更ハンドラ
+ *
+ * v-slider の update:model-value は number | undefined を渡すことがあるため型ガードを行う。
+ */
+async function onCorpusMonthsChange(value: number | undefined) {
+  if (value === undefined) return
+  try {
+    await saveCorpusMonths(value)
+    // 件数・進捗を更新して反映を確認できるようにする
+    await Promise.all([loadCorpusCount(), loadEmbeddingStatus()])
+  } catch (e) {
+    console.error('Failed to save corpus months:', e)
     emit('error', String(e))
   }
 }

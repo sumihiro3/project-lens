@@ -126,6 +126,24 @@
     "due": "Due: {date}",
     "openInBrowser": "Open in Browser"
   },
+  "similar": {
+    "title": "Similar Past Issues",
+    "searchButton": "Find Similar",
+    "queryLabel": "Source: {key} {summary}",
+    "searching": "Searching for similar issues…",
+    "resultsCount": "Top {count} similar",
+    "noResults": "No similar issues found.",
+    "similarityValue": "{percent}% similar",
+    "completedBadge": "Completed",
+    "solutionTitle": "Past Responses & Solutions",
+    "summarizing": "Summarizing solutions…",
+    "noSummary": "No solution summary available.",
+    "degraded": {
+      "aiUnavailable": "AI features are unavailable, so the solution summary cannot be shown (the list of similar issues is still displayed).",
+      "embeddingNotReady": "Search data for this issue is still being built. Please try again later.",
+      "searchFailed": "Similar search failed. Please try again later."
+    }
+  },
   "ai": {
     "availability": {
       "available": "AI features are available",
@@ -178,6 +196,17 @@
       "generatedAt": "Generated: {datetime}",
       "noResult": "No AI analysis available yet",
       "reanalyze": "Re-analyze"
+    },
+    "corpus": {
+      "title": "Similarity Search Corpus (Closed Issues)",
+      "monthsLabel": "Closed issue import period",
+      "monthsValue": "{months} month(s)",
+      "monthsHint": "Changing the period will re-import the corpus on the next sync (max 24 months).",
+      "corpusCount": "Imported issues:",
+      "corpusCountValue": "{count} issue(s)",
+      "embeddingProgress": "Embedding build progress:",
+      "embeddingProgressValue": "{built} / {target}",
+      "embeddingHint": "Building embedding data in the background. Similarity search will be available once complete."
     }
   }
 }

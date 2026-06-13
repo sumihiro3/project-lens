@@ -20,11 +20,11 @@
         </v-chip>
 
         <v-menu location="bottom end">
-          <template #activator="{ props }">
+          <template #activator="{ props: menuProps }">
             <v-tooltip :text="$t('filters.sort.label')" location="bottom">
               <template #activator="{ props: tooltipProps }">
                 <v-btn
-                  v-bind="mergeProps(props, tooltipProps)"
+                  v-bind="mergeProps(menuProps, tooltipProps)"
                   icon="mdi-sort"
                   variant="text"
                   density="comfortable"

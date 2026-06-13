@@ -47,6 +47,9 @@
         <v-btn variant="text" @click="snackbar = false">{{ $t('common.close') }}</v-btn>
       </template>
     </v-snackbar>
+
+    <!-- 類似検索ダイアログ（グローバルステート参照・ページに1回だけマウント） -->
+    <IssueSimilarDialog />
   </v-container>
 </template>
 
@@ -57,6 +60,7 @@ import { useIssueFilters } from '../composables/useIssueFilters'
 import IssueFilterPanel from '../components/IssueFilterPanel.vue'
 import FilterSummaryBar from '../components/FilterSummaryBar.vue'
 import IssueList from '../components/IssueList.vue'
+import IssueSimilarDialog from '../components/IssueSimilarDialog.vue'
 import { listen } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
 

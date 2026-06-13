@@ -26,7 +26,8 @@
 //! 検証できる。
 
 use super::{
-    create_backend, AiAnalysisInput, BackendKind, LlmInference, RiskLevel, CONTEXT_BODY_MAX_CHARS,
+    create_backend, schedule_risk, AiAnalysisInput, BackendKind, LlmInference,
+    CONTEXT_BODY_MAX_CHARS,
 };
 use crate::db::{AiResult, DbClient};
 use anyhow::{anyhow, Result};
@@ -48,6 +49,14 @@ const DEFAULT_LANG: &str = "ja";
 
 /// ジョブ種別の既定値（`job_queue.job_type`）。1行要約 + リスク + 提案のユースケース。
 pub const JOB_TYPE_SUMMARIZE: &str = "summarize";
+
+/// 埋め込み生成のジョブ種別（`job_queue.job_type`。v0.4 / FR-V04-001・FR-V04-004）。
+///
+/// scheduler / 手動 sync が変更課題・コーパス課題に対して投入し、埋め込み専用ワーカーが
+/// 消費して `issue_embeddings` を構築する。`JOB_TYPE_SUMMARIZE` と並行して投入され、
+/// `enqueue_jobs` の重複抑止（同一 workspace_id / issue_id / job_type の pending）は
+/// 種別ごとに独立に効く。
+pub const JOB_TYPE_EMBED: &str = "embed";
 
 /// 1ジョブあたりの推論リトライ上限（FR-V03-005）。
 ///
@@ -158,8 +167,9 @@ async fn drain_queue<B: LlmInference>(app: &AppHandle, backend: &B) -> Result<us
     let mut processed = 0usize;
 
     // 同時1件: 毎回 limit=1 で取り出し、空になるまで（上限内で）繰り返す。
+    // summarize ジョブのみを対象にする（embed ジョブは embed_worker が処理する。横取り防止）。
     for _ in 0..MAX_JOBS_PER_DRAIN {
-        let jobs = db.get_pending_jobs(1).await?;
+        let jobs = db.get_pending_jobs(JOB_TYPE_SUMMARIZE, 1).await?;
         let Some(job) = jobs.into_iter().next() else {
             break; // キューが空。
         };
@@ -242,12 +252,17 @@ async fn process_job<B: LlmInference>(
             None
         });
 
-    // 4. ai_results へ保存（issue 単位 UPSERT）。
+    // 4. 最終リスクを合成する（FR-V04-006）。
+    // 内容リスク（LLM 出力）とスケジュール由来リスク（遅延日数から決定的に算出）の高い方を採用する。
+    // これにより、期限を大幅超過した課題は LLM が低リスクと判断しても high へ昇格する。
+    let final_risk = output.risk_level.max(schedule_risk(delay_days));
+
+    // 5. ai_results へ保存（issue 単位 UPSERT）。
     let result = AiResult {
         issue_id: job.issue_id,
         workspace_id: job.workspace_id,
         summary: Some(output.summary),
-        risk_level: Some(risk_level_to_str(output.risk_level).to_string()),
+        risk_level: Some(final_risk.as_storage_str().to_string()),
         delay_days,
         suggestion: Some(output.suggestion),
         processed_at: Some(chrono::Utc::now().to_rfc3339()),
@@ -263,7 +278,7 @@ async fn process_job<B: LlmInference>(
         return;
     }
 
-    // 5. ジョブを done に遷移。
+    // 6. ジョブを done に遷移。
     if let Err(e) = db.update_job_status(job.id, "done").await {
         error!("AI worker: failed to mark job {} done: {e}", job.id);
     } else {
@@ -341,24 +356,6 @@ async fn infer_with_retry<B: LlmInference>(
         }
     }
     Err(last_err)
-}
-
-/// [`RiskLevel`] を `ai_results.risk_level` へ保存する小文字文字列へ変換する。
-///
-/// フロントのバッジ色分け（`high` / `medium` / `low`）と一致させる。`RiskLevel` の serde 表現
-/// （`rename_all = "lowercase"`）と同じ文字列を、JSON を経由せず直接得るためのヘルパー。
-///
-/// # 引数
-/// * `level` - リスクレベル。
-///
-/// # 戻り値
-/// `"high"` / `"medium"` / `"low"` のいずれか。
-fn risk_level_to_str(level: RiskLevel) -> &'static str {
-    match level {
-        RiskLevel::High => "high",
-        RiskLevel::Medium => "medium",
-        RiskLevel::Low => "low",
-    }
 }
 
 /// ジョブを `failed` に遷移させる（スキップ記録）。
@@ -466,8 +463,8 @@ mod tests {
     #[test]
     fn risk_level_maps_to_storage_string() {
         // ai_results.risk_level へ保存する文字列が小文字になること（フロントのバッジ色分けと一致）。
-        assert_eq!(risk_level_to_str(RiskLevel::High), "high");
-        assert_eq!(risk_level_to_str(RiskLevel::Medium), "medium");
-        assert_eq!(risk_level_to_str(RiskLevel::Low), "low");
+        assert_eq!(RiskLevel::High.as_storage_str(), "high");
+        assert_eq!(RiskLevel::Medium.as_storage_str(), "medium");
+        assert_eq!(RiskLevel::Low.as_storage_str(), "low");
     }
 }

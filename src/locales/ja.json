@@ -126,6 +126,24 @@
     "due": "期限: {date}",
     "openInBrowser": "ブラウザで開く"
   },
+  "similar": {
+    "title": "類似する過去の課題",
+    "searchButton": "類似を探す",
+    "queryLabel": "起点: {key} {summary}",
+    "searching": "類似課題を検索中…",
+    "resultsCount": "類似上位 {count} 件",
+    "noResults": "類似する課題は見つかりませんでした。",
+    "similarityValue": "類似度 {percent}%",
+    "completedBadge": "完了",
+    "solutionTitle": "過去の対応・解決策",
+    "summarizing": "解決策を要約中…",
+    "noSummary": "解決策の要約はありません。",
+    "degraded": {
+      "aiUnavailable": "AI機能が利用できないため、解決策の要約は表示できません（類似課題の一覧は表示されます）。",
+      "embeddingNotReady": "この課題の検索用データを構築中です。しばらくしてから再度お試しください。",
+      "searchFailed": "類似検索に失敗しました。しばらくしてから再度お試しください。"
+    }
+  },
   "ai": {
     "availability": {
       "available": "AI機能が利用可能です",
@@ -178,6 +196,17 @@
       "generatedAt": "生成日時: {datetime}",
       "noResult": "AI分析結果はまだありません",
       "reanalyze": "再分析する"
+    },
+    "corpus": {
+      "title": "類似検索コーパス（完了課題）",
+      "monthsLabel": "過去完了課題の取り込み期間",
+      "monthsValue": "{months}ヶ月",
+      "monthsHint": "期間を変更すると次回同期時にコーパスが再取り込みされます（最大24ヶ月）。",
+      "corpusCount": "取り込み件数:",
+      "corpusCountValue": "{count}件",
+      "embeddingProgress": "埋め込み構築進捗:",
+      "embeddingProgressValue": "{built} / {target}件",
+      "embeddingHint": "埋め込みデータをバックグラウンドで構築中です。構築完了後に類似検索が利用可能になります。"
     }
   }
 }
