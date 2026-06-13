@@ -168,6 +168,28 @@ export function getChipTextColor(bgColor: string): string {
 }
 
 /**
+ * AIリスクレベルに応じた Vuetify カラー名と 16進カラーのペアを返す
+ *
+ * @param riskLevel - リスクレベル（'high' | 'medium' | 'low' | undefined）
+ * @returns `{ color: string; hex: string }` — Vuetify カラー名と getChipTextColor 用 16進値
+ */
+export function getRiskColor(riskLevel: 'high' | 'medium' | 'low' | undefined): {
+  color: string
+  hex: string
+} {
+  switch (riskLevel) {
+    case 'high':
+      return { color: 'red-darken-1', hex: '#E53935' }
+    case 'medium':
+      return { color: 'orange-darken-1', hex: '#F57C00' }
+    case 'low':
+      return { color: 'green-darken-1', hex: '#388E3C' }
+    default:
+      return { color: 'grey', hex: '#9E9E9E' }
+  }
+}
+
+/**
  * 更新日時を相対時間で表示（例: "たった今", "1分前", "1時間前"）
  */
 export function formatRelativeTime(

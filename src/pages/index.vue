@@ -4,11 +4,9 @@
     <v-row v-if="issues.length === 0" class="mt-8">
       <v-col cols="12" class="text-center">
         <v-card class="mx-auto pa-8" max-width="600" elevation="0" variant="outlined">
-          <v-icon icon="mdi-cog-outline" size="80" color="primary" class="mb-4"></v-icon>
+          <v-icon icon="mdi-cog-outline" size="80" color="primary" class="mb-4" />
           <h2 class="text-h5 font-weight-bold mb-4">{{ $t('dashboard.welcomeTitle') }}</h2>
-          <p class="text-body-1 text-medium-emphasis mb-6">
-            {{ $t('dashboard.welcomeMessage') }}
-          </p>
+          <p class="text-body-1 text-medium-emphasis mb-6">{{ $t('dashboard.welcomeMessage') }}</p>
           <v-btn color="primary" size="x-large" prepend-icon="mdi-cog" to="/settings">
             {{ $t('dashboard.goToSettings') }}
           </v-btn>
@@ -16,9 +14,8 @@
       </v-col>
     </v-row>
 
-    <!-- Dashboard Content -->
     <template v-else>
-      <!-- Welcome Section -->
+      <!-- ページタイトル -->
       <v-row class="mb-2">
         <v-col cols="12">
           <h1 class="text-h4 font-weight-bold mb-2">{{ $t('dashboard.title') }}</h1>
@@ -27,6 +24,40 @@
               showOnlyMyIssues ? $t('dashboard.descriptionMyIssues') : $t('dashboard.description')
             }}
           </p>
+        </v-col>
+      </v-row>
+
+      <!-- AI バナー（可用性あり・未有効・スキップ未実施） -->
+      <v-row v-if="showAiBanner" class="mb-2">
+        <v-col cols="12">
+          <v-alert
+            color="purple-lighten-5"
+            border="start"
+            border-color="purple-darken-1"
+            density="compact"
+            closable
+            @click:close="skipBanner"
+          >
+            <template #prepend>
+              <v-icon color="purple-darken-1">mdi-creation</v-icon>
+            </template>
+            <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+              <div>
+                <div class="font-weight-bold text-body-2">{{ $t('ai.banner.title') }}</div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ $t('ai.banner.description') }}
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <v-btn size="small" color="purple-darken-1" variant="flat" @click="handleEnableAi">
+                  {{ $t('ai.banner.enable') }}
+                </v-btn>
+                <v-btn size="small" variant="text" color="grey-darken-1" @click="dismissBanner">
+                  {{ $t('ai.banner.dismiss') }}
+                </v-btn>
+              </div>
+            </div>
+          </v-alert>
         </v-col>
       </v-row>
 
@@ -64,191 +95,69 @@
         </v-col>
       </v-row>
 
-      <!-- Charts and Recent Updates -->
+      <!-- 遅延リスクセクション（AI 結果があるときのみ表示） -->
+      <v-row v-if="hasDelayRiskIssues">
+        <v-col cols="12">
+          <DelayRiskSection :issues="baseIssues" @open-detail="openDetail" />
+        </v-col>
+      </v-row>
+
+      <!-- チャート -->
       <v-row>
-        <!-- Status Distribution Chart -->
         <v-col cols="12" md="6">
           <StatusChart :status-counts="statusCounts" @click-segment="navigateToStatus" />
         </v-col>
-
-        <!-- Priority Distribution Chart -->
         <v-col cols="12" md="6">
           <PriorityChart :priority-counts="priorityCounts" @click-segment="navigateToPriority" />
         </v-col>
       </v-row>
 
-      <!-- Recent Updates -->
+      <!-- 最近の更新 -->
       <v-row>
         <v-col cols="12">
           <RecentUpdates :issues="baseIssues" />
         </v-col>
       </v-row>
     </template>
+
+    <!-- 課題詳細ダイアログ -->
+    <IssueDetailDialog v-if="detailIssue" v-model="detailDialogOpen" :issue="detailIssue" />
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useIssues } from '../composables/useIssues'
-import { useIssueFilters } from '../composables/useIssueFilters'
-import { parseDueDate, isOverdue } from '../utils/issueHelpers'
+import { computed } from 'vue'
+import { useDashboard } from '../composables/useDashboard'
 import KpiCard from '../components/dashboard/KpiCard.vue'
 import StatusChart from '../components/dashboard/StatusChart.vue'
 import PriorityChart from '../components/dashboard/PriorityChart.vue'
 import RecentUpdates from '../components/dashboard/RecentUpdates.vue'
-import { listen } from '@tauri-apps/api/event'
-import { useI18n } from 'vue-i18n'
+import DelayRiskSection from '../components/dashboard/DelayRiskSection.vue'
+import IssueDetailDialog from '../components/IssueDetailDialog.vue'
 
-const router = useRouter()
-const { t } = useI18n()
+const {
+  issues,
+  baseIssues,
+  showOnlyMyIssues,
+  overdueCount,
+  dueSoonCount,
+  stagnantCount,
+  statusCounts,
+  priorityCounts,
+  navigateToOverdue,
+  navigateToDueSoon,
+  navigateToStagnant,
+  navigateToStatus,
+  navigateToPriority,
+  detailIssue,
+  detailDialogOpen,
+  openDetail,
+  showAiBanner,
+  skipBanner,
+  dismissBanner,
+  handleEnableAi,
+} = useDashboard()
 
-// 課題データ管理
-const { issues, loadIssues } = useIssues()
-
-// フィルター管理（グローバルステートにアクセスするため）
-const { filters, baseIssues, showOnlyMyIssues } = useIssueFilters(issues)
-
-// 自動更新イベントのリスナー解除関数
-let unlisten: (() => void) | null = null
-
-// 初期データ読み込み
-onMounted(async () => {
-  await loadIssues()
-
-  // バックグラウンド同期完了イベントを監視
-  unlisten = await listen('refresh-issues', () => {
-    console.log('Received refresh-issues event, reloading...')
-    loadIssues()
-  })
-})
-
-onUnmounted(() => {
-  if (unlisten) {
-    unlisten()
-  }
-})
-
-// ステータス定義
-const completedStatuses = ['完了', 'Closed', 'Done']
-const resolvedStatuses = ['処理済み', 'Resolved']
-
-// 期限切れチケット数
-const overdueCount = computed(() => {
-  return baseIssues.value.filter(issue => {
-    const dueDate = parseDueDate(issue.dueDate)
-    return dueDate && isOverdue(dueDate)
-  }).length
-})
-
-// 期限間近チケット数（今日〜3日後）
-const dueSoonCount = computed(() => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const targetDate = new Date(today)
-  targetDate.setDate(targetDate.getDate() + 3)
-
-  return baseIssues.value.filter(issue => {
-    const dueDate = parseDueDate(issue.dueDate)
-    if (!dueDate) return false
-
-    // 期限切れは除外（別カードで管理）
-    return dueDate >= today && dueDate <= targetDate
-  }).length
-})
-
-// 放置チケット数（5日以上更新なし、かつ未完了）
-const stagnantCount = computed(() => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const thresholdDate = new Date(today)
-  thresholdDate.setDate(thresholdDate.getDate() - 5)
-
-  return baseIssues.value.filter(issue => {
-    const updated = parseDueDate(issue.updated)
-    if (!updated) return false
-
-    const statusName = issue.status?.name
-    const isCompleted =
-      statusName &&
-      (completedStatuses.some(s => statusName.includes(s)) ||
-        resolvedStatuses.some(s => statusName.includes(s)))
-
-    return updated < thresholdDate && !isCompleted
-  }).length
-})
-
-// ステータス別カウント
-const statusCounts = computed(() => {
-  const counts: Record<string, number> = {}
-
-  baseIssues.value.forEach(issue => {
-    const status = issue.status?.name || t('dashboard.unknown')
-    counts[status] = (counts[status] || 0) + 1
-  })
-
-  return counts
-})
-
-// 優先度別カウント
-const priorityCounts = computed(() => {
-  const counts: Record<string, number> = {}
-
-  baseIssues.value.forEach(issue => {
-    const priority = issue.priority?.name || t('dashboard.unknown')
-    counts[priority] = (counts[priority] || 0) + 1
-  })
-
-  return counts
-})
-
-// フィルターをリセットしてから特定の条件を設定
-function resetFilters() {
-  filters.value.searchQuery = ''
-  filters.value.statusFilter = 'all'
-  filters.value.dueDateFilter = ''
-  filters.value.dueSoonDays = null
-  filters.value.stagnantDays = null
-  filters.value.minScore = 0
-  filters.value.selectedPriorities = []
-  filters.value.selectedAssignees = []
-  filters.value.selectedProjects = []
-}
-
-// 期限切れチケット一覧へ遷移
-function navigateToOverdue() {
-  resetFilters()
-  filters.value.dueDateFilter = 'overdue'
-  router.push('/issues')
-}
-
-// 期限間近チケット一覧へ遷移
-function navigateToDueSoon() {
-  resetFilters()
-  filters.value.dueSoonDays = 3
-  router.push('/issues')
-}
-
-// 放置チケット一覧へ遷移
-function navigateToStagnant() {
-  resetFilters()
-  filters.value.stagnantDays = 5
-  router.push('/issues')
-}
-
-// 特定ステータスのチケット一覧へ遷移
-function navigateToStatus(statusName: string) {
-  resetFilters()
-  filters.value.statusFilter = statusName
-  router.push('/issues')
-}
-
-// 特定優先度のチケット一覧へ遷移
-function navigateToPriority(priorityName: string) {
-  resetFilters()
-  filters.value.selectedPriorities = [priorityName]
-  router.push('/issues')
-}
+/** ai_risk_level を持つ課題が1件以上あるか（DelayRiskSection の表示制御） */
+const hasDelayRiskIssues = computed(() => baseIssues.value.some(i => !!i.ai_risk_level))
 </script>

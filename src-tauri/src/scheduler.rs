@@ -1,3 +1,4 @@
+use crate::ai::worker::JOB_TYPE_SUMMARIZE;
 use crate::backlog::BacklogClient;
 use crate::db::DbClient;
 use crate::scoring::ScoringService;
@@ -62,10 +63,14 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     }
 
     // 既存の課題IDとスコアを取得（通知判定用）
+    // あわせて updated_at を保持し、AIジョブ投入の差分検出（新規・更新分のみ）に流用する。
     let existing_issues = db.get_issues().await?;
     let mut existing_issue_map = std::collections::HashMap::new();
+    let mut existing_updated_map: std::collections::HashMap<(i64, i64), Option<String>> =
+        std::collections::HashMap::new();
     for issue in existing_issues {
         existing_issue_map.insert((issue.workspace_id, issue.id), issue.relevance_score);
+        existing_updated_map.insert((issue.workspace_id, issue.id), issue.updated.clone());
     }
 
     let mut all_issues_for_tooltip = Vec::new();
@@ -151,11 +156,21 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         // Vec<String> を Vec<&str> に変換
         let synced_projects_refs: Vec<&str> = synced_projects.iter().map(|s| s.as_str()).collect();
 
-        if let Err(e) = db
+        match db
             .save_issues(workspace.id, &issues, &synced_projects_refs, &project_keys)
             .await
         {
-            error!("Failed to save issues for workspace {domain}: {e}");
+            Ok(()) => {
+                // 4. 保存成功後、新規・更新チケットをAIジョブとしてキュー投入する（FR-V03-004）。
+                // 無効ワークスペースは投入対象外（scheduler は sync 自体は enabled を見ないため、
+                // ここでジョブ投入のみ enabled で絞る）。
+                if workspace.enabled {
+                    enqueue_changed_issues(&db, workspace.id, &issues, &existing_updated_map).await;
+                }
+            }
+            Err(e) => {
+                error!("Failed to save issues for workspace {domain}: {e}");
+            }
         }
     }
 
@@ -237,4 +252,65 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
     );
 
     Ok(())
+}
+
+/// 同期した課題のうち、新規・更新分をAIジョブとしてキューに投入する（FR-V03-004）。
+///
+/// 差分検出は同期前のDBスナップショット（`existing_updated_map`）と突き合わせて行う:
+/// - スナップショットに無い課題（初回・新規）→ 投入対象
+/// - スナップショットにあり `updated`（最終更新日時）が変化した課題 → 投入対象
+/// - `updated` が変わっていない課題 → スキップ（再分析しない）
+///
+/// 初回同期（DBに当該ワークスペースの課題が無い状態）では全件が新規として投入される。
+/// 重複した `pending` ジョブの抑止は [`DbClient::enqueue_jobs`] 側で行うため、ここでは
+/// 投入候補のIDを集めて一括で渡す。ジョブ種別は 1行要約+リスク+提案の
+/// [`JOB_TYPE_SUMMARIZE`] を用いる。
+///
+/// 投入失敗は本体（同期）を止めず、エラーログに記録するだけにとどめる（非阻害方針）。
+/// 呼び出し側で無効ワークスペースを除外している前提のため、本関数は enabled を判定しない。
+///
+/// # 引数
+/// * `db` - データベースクライアント
+/// * `workspace_id` - 対象ワークスペースID
+/// * `issues` - 同期して保存した課題のスライス（このワークスペース分）
+/// * `existing_updated_map` - 同期前のDBスナップショット `(workspace_id, issue_id) -> updated`
+pub(crate) async fn enqueue_changed_issues(
+    db: &DbClient,
+    workspace_id: i64,
+    issues: &[crate::backlog::Issue],
+    existing_updated_map: &std::collections::HashMap<(i64, i64), Option<String>>,
+) {
+    // 新規（マップ未登録）または updated が変化した課題のIDを抽出する。
+    let changed_ids: Vec<i64> = issues
+        .iter()
+        .filter(
+            |issue| match existing_updated_map.get(&(workspace_id, issue.id)) {
+                // 既存課題: 最終更新日時が変わっていれば更新分として対象にする。
+                Some(prev_updated) => prev_updated != &issue.updated,
+                // 未登録の課題: 初回・新規として無条件に対象にする。
+                None => true,
+            },
+        )
+        .map(|issue| issue.id)
+        .collect();
+
+    if changed_ids.is_empty() {
+        return;
+    }
+
+    match db
+        .enqueue_jobs(workspace_id, &changed_ids, JOB_TYPE_SUMMARIZE)
+        .await
+    {
+        Ok(count) => {
+            if count > 0 {
+                info!(
+                    "Scheduler: Enqueued {count} AI job(s) for workspace {workspace_id} \
+                     ({} changed issue(s) detected).",
+                    changed_ids.len()
+                );
+            }
+        }
+        Err(e) => error!("Scheduler: Failed to enqueue AI jobs for workspace {workspace_id}: {e}"),
+    }
 }

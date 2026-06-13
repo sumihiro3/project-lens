@@ -102,6 +102,11 @@
 
         <v-divider class="my-4"></v-divider>
 
+        <!-- AI Settings Section -->
+        <AiSettingsCard @error="onAiError" />
+
+        <v-divider class="my-4"></v-divider>
+
         <!-- Log Files Section -->
         <h3 class="text-h6 mb-2">{{ $t('settings.logFiles') }}</h3>
         <v-card variant="outlined" class="mb-4">
@@ -226,6 +231,7 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
+import AiSettingsCard from '../components/AiSettingsCard.vue'
 
 interface Workspace {
   id: number
@@ -476,6 +482,14 @@ async function toggleWorkspace(workspace: Workspace) {
   }
 }
 
+/**
+ * AiSettingsCard からのエラー通知をメッセージ表示する
+ */
+function onAiError(msg: string) {
+  message.value = msg
+  messageType.value = 'error'
+}
+
 async function openLogDir() {
   try {
     await invoke('open_log_directory')
@@ -508,7 +522,7 @@ function formatResetTime(dateStr: string): string {
       return dateStr // パース失敗時はそのまま表示
     }
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } catch (e) {
+  } catch {
     return dateStr
   }
 }
