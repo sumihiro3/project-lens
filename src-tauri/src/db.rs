@@ -1184,7 +1184,7 @@ impl DbClient {
             "SELECT ai.workspace_id, ai.issue_id, ai.risk_level, \
                     CASE \
                       WHEN i.due_date IS NULL OR i.due_date = '' THEN NULL \
-                      ELSE julianday(substr(i.due_date, 1, 10)) - julianday('now', 'start of day') \
+                      ELSE julianday(substr(i.due_date, 1, 10)) - julianday('now', 'localtime', 'start of day') \
                     END AS due_diff \
              FROM ai_results ai \
              LEFT JOIN issues i \
@@ -1296,11 +1296,13 @@ impl DbClient {
     ) -> Result<Option<i64>> {
         // due_date の先頭10文字（YYYY-MM-DD）を日付として julianday に渡す。
         // どちらのフォーマットでも先頭10文字は ISO の日付部分になる。
-        // julianday('now') も日付境界で比較するため 'start of day' に丸める。
+        // 「今日」はユーザーのローカル日で判定する（フロントの isOverdue がローカル基準のため整合させる）。
+        // julianday('now') は UTC を返すので 'localtime' でローカルへ寄せてから 'start of day' で日付境界に丸める。
+        // これがないと JST 早朝（UTC では前日）に遅延日数・期限超過が1日過小になる。
         let row: Option<(Option<f64>,)> = sqlx::query_as(
             "SELECT CASE \
                WHEN due_date IS NULL OR due_date = '' THEN NULL \
-               ELSE julianday(substr(due_date, 1, 10)) - julianday('now', 'start of day') \
+               ELSE julianday(substr(due_date, 1, 10)) - julianday('now', 'localtime', 'start of day') \
              END \
              FROM issues WHERE workspace_id = ? AND id = ?",
         )
