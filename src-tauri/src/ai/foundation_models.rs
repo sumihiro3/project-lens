@@ -29,6 +29,7 @@
 //! {"type":"availability"}
 //! {"type":"analyze","issue_key":"PROJ-1","summary":"...","description_head":"...","status":"...","due_date":"2026-06-30","lang":"ja"}
 //! {"type":"embed","texts":["...","..."],"prefix":"query"}
+//! {"type":"summarize","instruction":"...","context":"...","lang":"ja"}
 //! {"type":"shutdown"}
 //! ```
 //! sidecar → Rust（1行 = 1 JSON。`type` で判別）:
@@ -36,6 +37,7 @@
 //! {"type":"availability","available":true,"reason":"available"}
 //! {"type":"result","summary":"...","risk_level":"high","suggestion":"..."}
 //! {"type":"embedding","vectors":[[/* 512 個の f32 */], ...]}
+//! {"type":"summarize","summary":"...","recommendation":"..."}
 //! {"type":"error","message":"..."}
 //! ```
 //!
@@ -127,6 +129,19 @@ enum SidecarRequest {
         /// 付与するプレフィックス種別（`query` / `passage`）。
         prefix: EmbedPrefix,
     },
+    /// 自由文生成要求（FR-V046-003）。
+    ///
+    /// 構造化分析（[`SidecarRequest::Analyze`]）と異なり、`@Generable` を介さない自由記述を生成する。
+    /// レポートの深い narrative 生成（優先対応リストを名指しで論評する）に用いる。`context` は
+    /// 呼び出し側で上限文字数（≈3000字）に切り詰めて渡す（NFR-V046-002）。
+    Summarize {
+        /// 生成指示（何をどう要約・論評するか）。
+        instruction: String,
+        /// 生成の入力材料（優先リスト＋集計など。切り詰め済み）。
+        context: String,
+        /// 出力言語（`ja` / `en`）。
+        lang: String,
+    },
     /// 正常終了要求（sidecar を停止する。EOF でも停止する）。
     Shutdown,
 }
@@ -165,6 +180,25 @@ impl SidecarRequest {
             prefix: input.prefix,
         }
     }
+
+    /// 生成指示・入力材料・出力言語から summarize 要求を組み立てる。
+    ///
+    /// `context` は呼び出し側で上限文字数まで切り詰めて渡す前提（本関数では切り詰めない）。
+    ///
+    /// # 引数
+    /// * `instruction` - 生成指示（何をどう論評・要約するか）。
+    /// * `context` - 生成の入力材料（切り詰め済み）。
+    /// * `lang` - 出力言語（`ja` / `en`）。
+    ///
+    /// # 戻り値
+    /// sidecar へ送る summarize 要求。
+    fn summarize(instruction: String, context: String, lang: String) -> Self {
+        SidecarRequest::Summarize {
+            instruction,
+            context,
+            lang,
+        }
+    }
 }
 
 /// sidecar からの応答（sidecar → Rust、JSON 1行）。`type` で判別する。
@@ -198,11 +232,34 @@ enum SidecarResponse {
         /// 入力テキストと同順の埋め込みベクトル群。
         vectors: Vec<Vec<f32>>,
     },
+    /// summarize 成功時の応答（構造化インサイト。v0.4.6・FR-V046-004）。
+    ///
+    /// sidecar の `@Generable`（`CrossInsightGeneration`）で生成した概況・推奨アクションの2フィールド。
+    /// 自由文ではなく構造化のため、入力リストのエコー・Markdown 混入が起きない。
+    Summarize {
+        /// プロジェクト横断の概況（2〜3文の散文）。
+        summary: String,
+        /// 推奨アクション（1〜2文）。
+        recommendation: String,
+    },
     /// エラー応答（生成失敗・入力不正）。
     Error {
         /// エラーメッセージ。
         message: String,
     },
+}
+
+/// summarize の構造化インサイト出力（v0.4.6・FR-V046-004）。
+///
+/// sidecar の `@Generable`（`CrossInsightGeneration`）が埋めた概況・推奨アクションの2フィールド。
+/// 呼び出し側（`commands::generate_cross_narrative`）はこれを `report_summaries` に保存し、
+/// UI が決まった項目としてカード整形表示する（AI の生テキストは画面に出さない）。
+#[derive(Debug, Clone)]
+pub struct SummarizeOutput {
+    /// プロジェクト横断の概況（2〜3文の散文）。
+    pub summary: String,
+    /// 推奨アクション（1〜2文）。
+    pub recommendation: String,
 }
 
 /// FoundationModels の可用性情報（FR-V03-002）。
@@ -242,6 +299,17 @@ enum ManagerCommand {
         /// 結果返却用の oneshot 送信端。
         respond: oneshot::Sender<Result<EmbeddingOutput>>,
     },
+    /// 構造化インサイト生成要求（FR-V046-004）。
+    Summarize {
+        /// 生成指示（何をどう論評・要約するか）。
+        instruction: String,
+        /// 生成の入力材料（切り詰め済み）。
+        context: String,
+        /// 出力言語（`ja` / `en`）。
+        lang: String,
+        /// 結果返却用の oneshot 送信端。
+        respond: oneshot::Sender<Result<SummarizeOutput>>,
+    },
 }
 
 /// 期待する応答の種別（送信順に1対1対応する応答の検証に用いる）。
@@ -256,6 +324,8 @@ enum ExpectedResponse {
     Availability,
     /// embed 要求 → `embedding`（または `error`）を期待。
     Embedding,
+    /// summarize 要求 → `summarize`（または `error`）を期待。
+    Summarize,
 }
 
 /// sidecar プロセスを表すハンドル抽象。
@@ -470,6 +540,47 @@ impl FoundationModelsBackend {
         recv.await
             .map_err(|_| anyhow!("AI manager dropped the embedding response"))?
     }
+
+    /// 指示と入力材料から構造化インサイト（概況・推奨アクション）を生成する（FR-V046-004）。
+    ///
+    /// analyze・embed と同じ管理タスク・同じ sidecar プロセスを経由し、summarize 要求を送って
+    /// `summarize` 応答（`@Generable` の構造化2フィールド）を受け取る。レポートの深い narrative 生成に用いる。
+    /// 一時停止中（連続失敗超過）は即エラーを返す。AI 非対応環境・生成失敗時は sidecar が `error`
+    /// を返すため、ここでも `Err` になり、呼び出し側は narrative を空へ degrade する（FR-V046-005）。
+    ///
+    /// `context` は呼び出し側で上限文字数（≈3000字）に切り詰めて渡す前提（NFR-V046-002）。
+    ///
+    /// # 引数
+    /// * `instruction` - 生成指示（何をどう論評・要約するか）。
+    /// * `context` - 生成の入力材料（切り詰め済み）。
+    /// * `lang` - 出力言語（`ja` / `en`）。
+    ///
+    /// # 戻り値
+    /// 生成された構造化インサイト [`SummarizeOutput`]、または失敗・一時停止時のエラー。
+    pub async fn summarize(
+        &self,
+        instruction: &str,
+        context: &str,
+        lang: &str,
+    ) -> Result<SummarizeOutput> {
+        if self.state() == SidecarState::Suspended {
+            return Err(anyhow!(
+                "AI backend is suspended after {MAX_CONSECUTIVE_FAILURES} consecutive failures"
+            ));
+        }
+        let (respond, recv) = oneshot::channel();
+        self.tx
+            .send(ManagerCommand::Summarize {
+                instruction: instruction.to_string(),
+                context: context.to_string(),
+                lang: lang.to_string(),
+                respond,
+            })
+            .await
+            .map_err(|_| anyhow!("AI manager task is not running"))?;
+        recv.await
+            .map_err(|_| anyhow!("AI manager dropped the summarize response"))?
+    }
 }
 
 impl EmbeddingBackend for FoundationModelsBackend {
@@ -657,6 +768,24 @@ async fn dispatch_command(child: &mut dyn SidecarProcessDyn, cmd: ManagerCommand
                 }
             }
         }
+        ManagerCommand::Summarize {
+            instruction,
+            context,
+            lang,
+            respond,
+        } => {
+            let request = SidecarRequest::summarize(instruction, context, lang);
+            match exchange(child, &request, ExpectedResponse::Summarize).await {
+                Ok(response) => {
+                    let _ = respond.send(parse_summarize(response));
+                    Ok(())
+                }
+                Err(e) => {
+                    let _ = respond.send(Err(anyhow!("{e}")));
+                    Err(e)
+                }
+            }
+        }
     }
 }
 
@@ -685,6 +814,9 @@ fn parse_result(response: SidecarResponse) -> Result<AiAnalysisOutput> {
         SidecarResponse::Embedding { .. } => Err(anyhow!(
             "unexpected 'embedding' response for analyze request"
         )),
+        SidecarResponse::Summarize { .. } => Err(anyhow!(
+            "unexpected 'summarize' response for analyze request"
+        )),
     }
 }
 
@@ -706,6 +838,9 @@ fn parse_availability(response: SidecarResponse) -> Result<AvailabilityInfo> {
         )),
         SidecarResponse::Embedding { .. } => Err(anyhow!(
             "unexpected 'embedding' response for availability request"
+        )),
+        SidecarResponse::Summarize { .. } => Err(anyhow!(
+            "unexpected 'summarize' response for availability request"
         )),
     }
 }
@@ -746,6 +881,38 @@ fn parse_embedding(response: SidecarResponse, expected_count: usize) -> Result<E
         SidecarResponse::Availability { .. } => Err(anyhow!(
             "unexpected 'availability' response for embed request"
         )),
+        SidecarResponse::Summarize { .. } => {
+            Err(anyhow!("unexpected 'summarize' response for embed request"))
+        }
+    }
+}
+
+/// `summarize` 応答（または `error`・型不一致）を構造化インサイトへ変換する（FR-V046-004）。
+///
+/// # 引数
+/// * `response` - 受信済みの応答。
+///
+/// # 戻り値
+/// 生成された [`SummarizeOutput`]、または sidecar エラー・型不一致時のエラー。
+fn parse_summarize(response: SidecarResponse) -> Result<SummarizeOutput> {
+    match response {
+        SidecarResponse::Summarize {
+            summary,
+            recommendation,
+        } => Ok(SummarizeOutput {
+            summary,
+            recommendation,
+        }),
+        SidecarResponse::Error { message } => Err(anyhow!("sidecar error: {message}")),
+        SidecarResponse::Result { .. } => Err(anyhow!(
+            "unexpected 'result' response for summarize request"
+        )),
+        SidecarResponse::Availability { .. } => Err(anyhow!(
+            "unexpected 'availability' response for summarize request"
+        )),
+        SidecarResponse::Embedding { .. } => Err(anyhow!(
+            "unexpected 'embedding' response for summarize request"
+        )),
     }
 }
 
@@ -785,6 +952,9 @@ fn fail_command(cmd: ManagerCommand, err: anyhow::Error) {
             let _ = respond.send(Err(err));
         }
         ManagerCommand::Embed { respond, .. } => {
+            let _ = respond.send(Err(err));
+        }
+        ManagerCommand::Summarize { respond, .. } => {
             let _ = respond.send(Err(err));
         }
     }
@@ -1293,5 +1463,87 @@ mod tests {
         let backend = backend_with(vec![], Arc::new(AtomicU32::new(0)));
         assert_eq!(EmbeddingBackend::dim(&backend), EMBEDDING_DIM);
         assert_eq!(EmbeddingBackend::model_name(&backend), EMBEDDING_MODEL_NAME);
+    }
+
+    #[tokio::test]
+    async fn summarize_returns_structured_insight() {
+        // summarize 要求 → summarize 応答（構造化: summary / recommendation）を受け取って返すこと。
+        let backend = backend_with(
+            vec![MockBehavior::Reply(
+                r#"{"type":"summarize","summary":"TPC に停滞が集中。","recommendation":"NCA_PM-12 から着手し未割当をアサイン。"}"#
+                    .into(),
+            )],
+            Arc::new(AtomicU32::new(0)),
+        );
+
+        let out = backend
+            .summarize("優先度を論評せよ", "PROJ-1 ...", "ja")
+            .await
+            .expect("summarize ok");
+        assert_eq!(out.summary, "TPC に停滞が集中。");
+        assert_eq!(out.recommendation, "NCA_PM-12 から着手し未割当をアサイン。");
+        assert_eq!(backend.state(), SidecarState::Running);
+    }
+
+    #[test]
+    fn summarize_request_serializes_to_sidecar_contract() {
+        // Rust → sidecar の summarize 行が Swift 側契約（type/instruction/context/lang）と一致するか。
+        let req =
+            SidecarRequest::summarize("evaluate".into(), "PROJ-1 blocked".into(), "en".into());
+        let json = serde_json::to_string(&req).expect("serialize");
+        assert!(json.contains(r#""type":"summarize""#));
+        assert!(json.contains(r#""instruction":"evaluate""#));
+        assert!(json.contains(r#""context":"PROJ-1 blocked""#));
+        assert!(json.contains(r#""lang":"en""#));
+    }
+
+    #[test]
+    fn parse_summarize_rejects_wrong_type() {
+        // embedding 応答を summarize として解釈しようとすると型不一致エラー。
+        let resp = SidecarResponse::Embedding { vectors: vec![] };
+        assert!(parse_summarize(resp).is_err());
+    }
+
+    #[tokio::test]
+    async fn summarize_error_response_is_propagated_without_restart() {
+        // sidecar が error（AI 非対応等）を返した場合: 要求は失敗するが接続は健全 → 再起動しない。
+        let spawns = Arc::new(AtomicU32::new(0));
+        let backend = backend_with(
+            vec![
+                MockBehavior::Reply(
+                    r#"{"type":"error","message":"generation unavailable"}"#.into(),
+                ),
+                MockBehavior::Reply(
+                    r#"{"type":"summarize","summary":"ok","recommendation":"go"}"#.into(),
+                ),
+            ],
+            Arc::clone(&spawns),
+        );
+
+        assert!(backend.summarize("i", "c", "ja").await.is_err());
+        let out = backend.summarize("i", "c", "ja").await.expect("second ok");
+        assert_eq!(out.summary, "ok");
+        // error 応答は通信成立とみなすため再起動しない（spawn は1回のみ）。
+        assert_eq!(spawns.load(Ordering::SeqCst), 1);
+        assert_eq!(backend.state(), SidecarState::Running);
+    }
+
+    #[tokio::test]
+    async fn summarize_suspends_after_consecutive_failures() {
+        // summarize をすべて終了させて連続失敗を積み上げる。閾値超過で Suspended になり以降は即エラー。
+        let script: Vec<MockBehavior> = (0..(MAX_CONSECUTIVE_FAILURES + 1))
+            .map(|_| MockBehavior::Terminate)
+            .collect();
+        let backend = backend_with(script, Arc::new(AtomicU32::new(0)));
+
+        for _ in 0..(MAX_CONSECUTIVE_FAILURES + 1) {
+            let _ = backend.summarize("i", "c", "ja").await;
+        }
+        assert_eq!(backend.state(), SidecarState::Suspended);
+
+        // 一時停止中は即エラー、resume で復帰。
+        assert!(backend.summarize("i", "c", "ja").await.is_err());
+        backend.resume();
+        assert_eq!(backend.state(), SidecarState::Running);
     }
 }
