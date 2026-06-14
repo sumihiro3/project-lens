@@ -19,7 +19,8 @@ Backlog の課題を複数ワークスペース・複数プロジェクト横断
 | v0.2     | 開発基盤整備(pnpm 移行・ライブラリ最新化・Dynamic Workflows 確立)            | [releases/v0.2/requirements.md](releases/v0.2/requirements.md)     | ✅ 実装済み(PR #23)   |
 | v0.3     | AI機能基盤(macOS 搭載モデル/FoundationModels + チケット要約・遅延リスク検知) | [releases/v0.3/requirements.md](releases/v0.3/requirements.md)     | ✅ 実装済み           |
 | v0.4     | 類似課題検索(ローカルRAG・埋め込み同梱)+ 過去事例の解決策要約                | [releases/v0.4/requirements.md](releases/v0.4/requirements.md)     | ✅ 実装済み           |
-| v0.4.5   | レポート/サマリー(横断サマリ・週次/月次レポート・背景/決定事項要約)          | [releases/v0.4.5/requirements.md](releases/v0.4.5/requirements.md) | ✅ 実装済み           |
+| v0.4.5   | レポート/サマリー(横断サマリ・週次/月次レポート・背景/決定事項要約)          | [releases/v0.4.5/requirements.md](releases/v0.4.5/requirements.md) | ✅ 実装済み(PR #26)   |
+| v0.4.6   | レポートの深い分析(優先対応リスト + sidecar 自由文による名指しブロッカー分析) | [releases/v0.4.6/requirements.md](releases/v0.4.6/requirements.md) | ✅ 確定(壁打ち済み)   |
 | v0.5     | フリーミアム課金 + ライセンス管理(Stripe + Workers + D1)                     | [releases/v0.5/requirements.md](releases/v0.5/requirements.md)     | 📝 ドラフト(壁打ち前) |
 | (後続)   | MLX(Qwen3)バックエンド追加(古いmacOSカバー・品質向上の選択肢)                | v0.4.5 末尾に方針を記載                                            | 💤 優先度低(分離)     |
 
