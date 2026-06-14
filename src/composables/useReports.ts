@@ -63,10 +63,88 @@ export interface PeriodActivityStat {
 }
 
 /**
+ * 優先対応理由の判別共用体（FR-V046-002）
+ *
+ * Rust 側 `PriorityReason`（`#[serde(tag = "type", rename_all = "camelCase")]`）の
+ * シリアライズに対応する。判別フィールドは **`type`**（Rust の serde tag と一致させること。
+ * `kind` ではない）。種別ごとの追加情報を持つ。
+ *
+ * - `overdue`: 期限超過（`days` = 超過日数）
+ * - `risk`: 内容リスク高（`level` = AI リスクレベル）
+ * - `stale`: 停滞（14日以上更新なし）
+ * - `unassigned`: 未割当（「要アサイン」）
+ * - `assignee`: 担当者あり（`name` = 担当者名。「～に確認」表示用）
+ */
+export type PriorityReason =
+  | { type: 'overdue'; days: number }
+  | { type: 'risk'; level: 'high' | 'medium' | 'low' }
+  | { type: 'stale' }
+  | { type: 'unassigned' }
+  | { type: 'assignee'; name: string }
+
+/**
+ * 優先対応リストの1件（FR-V046-001）
+ *
+ * Rust 側 `PriorityIssue` の camelCase シリアライズに対応する。
+ * `report_summaries.priority_json` をパースした配列要素として扱う。
+ */
+export interface PriorityIssue {
+  /** 課題キー（例: "PROJ-123"）。Backlog URL 生成・名指し表示に使う */
+  issueKey: string
+  /** プロジェクトキー（例: "PROJ"）。プロジェクト別グループ UI 用 */
+  projectKey: string
+  /** 課題タイトル */
+  title: string
+  /** 担当者名（未割当時は null） */
+  assignee: string | null
+  /** 優先理由チップ（複数付与可。スコアへの寄与順） */
+  reasons: PriorityReason[]
+}
+
+/**
+ * プロジェクト別の優先対応グループ（Rust 側 `PriorityProjectGroup` の camelCase シリアライズに対応。FR-V046-001）
+ */
+export interface PriorityProjectGroup {
+  /** プロジェクトキー（アコーディオン見出し） */
+  projectKey: string
+  /** 当該プロジェクトの優先対応リスト上位 K 件（スコア降順） */
+  issues: PriorityIssue[]
+}
+
+/**
+ * 優先対応リスト全体（Rust 側 `PriorityList` の camelCase シリアライズに対応。FR-V046-001）
+ *
+ * `report_summaries.priority_json` をパースした **オブジェクト**（配列ではない）。
+ * 横断上位 N 件（`cross`）とプロジェクト別上位 K 件（`perProject`）の2ブロックを持つ。
+ */
+export interface PriorityList {
+  /** 横断（クロスプロジェクト）優先対応リスト上位 N 件（スコア降順） */
+  cross: PriorityIssue[]
+  /** プロジェクト別優先対応リスト（プロジェクトの代表スコア降順） */
+  perProject: PriorityProjectGroup[]
+}
+
+/**
+ * 横断サマリの構造化インサイト（FR-V046-004）
+ *
+ * Rust 側 `CrossInsightJson`（sidecar の `@Generable` で生成）の camelCase シリアライズに対応する。
+ * 横断サマリの `report_summaries.narrative` には**この JSON 文字列**が保存される（週次/月次の narrative は
+ * 従来どおりプレーンテキスト）。AI の生テキストは画面に出さず、UI はこの2項目をカードで整形表示する。
+ */
+export interface CrossInsight {
+  /** プロジェクト横断の概況（2〜3文の散文） */
+  summary: string
+  /** 推奨アクション（1〜2文） */
+  recommendation: string
+}
+
+/**
  * 保存済みレポート/サマリーの1行（Rust 側 `ReportSummary` の camelCase シリアライズに対応。FR-V045-006）
  *
  * `statsJson` はプロジェクト別集計 JSON を文字列のまま保持する（Rust 側で `serde_json::to_string` 済み）。
  * UI で扱うには `parseCrossStats` / `parsePeriodStats` で配列へパースする。
+ * `priorityJson` は優先対応リスト JSON を文字列のまま保持する（v0.4.6 追加）。
+ * UI で扱うには `parsePriorityList` で配列へパースする。
  */
 export interface ReportSummary {
   /** ワークスペースID */
@@ -79,6 +157,8 @@ export interface ReportSummary {
   lang: string
   /** プロジェクト別集計 JSON 文字列（未生成時は null） */
   statsJson: string | null
+  /** 優先対応リスト JSON 文字列（v0.4.6 追加。未生成時は null） */
+  priorityJson: string | null
   /** AI 生成の1行見出し（未生成・degrade 時は null） */
   headline: string | null
   /** AI 生成の narrative テキスト（注目点・期間ハイライト。未生成・degrade 時は null） */
@@ -102,15 +182,15 @@ export type ReportDegradedReason =
   | 'loadFailed'
 
 /**
- * 横断サマリ用の state バンドル（stats + headline + narrative + 取得済みフラグ）
+ * 横断サマリ用の state バンドル（stats + headline + narrative + priorityList + 取得済みフラグ）
  */
 interface CrossSummaryState {
   /** パース済みのプロジェクト別統計（未取得時は空配列） */
   stats: CrossSummaryStat[]
-  /** AI 生成の1行見出し（未生成・degrade 時は null） */
-  headline: string | null
-  /** AI 生成の narrative（未生成・degrade 時は null） */
-  narrative: string | null
+  /** パース済みの優先対応リスト（横断 + プロジェクト別。未取得・未生成時は空ブロック。FR-V046-001） */
+  priorityList: PriorityList
+  /** AI 生成の構造化インサイト（概況・推奨アクション。未生成・degrade 時は null。FR-V046-004） */
+  insight: CrossInsight | null
   /** 最終生成日時（ISO8601 文字列。未生成時は null） */
   generatedAt: string | null
 }
@@ -139,8 +219,8 @@ interface PeriodReportState {
 /** 横断サマリ（最新1件） */
 const crossSummary = ref<CrossSummaryState>({
   stats: [],
-  headline: null,
-  narrative: null,
+  priorityList: { cross: [], perProject: [] },
+  insight: null,
   generatedAt: null,
 })
 /** 週次レポート（期間履歴つき） */
@@ -231,6 +311,59 @@ function parsePeriodStats(statsJson: string | null): PeriodActivityStat[] {
   }
 }
 
+/** 優先対応リストの空ブロック（未生成・パース失敗時の degrade 値） */
+const EMPTY_PRIORITY_LIST: PriorityList = { cross: [], perProject: [] }
+
+/**
+ * `report_summaries.priority_json` を `PriorityList` へパースする（FR-V046-001）
+ *
+ * Rust 側 `PriorityList`（`{ cross, perProject }` の **オブジェクト**）をパースする。
+ * `parseCrossStats` と同様に、JSON パース失敗・形不正・未生成（null）時は空ブロックへ degrade し、
+ * UI は統計テーブルのみ表示する（NFR-V046-005）。配列前提でパースすると Rust のオブジェクトを
+ * 取りこぼし常に空になるため、必ず `cross` / `perProject` を取り出すこと。
+ *
+ * @param priorityJson - Rust が `serde_json::to_string` した JSON 文字列（未生成時は null）
+ * @returns パース済みの優先対応リスト（失敗・null・形不正時は空ブロック）
+ */
+function parsePriorityList(priorityJson: string | null): PriorityList {
+  if (!priorityJson) return EMPTY_PRIORITY_LIST
+  try {
+    const parsed = JSON.parse(priorityJson) as Partial<PriorityList>
+    return {
+      cross: Array.isArray(parsed.cross) ? parsed.cross : [],
+      perProject: Array.isArray(parsed.perProject) ? parsed.perProject : [],
+    }
+  } catch (e) {
+    console.error('Failed to parse priority_json:', e)
+    return EMPTY_PRIORITY_LIST
+  }
+}
+
+/**
+ * 横断サマリの `narrative`（構造化インサイト JSON）を `CrossInsight` へパースする（FR-V046-004）
+ *
+ * 横断サマリの `narrative` には Rust が `{ summary, recommendation }` を JSON 文字列化したものが入る。
+ * パース失敗・形不正・未生成（null）時は null へ degrade し、UI はインサイトカードを出さず統計・優先
+ * リストのみ表示する。両フィールドとも空文字なら（実質未生成）null を返す。
+ *
+ * @param narrative - 横断サマリの `narrative`（インサイト JSON 文字列。未生成時は null）
+ * @returns パース済みインサイト（失敗・null・空時は null）
+ */
+function parseCrossInsight(narrative: string | null): CrossInsight | null {
+  if (!narrative) return null
+  try {
+    const parsed = JSON.parse(narrative) as Partial<CrossInsight>
+    const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : ''
+    const recommendation =
+      typeof parsed.recommendation === 'string' ? parsed.recommendation.trim() : ''
+    if (!summary && !recommendation) return null
+    return { summary, recommendation }
+  } catch (e) {
+    console.error('Failed to parse cross insight narrative:', e)
+    return null
+  }
+}
+
 /**
  * レポート/サマリーの取得・再生成・期間切り替えを管理する Composable（v0.4.5）
  *
@@ -296,14 +429,19 @@ export function useReports() {
       })
       crossSummary.value = {
         stats: parseCrossStats(summary?.statsJson ?? null),
-        headline: summary?.headline ?? null,
-        narrative: summary?.narrative ?? null,
+        priorityList: parsePriorityList(summary?.priorityJson ?? null),
+        insight: parseCrossInsight(summary?.narrative ?? null),
         generatedAt: summary?.generatedAt ?? null,
       }
       degradedReason.value.cross_summary = resolveDegradedReason(summary)
     } catch (e) {
       console.error('Failed to load cross summary:', e)
-      crossSummary.value = { stats: [], headline: null, narrative: null, generatedAt: null }
+      crossSummary.value = {
+        stats: [],
+        priorityList: { cross: [], perProject: [] },
+        insight: null,
+        generatedAt: null,
+      }
       degradedReason.value.cross_summary = 'loadFailed'
     } finally {
       loadingCross.value = false
@@ -433,8 +571,8 @@ export function useReports() {
       if (reportType === 'cross_summary') {
         crossSummary.value = {
           stats: parseCrossStats(summary.statsJson),
-          headline: summary.headline,
-          narrative: summary.narrative,
+          priorityList: parsePriorityList(summary.priorityJson),
+          insight: parseCrossInsight(summary.narrative),
           generatedAt: summary.generatedAt,
         }
         degradedReason.value.cross_summary = resolveDegradedReason(summary)

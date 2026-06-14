@@ -139,7 +139,11 @@
     "aiGeneratedLabel": "AI Generated",
     "cross": {
       "title": "Cross-Project Summary",
-      "narrativeTitle": "Highlights",
+      "insight": {
+        "title": "AI Insight",
+        "summary": "Overview",
+        "recommendation": "Recommended action"
+      },
       "col": {
         "project": "Project",
         "open": "Open",
@@ -147,6 +151,23 @@
         "stale": "Stale",
         "mine": "Mine",
         "risk": "Risk (H/M/L)"
+      }
+    },
+    "priority": {
+      "title": "Priority Action List",
+      "crossTop": "Top Across Projects",
+      "byProject": "By Project",
+      "reason": {
+        "overdue": "{days}d overdue",
+        "riskHigh": "High risk",
+        "riskMedium": "Medium risk",
+        "riskLow": "Low risk",
+        "stale": "Stale",
+        "unassigned": "Needs assignee"
+      },
+      "assignee": {
+        "confirm": "Check with {name}",
+        "unassigned": "Needs assignee"
       }
     },
     "period": {

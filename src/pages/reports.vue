@@ -34,14 +34,16 @@
         <v-col cols="12">
           <CrossSummarySection
             :stats="crossSummary.stats"
-            :headline="crossSummary.headline"
-            :narrative="crossSummary.narrative"
+            :priority-list="crossSummary.priorityList"
+            :insight="crossSummary.insight"
             :generated-at="crossSummary.generatedAt"
             :loading="loadingCross"
             :regenerating="regenerating.cross_summary"
             :degraded-reason="degradedReason.cross_summary"
             @regenerate="onRegenerate('cross_summary')"
             @select-project="goToIssues"
+            @open-issue="openInBacklog"
+            @show-background="openInBacklog"
           />
         </v-col>
       </v-row>
@@ -72,6 +74,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-shell'
 import { useReports, type PeriodReportType, type ReportType } from '../composables/useReports'
 import { useIssueFilters } from '../composables/useIssueFilters'
 import { useIssues } from '../composables/useIssues'
@@ -103,6 +106,8 @@ const {
 
 const selectedWorkspaceId = ref<number | null>(null)
 const workspaceItems = ref<{ title: string; value: number }[]>([])
+/** ワークスペースID→Backlog ドメイン（起票導線で毎回 invoke しないようキャッシュ） */
+const workspaceDomains = ref<Record<number, string>>({})
 const periodType = ref<PeriodReportType>('weekly')
 
 /** 種別切替に追従して表示する週次/月次の state バンドル */
@@ -129,12 +134,32 @@ function goToIssues(projectKey: string) {
   router.push('/issues')
 }
 
+/**
+ * 優先対応リストの行クリックで Backlog の課題ページをブラウザで開く（FR-V046-001）
+ *
+ * ドメインは onMounted で取得済みの `workspaceDomains` キャッシュから引き、
+ * `https://{domain}/view/{issueKey}` を外部ブラウザで開く（クリックごとの再取得を避ける）。
+ *
+ * @param issueKey - 開く課題のキー（例: "PROJ-123"）
+ */
+async function openInBacklog(issueKey: string) {
+  try {
+    if (selectedWorkspaceId.value === null) return
+    const domain = workspaceDomains.value[selectedWorkspaceId.value]
+    if (!domain) return
+    await open(`https://${domain}/view/${issueKey}`)
+  } catch (e) {
+    console.error('Failed to open issue in Backlog:', e)
+  }
+}
+
 watch(selectedWorkspaceId, reload)
 
 onMounted(async () => {
   const workspaces = await invoke<WorkspaceOption[]>('get_workspaces')
   const enabled = workspaces.filter(w => w.enabled)
   workspaceItems.value = enabled.map(w => ({ title: extractDomainLabel(w.domain), value: w.id }))
+  workspaceDomains.value = Object.fromEntries(enabled.map(w => [w.id, w.domain]))
   if (enabled.length > 0) selectedWorkspaceId.value = enabled[0].id
 })
 
