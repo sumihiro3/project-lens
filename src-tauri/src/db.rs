@@ -153,6 +153,8 @@ pub struct ReportSummary {
     pub headline: Option<String>,
     /// AI 生成の narrative テキスト（注目点・期間ハイライトなど）
     pub narrative: Option<String>,
+    /// 優先対応リスト JSON（v0.4.6 決定的ランキング結果を永続化）
+    pub priority_json: Option<String>,
     /// 最終生成日時（ISO8601文字列）
     pub generated_at: Option<String>,
 }
@@ -603,6 +605,16 @@ impl DbClient {
         )
         .execute(&self.pool)
         .await?;
+
+        // report_summaries テーブルへ priority_json カラムを追加（v0.4.6 優先対応リスト永続化）
+        //
+        // 優先対応リスト（FR-V046-001）を JSON 文字列として保存し、reload・degrade 時も
+        // UI が再計算なしで表示できるようにする。
+        // SQLite は ALTER TABLE ADD COLUMN IF NOT EXISTS をサポートしないため、
+        // エラーを無視する方式（既存パターン踏襲）で冪等に追加する。
+        let _ = sqlx::query("ALTER TABLE report_summaries ADD COLUMN priority_json TEXT")
+            .execute(&self.pool)
+            .await;
 
         // issue_background_summary table（v0.4.5 課題背景・経緯の要約保存）
         //
@@ -2273,13 +2285,14 @@ impl DbClient {
         Ok(acc.into_values().collect())
     }
 
-    /// レポート narrative の注目上位選定に渡す課題メタを一括取得する（FR-V045-002 / FR-V045-003）
+    /// レポート narrative の注目上位選定に渡す課題メタを一括取得する（FR-V045-002 / FR-V045-003 / FR-V046-001）
     ///
     /// 同一ワークスペースの通常課題（`is_corpus_only = 0`）について、注目上位スコアリング
     /// （[`crate::commands::report_highlight_score`] 相当）に必要な値だけを 1 クエリで取り出す:
-    /// 課題キー・`ai_results.summary`（1行要約）・`ai_results.risk_level`・遅延日数（SQL 算出）・
-    /// 停滞フラグ（`updated_at` を `'localtime'` でローカル日へ変換し `stale_threshold_days`
-    /// 日以上前か。日付判定は [`Self::get_cross_summary_stats`] と同じローカル日基準）。
+    /// 課題キー・課題タイトル（`issues.summary`）・`ai_results.summary`（1行要約）・
+    /// `ai_results.risk_level`・遅延日数（SQL 算出）・停滞フラグ・担当者・ステータス。
+    /// 停滞フラグは `updated_at` を `'localtime'` でローカル日へ変換し `stale_threshold_days`
+    /// 日以上前か判定する（日付判定は [`Self::get_cross_summary_stats`] と同じローカル日基準）。
     ///
     /// 数値（遅延日数・停滞）は [`Self::get_cross_summary_stats`] と同じく SQL で決定的に算出し、
     /// **新規の per-issue LLM 呼び出しは行わず**既存 `ai_results` を LEFT JOIN して再利用する
@@ -2290,24 +2303,41 @@ impl DbClient {
     /// * `stale_threshold_days` - 停滞とみなす未更新日数（呼び出し側の定数で指定）
     ///
     /// # 戻り値
-    /// `(issue_key, ai_summary, risk_level, delay_days, is_stale)` のベクタ、またはエラー。
-    /// `ai_summary` 未生成は空文字、`risk_level` 未生成は`None`、`delay_days` は期限なしで`None`。
+    /// `(issue_key, title, ai_summary, risk_level, delay_days, is_stale, assignee, status)` のベクタ、またはエラー。
+    /// `title` は課題名（`issues.summary`）、`ai_summary` は AI 1行要約（未生成は空文字）、
+    /// `risk_level` 未生成は`None`、`delay_days` は期限なしで`None`、
+    /// `assignee` は未割当で`None`、`status` は未設定で`None`。
     pub async fn get_report_highlight_inputs(
         &self,
         workspace_id: i64,
         stale_threshold_days: i64,
-    ) -> Result<Vec<(String, String, Option<String>, Option<i64>, bool)>> {
+    ) -> Result<
+        Vec<(
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<i64>,
+            bool,
+            Option<String>,
+            Option<String>,
+        )>,
+    > {
         // 遅延日数は get_issue_delay_days と同じ julianday 差（期限 - 今日）として算出し、
         // Rust 側で符号反転して「正=超過」へ変換する。停滞は updated_at の julianday 比較で判定。
         type Row = (
             String,         // issue_key
+            String,         // title（issues.summary = 課題名）
             String,         // ai_summary（未生成は空文字）
             Option<String>, // risk_level（小文字正規化済み。未生成は NULL）
             Option<f64>,    // due_diff（期限 - 今日。julianday 差。期限なしは NULL）
             i64,            // is_stale（0/1）
+            Option<String>, // assignee（未割当は NULL）
+            Option<String>, // status（未設定は NULL）
         );
         let rows: Vec<Row> = sqlx::query_as(
             "SELECT i.issue_key, \
+                    COALESCE(i.summary, '') AS title, \
                     COALESCE(ai.summary, '') AS ai_summary, \
                     lower(ai.risk_level) AS risk_level, \
                     CASE \
@@ -2316,7 +2346,9 @@ impl DbClient {
                     END AS due_diff, \
                     CASE WHEN i.updated_at IS NOT NULL AND i.updated_at != '' \
                            AND julianday(i.updated_at, 'localtime', 'start of day') <= julianday('now', 'localtime', 'start of day', ?) \
-                         THEN 1 ELSE 0 END AS is_stale \
+                         THEN 1 ELSE 0 END AS is_stale, \
+                    i.assignee, \
+                    i.status \
              FROM issues i \
              LEFT JOIN ai_results ai \
                ON ai.workspace_id = i.workspace_id AND ai.issue_id = i.id \
@@ -2329,11 +2361,31 @@ impl DbClient {
 
         Ok(rows
             .into_iter()
-            .map(|(issue_key, ai_summary, risk_level, due_diff, is_stale)| {
-                // julianday 差（期限 - 今日）を遅延日数（正=超過）へ符号反転する。
-                let delay_days = due_diff.map(|diff| -(diff.round() as i64));
-                (issue_key, ai_summary, risk_level, delay_days, is_stale != 0)
-            })
+            .map(
+                |(
+                    issue_key,
+                    title,
+                    ai_summary,
+                    risk_level,
+                    due_diff,
+                    is_stale,
+                    assignee,
+                    status,
+                )| {
+                    // julianday 差（期限 - 今日）を遅延日数（正=超過）へ符号反転する。
+                    let delay_days = due_diff.map(|diff| -(diff.round() as i64));
+                    (
+                        issue_key,
+                        title,
+                        ai_summary,
+                        risk_level,
+                        delay_days,
+                        is_stale != 0,
+                        assignee,
+                        status,
+                    )
+                },
+            )
             .collect())
     }
 
@@ -2355,10 +2407,11 @@ impl DbClient {
     /// * `stats_json` - プロジェクト別集計 JSON（統計テーブル用。narrative なしでも保存可）
     /// * `headline` - AI 生成の1行見出し（未生成なら`None`）
     /// * `narrative` - AI 生成の narrative テキスト（未生成・degrade 時は`None`）
+    /// * `priority_json` - 優先対応リスト JSON（v0.4.6 決定的ランキング。未算出なら`None`）
     ///
     /// # 戻り値
     /// 成功時は`Ok(())`、失敗時はエラー
-    // PK 4列（workspace_id / report_type / period_key / lang）に保存値3列が加わるため引数が多い。
+    // PK 4列（workspace_id / report_type / period_key / lang）に保存値4列が加わるため引数が多い。
     // テーブル構造をそのまま受け取る単純な UPSERT であり、入力構造体に束ねる利点が薄いため許容する。
     #[allow(clippy::too_many_arguments)]
     pub async fn save_report_summary(
@@ -2370,12 +2423,13 @@ impl DbClient {
         stats_json: Option<&str>,
         headline: Option<&str>,
         narrative: Option<&str>,
+        priority_json: Option<&str>,
     ) -> Result<()> {
         let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(
             "INSERT OR REPLACE INTO report_summaries \
-             (workspace_id, report_type, period_key, lang, stats_json, headline, narrative, generated_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+             (workspace_id, report_type, period_key, lang, stats_json, headline, narrative, priority_json, generated_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(workspace_id)
         .bind(report_type)
@@ -2384,6 +2438,7 @@ impl DbClient {
         .bind(stats_json)
         .bind(headline)
         .bind(narrative)
+        .bind(priority_json)
         .bind(&now)
         .execute(&self.pool)
         .await?;
@@ -2412,7 +2467,7 @@ impl DbClient {
     ) -> Result<Option<ReportSummary>> {
         let result = sqlx::query_as::<_, ReportSummary>(
             "SELECT workspace_id, report_type, period_key, lang, \
-                    stats_json, headline, narrative, generated_at \
+                    stats_json, headline, narrative, priority_json, generated_at \
              FROM report_summaries \
              WHERE workspace_id = ? AND report_type = ? AND period_key = ? AND lang = ?",
         )
@@ -3165,6 +3220,7 @@ mod tests {
             Some("{\"projects\":1}"),
             Some("見出しA"),
             Some("narrative A"),
+            Some("[{\"key\":\"PJ-1\"}]"),
         )
         .await
         .unwrap();
@@ -3192,6 +3248,7 @@ mod tests {
             Some("{\"projects\":2}"),
             Some("見出しB"),
             None,
+            None,
         )
         .await
         .unwrap();
@@ -3205,7 +3262,7 @@ mod tests {
         assert_eq!(updated.narrative, None);
 
         // 別言語・別期間は独立した行になる。
-        db.save_report_summary(1, "cross_summary", "latest", "en", None, None, None)
+        db.save_report_summary(1, "cross_summary", "latest", "en", None, None, None, None)
             .await
             .unwrap();
         assert!(db
@@ -3228,6 +3285,8 @@ mod tests {
         assert!(json.get("periodKey").is_some());
         assert!(json.get("statsJson").is_some());
         assert!(json.get("generatedAt").is_some());
+        // v0.4.6: priorityJson が camelCase で存在する（None でもキーが出る）。
+        assert!(json.get("priorityJson").is_some());
     }
 
     #[tokio::test]
@@ -3236,12 +3295,12 @@ mod tests {
 
         // 週次レポートを期間キー違いで3件保存する（保存順に generated_at が増える）。
         for period in ["2026-W22", "2026-W23", "2026-W24"] {
-            db.save_report_summary(1, "weekly", period, "ja", None, None, None)
+            db.save_report_summary(1, "weekly", period, "ja", None, None, None, None)
                 .await
                 .unwrap();
         }
         // 同一期間に別言語の行を足しても DISTINCT で重複しない。
-        db.save_report_summary(1, "weekly", "2026-W24", "en", None, None, None)
+        db.save_report_summary(1, "weekly", "2026-W24", "en", None, None, None, None)
             .await
             .unwrap();
 
