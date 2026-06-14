@@ -15,7 +15,8 @@ ProjectLens/
 ├── src/                          # フロントエンド（Nuxt 4）
 │   ├── pages/                    # ページコンポーネント
 │   ├── components/               # 再利用可能なコンポーネント
-│   │   └── dashboard/            # ダッシュボード専用コンポーネント
+│   │   ├── dashboard/            # ダッシュボード専用コンポーネント
+│   │   └── reports/              # レポート専用コンポーネント（v0.4.5）
 │   ├── composables/              # Composition API ロジック
 │   ├── utils/                    # ユーティリティ関数
 │   ├── plugins/                  # Nuxt プラグイン
@@ -281,3 +282,4 @@ pub fn calculate_score(issue: &Issue, me: &User) -> i32 {
 - 2026-06-12: v0.2 対応（開発環境テーブル追加、pnpm / eslint.config.cjs / .claude/ をプロジェクト構成に反映、Rust format! 補間規約を追加）
 - 2026-06-13: v0.3 対応（プロジェクト構成に ai/ モジュール・sidecar/ を追加、バックエンドモジュール構成に ai/mod.rs〜ai/worker.rs を追加）
 - 2026-06-13: v0.4 対応（プロジェクト構成に ai/embedding.rs・ai/embed_worker.rs・ai/cosine.rs を追加、バックエンドモジュール一覧に同3ファイルの単一責任記述を追加）
+- 2026-06-14: v0.4.5 対応（プロジェクト構成に components/reports/ ディレクトリを追加）

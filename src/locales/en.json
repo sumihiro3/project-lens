@@ -11,6 +11,7 @@
     "lastSynced": "Last Synced: {time}",
     "dashboard": "Dashboard",
     "issueList": "Issue List",
+    "reports": "Reports",
     "settings": "Settings"
   },
   "settings": {
@@ -126,6 +127,48 @@
     "due": "Due: {date}",
     "openInBrowser": "Open in Browser"
   },
+  "reports": {
+    "title": "Reports / Summary",
+    "description": "Review a cross-project status summary and weekly/monthly activity in one place.",
+    "workspaceLabel": "Workspace",
+    "noWorkspace": "No enabled workspace. Enable a workspace in Settings.",
+    "loading": "Loading…",
+    "noStats": "No statistics generated yet. Click \"Regenerate\".",
+    "regenerate": "Regenerate",
+    "lastGenerated": "Last generated: {time}",
+    "aiGeneratedLabel": "AI Generated",
+    "cross": {
+      "title": "Cross-Project Summary",
+      "narrativeTitle": "Highlights",
+      "col": {
+        "project": "Project",
+        "open": "Open",
+        "overdue": "Overdue",
+        "stale": "Stale",
+        "mine": "Mine",
+        "risk": "Risk (H/M/L)"
+      }
+    },
+    "period": {
+      "title": "Weekly / Monthly Activity",
+      "narrativeTitle": "Period Highlights",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "selectLabel": "Period",
+      "completedCaveat": "Completed counts include only closed issues imported within the configured corpus window (closures outside that window are not counted).",
+      "col": {
+        "project": "Project",
+        "created": "Created",
+        "updated": "Updated",
+        "completed": "Completed"
+      }
+    },
+    "degraded": {
+      "aiUnavailable": "AI is unavailable, so the summary text cannot be shown (statistics are still displayed).",
+      "notGenerated": "Summary text has not been generated yet. Click \"Regenerate\".",
+      "loadFailed": "Failed to load the report. Please try again later."
+    }
+  },
   "similar": {
     "title": "Similar Past Issues",
     "searchButton": "Find Similar",
@@ -195,7 +238,11 @@
       "notDelayed": "On schedule",
       "generatedAt": "Generated: {datetime}",
       "noResult": "No AI analysis available yet",
-      "reanalyze": "Re-analyze"
+      "reanalyze": "Re-analyze",
+      "summarizeBackground": "Summarize background",
+      "backgroundSummaryTitle": "Background & decisions (AI-generated)",
+      "backgroundSummarizing": "Summarizing background from comments…",
+      "backgroundNoComments": "No comments (nothing to summarize)"
     },
     "corpus": {
       "title": "Similarity Search Corpus (Closed Issues)",

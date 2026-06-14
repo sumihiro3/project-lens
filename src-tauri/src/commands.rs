@@ -45,6 +45,48 @@ const SUMMARIZE_COMMENTS_MAX_CHARS: i64 = 400;
 /// 未解決事項（要件 4・コンテキスト上限の実測）に応じて調整する暫定既定。
 const SUMMARIZE_CONTEXT_MAX_CHARS: usize = 3000;
 
+/// 課題背景・経緯の要約（FR-V045-004）で context 化するコメント本文の最大文字数。
+///
+/// 1 課題分のコメント全文を結合した文字列を、FoundationModels の context 上限に収めるため
+/// この文字数へ切り詰める（`get_comments_text` の切り詰めに渡す）。解決策要約は複数課題を
+/// 結合するため 1 課題あたり 400 字（[`SUMMARIZE_COMMENTS_MAX_CHARS`]）に抑えるが、本要約は
+/// 単一課題のコメントのみを扱うため、経緯・決定事項を取りこぼさないよう広めに確保する。
+/// 切り詰めは現状「先頭優先」（`get_comments_text` は `comment_id` 昇順＝時系列順）であり、
+/// 末尾優先（直近の決定を残す）への変更は未解決事項として保留する。
+const BACKGROUND_SUMMARY_COMMENTS_MAX_CHARS: i64 = 2000;
+
+// ── v0.4.5 レポート/サマリー生成（FR-V045-002 / FR-V045-003）の定数群 ─────────────
+
+/// レポート narrative の context に含める「注目上位」課題の最大件数（FR-V045-002 / 未解決事項）。
+///
+/// 横断サマリ・週次/月次レポートの narrative は全課題ではなく、期限超過・高リスク・停滞で
+/// 重み付けした上位 N 件のみから生成する（NFR-V045-002 の context 最小化）。N が大きいほど
+/// 網羅性は上がるが [`REPORT_CONTEXT_MAX_CHARS`] を圧迫するため、目安 5〜10 件のうち
+/// 中庸の値を暫定既定とする。実データでの見え方に応じて調整する。
+const REPORT_HIGHLIGHT_MAX_ISSUES: usize = 8;
+
+/// レポートの停滞判定に用いる未更新日数のしきい値（FR-V045-002 / FR-V045-003 / 未解決事項）。
+///
+/// 最終更新がこの日数以上前の課題を「停滞」とみなす。停滞は注目上位選定の **従** の重みとして
+/// 用い（主は期限超過日数とリスク）、[`get_cross_summary_stats`](crate::db::DbClient::get_cross_summary_stats)
+/// の停滞集計と日数定義を揃える。目安 14 日を暫定既定とする。
+const REPORT_STALE_THRESHOLD_DAYS: i64 = 14;
+
+/// レポート narrative の compact context 全体の上限文字数。
+///
+/// 注目上位 N 件（[`REPORT_HIGHLIGHT_MAX_ISSUES`]）の 1 行要約・リスク・プロジェクトキー・遅延日数だけを
+/// 連結した context を、安全側でこの上限へ切り詰める。解決策要約の
+/// [`SUMMARIZE_CONTEXT_MAX_CHARS`]（≈3000）と同水準とし、FoundationModels の context 上限に収める。
+const REPORT_CONTEXT_MAX_CHARS: usize = SUMMARIZE_CONTEXT_MAX_CHARS;
+
+/// 横断サマリ（`cross_summary`）をバックグラウンド再生成する最小間隔（時間。FR-V045-005）。
+///
+/// スケジューラは「前回生成からの経過時間」がこの値以上のときだけ横断サマリを再生成する
+/// （1日1回相当。20 時間にすることで実行時刻が固定化せず、毎日確実に1回は回る余地を持たせる）。
+/// 手動再生成（`/reports` の再生成導線）はこの間隔に関係なく即時実行する。
+/// スケジューラ（[`crate::scheduler`]）の横断サマリ再生成判定から参照する。
+pub(crate) const CROSS_SUMMARY_REGEN_HOURS: i64 = 20;
+
 /// テスト用の挨拶コマンド
 ///
 /// # 引数
@@ -584,7 +626,7 @@ pub struct SimilarIssue {
 ///
 /// 課題には専用の `project_key` カラムが無いため、`issue_key` の最後の `'-'` より前を
 /// プロジェクトキーとみなす。`'-'` を含まない異常値はキー全体をそのまま返す。
-fn project_key_from_issue_key(issue_key: &str) -> String {
+pub(crate) fn project_key_from_issue_key(issue_key: &str) -> String {
     match issue_key.rfind('-') {
         Some(pos) => issue_key[..pos].to_string(),
         None => issue_key.to_string(),
@@ -941,6 +983,659 @@ pub async fn summarize_solutions(
     }
 }
 
+/// 課題の背景・経緯・決定事項の要点をコメントから要約する（source_hash キャッシュ付き。FR-V045-004）
+///
+/// 対象課題のコメント本文（[`crate::db::DbClient::get_comments_text`]）を context 化し、
+/// [`summarize_solutions`] と同じく **既存 `analyze` 経路を流用**して「経緯・決定事項の要点」を生成する。
+/// 新規 per-issue LLM 経路や sidecar 改修は一切行わない（v0.4.5 の基本思想）。出力言語は引数 `lang`。
+///
+/// # キャッシュ（source_hash。NFR-V045-002）
+/// コメント本文の [`source_hash`](crate::ai::embed_worker::compute_source_hash)（埋め込みと同一の
+/// SipHash 方式）をキーに [`crate::db::DbClient::get_background_summary`] / [`save_background_summary`]
+/// で `issue_background_summary`（PK = `(workspace_id, issue_id, lang)`）へ保存する。保存済みハッシュが
+/// 今回算出したハッシュと一致すれば **LLM・sidecar を起こさず** `summary_text` を即返す。コメントが
+/// 不変・同一言語のあいだは再生成不要なため、繰り返し開いても 2 回目以降はキャッシュ即返しになる。
+///
+/// # コメントなし課題
+/// コメントが空の場合は LLM を呼ばず **空文字**を返す（呼び出し側 UI が「コメントなし」を表示する）。
+/// 切り詰めは現状「先頭優先」（コメントは `comment_id` 昇順＝時系列順）で、末尾優先化は未解決事項。
+///
+/// # 非阻害（degrade。NFR-V045-003）
+/// AI 非対応・生成失敗のいずれでも `Err` にはせず**空文字**へ degrade し、要約欄のみ空にして
+/// 課題詳細ダイアログ本体は壊さない。DB アクセス失敗のみ `Err` を返す。
+///
+/// # 引数
+/// * `app` - sidecar 起動に用いる Tauri アプリケーションハンドル（自動注入）
+/// * `workspace_id` - 対象課題のワークスペースID
+/// * `issue_id` - 対象課題ID
+/// * `lang` - 出力言語（`ja` / `en`。UI 言語に追従。キャッシュキーの一部）
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// 経緯・決定事項の要点の文字列。コメントなし・生成不能・非対応時は空文字（degrade）。DB エラーのみ `Err`。
+#[tauri::command]
+pub async fn get_background_summary(
+    app: tauri::AppHandle,
+    workspace_id: i64,
+    issue_id: i64,
+    lang: String,
+    db: State<'_, DbClient>,
+) -> Result<String, String> {
+    // 1. コメント本文を取得（comment_id 昇順＝時系列順で結合し、上限文字数で先頭優先に切り詰め）。
+    //    コメントが空なら LLM を起こさず空文字を返す（UI 側で「コメントなし」を表示）。
+    let comments = db
+        .get_comments_text(
+            workspace_id,
+            issue_id,
+            BACKGROUND_SUMMARY_COMMENTS_MAX_CHARS,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    if comments.trim().is_empty() {
+        return Ok(String::new());
+    }
+
+    // 2. コメント本文の source_hash を算出する（埋め込みと同一の SipHash 方式を再利用）。
+    let source_hash = crate::ai::embed_worker::compute_source_hash(&comments);
+
+    // 3. 保存済みキャッシュの source_hash が一致すれば、LLM・sidecar を起こさず即返す。
+    if let Some((summary_text, cached_hash, _generated_at)) = db
+        .get_background_summary(workspace_id, issue_id, &lang)
+        .await
+        .map_err(|e| e.to_string())?
+    {
+        if cached_hash == source_hash {
+            log::debug!(
+                "get_background_summary: cache hit (workspace_id={workspace_id}, issue_id={issue_id}, lang={lang})"
+            );
+            return Ok(summary_text);
+        }
+    }
+
+    // 4. キャッシュ未生成 or コメント変化 → analyze 経路を流用して要点を生成する（sidecar 改修なし）。
+    //    生成不能（AI 非対応環境等）でもダイアログを壊さないよう空文字へ degrade する。
+    let backend = match crate::ai::create_backend(app, crate::ai::BackendKind::FoundationModels) {
+        Ok(b) => b,
+        Err(e) => {
+            log::warn!("get_background_summary: backend unavailable: {e}");
+            return Ok(String::new());
+        }
+    };
+
+    // コメント本文を description_head に載せ、経緯・決定事項の要点を引き出す指示を summary に与える。
+    // issue_key は analyze プロンプト内の参照用ラベルにすぎないため合成ラベルを与える。
+    let instruction = if lang == "en" {
+        "Summarize the background, progress, and key decisions from the comments below."
+    } else {
+        "以下のコメントから、経緯・決定事項の要点をまとめてください。"
+    };
+    let input = crate::ai::AiAnalysisInput {
+        issue_key: "ISSUE-BACKGROUND".to_string(),
+        summary: instruction.to_string(),
+        description_head: comments,
+        status: String::new(),
+        due_date: None,
+        lang: lang.clone(),
+    };
+
+    // 5. 推論。生成失敗は degrade（空文字）。summary（補足の1行）+ suggestion（要点）を結合する。
+    let summary_text = match crate::ai::LlmInference::infer(&backend, input).await {
+        Ok(output) => {
+            let suggestion = output.suggestion.trim();
+            let summary = output.summary.trim();
+            if summary.is_empty() {
+                suggestion.to_string()
+            } else if suggestion.is_empty() {
+                summary.to_string()
+            } else {
+                format!("{summary}\n\n{suggestion}")
+            }
+        }
+        Err(e) => {
+            log::warn!("get_background_summary: generation failed: {e}");
+            return Ok(String::new());
+        }
+    };
+
+    // 6. 生成結果をキャッシュ保存して返す。空生成（degrade 相当）はキャッシュせず空文字を返す
+    //    （次回開いたときに再試行できるようにし、空要約を固定化しない）。
+    if summary_text.trim().is_empty() {
+        return Ok(String::new());
+    }
+    db.save_background_summary(workspace_id, issue_id, &lang, &summary_text, &source_hash)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(summary_text)
+}
+
+// ── v0.4.5 レポート/サマリー生成コア（FR-V045-002 / FR-V045-003） ──────────────
+
+/// レポート narrative の種別。
+///
+/// `report_summaries.report_type` カラム（`'cross_summary'` / `'weekly'` / `'monthly'`）と一致する。
+/// [`generate_report_narrative`] に渡し、生成指示文（見出し・ハイライトの言い回し）を切り替える。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReportType {
+    /// 複数プロジェクト横断サマリ（最新のみ上書き。FR-V045-002）。
+    CrossSummary,
+    /// 週次アクティビティレポート（ISO 週。FR-V045-003）。
+    Weekly,
+    /// 月次アクティビティレポート（FR-V045-003）。
+    Monthly,
+}
+
+/// 注目上位選定の入力となる課題1件分のメタ情報（[`select_report_highlights`] の入力要素）。
+///
+/// DB から決定的に取得した値（期限超過日数・リスク・停滞・プロジェクトキー・1行要約）だけを持ち、
+/// 純粋関数で重み付けスコア化できるよう DB / LLM 依存を含まない。`compact context` 構築
+/// （[`build_report_context`]）にもそのまま流用する。
+#[derive(Debug, Clone)]
+pub struct ReportHighlightInput {
+    /// 課題キー（例: "PROJ-123"。context の参照ラベル用）。
+    pub issue_key: String,
+    /// プロジェクトキー（例: "PROJ"。`issue_key` から導出済み）。
+    pub project_key: String,
+    /// `ai_results.summary`（1行要約）。未生成なら空文字（context では省略される）。
+    pub ai_summary: String,
+    /// `ai_results.risk_level`（`high` / `medium` / `low`）。未生成なら `None`。
+    pub risk_level: Option<crate::ai::RiskLevel>,
+    /// 遅延日数（SQL 算出。正=期限超過・負=猶予・期限なしは `None`）。
+    pub delay_days: Option<i64>,
+    /// 停滞（最終更新が [`REPORT_STALE_THRESHOLD_DAYS`] 日以上前）なら `true`。
+    pub is_stale: bool,
+}
+
+/// 注目上位選定の重み付けスコアを算出する（純粋関数）。
+///
+/// 期限超過日数とリスクを **主**、停滞を **従** とする（FR-V045-002 / 未解決事項）。
+/// 各課題は以下の合算でスコア化し、降順上位を「注目」とみなす。
+///
+/// | 要素                       | 寄与                                                        |
+/// | -------------------------- | ----------------------------------------------------------- |
+/// | 期限超過日数（主）         | `delay_days` が正のときその日数（上限 60 でクランプ）       |
+/// | リスク（主）               | high=+50 / medium=+25 / low=+5 / 未生成=0                    |
+/// | 停滞（従）                 | `is_stale` なら +10                                          |
+///
+/// 期限超過日数を素点に近い形で寄与させることで「より深く超過した課題」を優先しつつ、上限
+/// クランプで極端な外れ値（古い期限）が常に最上位を独占しないようにする。リスクは離散的な
+/// 大きめの加点で、超過していなくても high リスクが上位へ入る余地を残す。停滞は小さな従の加点。
+///
+/// # 引数
+/// * `item` - スコア対象の課題メタ。
+///
+/// # 戻り値
+/// 重み付けスコア（大きいほど注目度が高い）。
+fn report_highlight_score(item: &ReportHighlightInput) -> i64 {
+    // 期限超過日数（主）。正の超過のみ寄与させ、外れ値を上限 60 日でクランプする。
+    let overdue_score = match item.delay_days {
+        Some(d) if d > 0 => d.min(60),
+        _ => 0,
+    };
+    // リスク（主）。未生成（None）は加点なし。
+    let risk_score = match item.risk_level {
+        Some(crate::ai::RiskLevel::High) => 50,
+        Some(crate::ai::RiskLevel::Medium) => 25,
+        Some(crate::ai::RiskLevel::Low) => 5,
+        None => 0,
+    };
+    // 停滞（従）。
+    let stale_score = if item.is_stale { 10 } else { 0 };
+    overdue_score + risk_score + stale_score
+}
+
+/// 注目上位 N 件を重み付けスコアの降順で選定する（純粋関数）。
+///
+/// [`report_highlight_score`]（期限超過日数・リスクを主、停滞を従）で各課題を採点し、降順に
+/// 並べて先頭 [`REPORT_HIGHLIGHT_MAX_ISSUES`] 件を返す。同点は安定ソートで入力順を保つ
+/// （呼び出し側はリスク順や更新降順など意味のある順序で渡す想定）。DB / LLM 依存を持たないため
+/// 重み付け・クランプ・上限の単体テストが実機なしで行える。
+///
+/// # 引数
+/// * `items` - 候補課題群（ワークスペース内の対象課題）。
+///
+/// # 戻り値
+/// スコア降順・上限 N 件に切り詰めた注目課題群。
+fn select_report_highlights(items: Vec<ReportHighlightInput>) -> Vec<ReportHighlightInput> {
+    let mut scored: Vec<(i64, ReportHighlightInput)> = items
+        .into_iter()
+        .map(|item| (report_highlight_score(&item), item))
+        .collect();
+    // スコア降順。sort_by_key は安定ソートのため、同点は元の順序を保つ。
+    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+    scored.truncate(REPORT_HIGHLIGHT_MAX_ISSUES);
+    scored.into_iter().map(|(_, item)| item).collect()
+}
+
+/// 注目上位群を 1 本の compact context テキストへ連結する（純粋関数）。
+///
+/// 1 課題につき「プロジェクトキー・課題キー・遅延日数・リスク・1行要約」だけを 1〜2 行に詰めて
+/// 連結し、全体を [`REPORT_CONTEXT_MAX_CHARS`] 文字へ切り詰める。**新規の per-issue LLM 呼び出しは
+/// 一切行わず**、既存 `ai_results` の 1 行要約（[`ReportHighlightInput::ai_summary`]）を再利用する
+/// （NFR-V045-002 / 基本思想）。`build_solution_context` の連結・切り詰め方針に倣う。
+///
+/// # 引数
+/// * `items` - [`select_report_highlights`] で選定済みの注目課題群（スコア降順）。
+///
+/// # 戻り値
+/// 連結・切り詰め済みの context テキスト。注目課題が無ければ空文字。
+fn build_report_context(items: &[ReportHighlightInput]) -> String {
+    let mut sections: Vec<String> = Vec::new();
+    for item in items {
+        // 1 行目: メタ（プロジェクト・課題キー・遅延・リスク）。遅延・リスクは無い場合は省く。
+        let mut header = format!("[{}] {}", item.project_key, item.issue_key);
+        if let Some(d) = item.delay_days {
+            if d > 0 {
+                header.push_str(&format!(" / overdue {d}d"));
+            }
+        }
+        if let Some(risk) = item.risk_level {
+            header.push_str(&format!(" / risk {}", risk.as_storage_str()));
+        }
+        if item.is_stale {
+            header.push_str(" / stale");
+        }
+        // 2 行目: 既存 ai_results の 1 行要約（あれば）。
+        let summary = item.ai_summary.trim();
+        let section = if summary.is_empty() {
+            header
+        } else {
+            format!("{header}\n{summary}")
+        };
+        sections.push(section);
+    }
+    let joined = sections.join("\n\n");
+    joined.chars().take(REPORT_CONTEXT_MAX_CHARS).collect()
+}
+
+/// レポート narrative（見出し1行 + 注目点）を analyze 経路の流用で生成する（FR-V045-002 / FR-V045-003）。
+///
+/// [`build_report_context`] が組んだ compact context を v0.3 の FoundationModels バックエンド
+/// （[`crate::ai::create_backend`]）へ `analyze` 入力として渡し、`output.summary` を **headline
+/// （見出し1行）**、`output.suggestion` を **narrative（注目点・ハイライト）** にマップして返す。
+/// [`summarize_solutions`] と同じく sidecar 改修ゼロで、既存の構造化出力スキーマに narrative を載せる。
+///
+/// # 非阻害（degrade。NFR-V045-003）
+/// context が空・AI 非対応・生成失敗のいずれでも `Err` にはせず、`(String::new(), String::new())`
+/// （空タプル）へ degrade する。呼び出し側は narrative 欄のみ空にし、SQL 集計テーブルは表示し続ける。
+///
+/// # 引数
+/// * `app` - sidecar 起動に用いる Tauri アプリケーションハンドル。
+/// * `context` - [`build_report_context`] が組んだ compact context（空なら即 degrade）。
+/// * `lang` - 出力言語（`ja` / `en`。UI 言語に追従）。
+/// * `report_type` - レポート種別（生成指示文の言い回しを切り替える）。
+///
+/// # 戻り値
+/// `(headline, narrative)`。生成不能・非対応時は両方空文字（degrade）。
+async fn generate_report_narrative(
+    app: tauri::AppHandle,
+    context: String,
+    lang: String,
+    report_type: ReportType,
+) -> (String, String) {
+    if context.trim().is_empty() {
+        return (String::new(), String::new());
+    }
+
+    // v0.3 の FoundationModels バックエンドを再利用（create_backend 経由）。
+    // 非対応環境ではここで空タプルへ degrade し、レポート画面の統計表示は壊さない。
+    let backend = match crate::ai::create_backend(app, crate::ai::BackendKind::FoundationModels) {
+        Ok(b) => b,
+        Err(e) => {
+            log::warn!("generate_report_narrative: backend unavailable: {e}");
+            return (String::new(), String::new());
+        }
+    };
+
+    // report_type ごとに analyze へ渡す指示文を切り替える（見出し=summary / 注目点=suggestion）。
+    let instruction = match (report_type, lang.as_str()) {
+        (ReportType::CrossSummary, "en") => {
+            "From the highlighted issues below, write a one-line headline and the key points to watch across projects."
+        }
+        (ReportType::CrossSummary, _) => {
+            "以下の注目課題から、プロジェクト横断の見出し1行と、注目すべき点をまとめてください。"
+        }
+        (ReportType::Weekly, "en") => {
+            "From the highlighted issues below, write a one-line headline and this week's key activity highlights."
+        }
+        (ReportType::Weekly, _) => {
+            "以下の注目課題から、今週の見出し1行と、注目すべきアクティビティのハイライトをまとめてください。"
+        }
+        (ReportType::Monthly, "en") => {
+            "From the highlighted issues below, write a one-line headline and this month's key activity highlights."
+        }
+        (ReportType::Monthly, _) => {
+            "以下の注目課題から、今月の見出し1行と、注目すべきアクティビティのハイライトをまとめてください。"
+        }
+    };
+
+    // analyze 経路を流用する（sidecar 改修なし）。issue_key は参照用ラベルにすぎないため合成ラベル。
+    let input = crate::ai::AiAnalysisInput {
+        issue_key: "REPORT-NARRATIVE".to_string(),
+        summary: instruction.to_string(),
+        description_head: context,
+        status: String::new(),
+        due_date: None,
+        lang,
+    };
+
+    match crate::ai::LlmInference::infer(&backend, input).await {
+        Ok(output) => {
+            // summary=見出し1行 / suggestion=注目点（ハイライト）。前後空白は整える。
+            (
+                output.summary.trim().to_string(),
+                output.suggestion.trim().to_string(),
+            )
+        }
+        Err(e) => {
+            log::warn!("generate_report_narrative: generation failed: {e}");
+            (String::new(), String::new())
+        }
+    }
+}
+
+// ── v0.4.5 レポート期間キー・期間境界の算出（FR-V045-003） ─────────────────────
+
+/// 指定日が属する ISO 週の期間キー（`YYYY-Www`）を返す（純粋関数。FR-V045-003）。
+///
+/// SQLite の `strftime('%W')` は ISO 週ではない（日曜起点・年境界の扱いが異なる）ため、chrono の
+/// [`chrono::Datelike::iso_week`] を用いて ISO 8601 週番号（月曜起点）を確実に得る。週番号は
+/// ゼロ詰め2桁で `W01`〜`W53`、年は ISO 週基準年（年初の数日が前年の最終週に属する場合があるため
+/// 暦年ではなく `iso_week().year()` を用いる）。
+///
+/// # 引数
+/// * `date` - 対象日（UTC ローカル日付）。
+///
+/// # 戻り値
+/// `YYYY-Www` 形式の期間キー（例: "2026-W24"）。
+pub(crate) fn iso_week_key(date: chrono::NaiveDate) -> String {
+    use chrono::Datelike;
+    let iso = date.iso_week();
+    format!("{:04}-W{:02}", iso.year(), iso.week())
+}
+
+/// 指定日が属する ISO 週の半開区間 `[月曜00:00, 翌週月曜00:00)` を ISO8601(UTC) で返す（純粋関数）。
+///
+/// [`crate::db::DbClient::get_period_activity_stats`] は ISO8601 文字列の辞書順比較で期間内判定を
+/// 行うため、週境界（月曜起点）を UTC の `YYYY-MM-DDT00:00:00Z` 形式で渡す。
+///
+/// # 引数
+/// * `date` - 対象日。
+///
+/// # 戻り値
+/// `(period_start, period_end)`。いずれも `YYYY-MM-DDT00:00:00Z`（半開区間。end は含まない）。
+fn iso_week_bounds(date: chrono::NaiveDate) -> (String, String) {
+    use chrono::Datelike;
+    // 月曜起点へ巻き戻す（ISO では月曜が週初。weekday().num_days_from_monday() が経過日数）。
+    let monday = date - chrono::Duration::days(date.weekday().num_days_from_monday() as i64);
+    let next_monday = monday + chrono::Duration::days(7);
+    (
+        date_to_utc_midnight(monday),
+        date_to_utc_midnight(next_monday),
+    )
+}
+
+/// 指定日が属する月の期間キー（`YYYY-MM`）を返す（純粋関数。FR-V045-003）。
+pub(crate) fn month_key(date: chrono::NaiveDate) -> String {
+    use chrono::Datelike;
+    format!("{:04}-{:02}", date.year(), date.month())
+}
+
+/// 指定日が属する月の半開区間 `[当月1日00:00, 翌月1日00:00)` を ISO8601(UTC) で返す（純粋関数）。
+fn month_bounds(date: chrono::NaiveDate) -> (String, String) {
+    use chrono::Datelike;
+    let first = chrono::NaiveDate::from_ymd_opt(date.year(), date.month(), 1).unwrap_or(date);
+    // 翌月1日: 12月のみ年を繰り上げる。
+    let (ny, nm) = if date.month() == 12 {
+        (date.year() + 1, 1)
+    } else {
+        (date.year(), date.month() + 1)
+    };
+    let next_first = chrono::NaiveDate::from_ymd_opt(ny, nm, 1).unwrap_or(first);
+    (
+        date_to_utc_midnight(first),
+        date_to_utc_midnight(next_first),
+    )
+}
+
+/// `NaiveDate` を `YYYY-MM-DDT00:00:00Z`（UTC 真夜中の ISO8601）へ整形する（純粋関数）。
+fn date_to_utc_midnight(date: chrono::NaiveDate) -> String {
+    format!("{}T00:00:00Z", date.format("%Y-%m-%d"))
+}
+
+// ── v0.4.5 レポート生成コマンド（FR-V045-002 / FR-V045-003 / FR-V045-006） ───────
+
+/// 注目上位選定の入力群を DB から組み立てる（[`generate_reports`] の内部ヘルパー）。
+///
+/// 通常課題のメタ（課題キー・1行要約・リスク・遅延日数・停滞）を [`crate::db::DbClient::get_report_highlight_inputs`]
+/// で一括取得し、各行を [`ReportHighlightInput`] へ変換する。プロジェクトキーは課題キーから導出する。
+/// **新規 LLM 呼び出しは行わない**（既存 `ai_results` の再利用）。
+///
+/// # 引数
+/// * `db` - データベースクライアント。
+/// * `workspace_id` - 対象ワークスペースID。
+///
+/// # 戻り値
+/// 注目候補の [`ReportHighlightInput`] ベクタ、または DB エラー。
+async fn collect_report_highlight_inputs(
+    db: &DbClient,
+    workspace_id: i64,
+) -> Result<Vec<ReportHighlightInput>, String> {
+    let rows = db
+        .get_report_highlight_inputs(workspace_id, REPORT_STALE_THRESHOLD_DAYS)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(issue_key, ai_summary, risk_level, delay_days, is_stale)| ReportHighlightInput {
+                project_key: project_key_from_issue_key(&issue_key),
+                risk_level: risk_level
+                    .as_deref()
+                    .and_then(crate::ai::RiskLevel::from_storage_str),
+                issue_key,
+                ai_summary,
+                delay_days,
+                is_stale,
+            },
+        )
+        .collect())
+}
+
+/// レポート/サマリーを生成して保存し、保存した行を返す（FR-V045-002 / FR-V045-003 / FR-V045-006）
+///
+/// `report_type` に応じて統計を **SQL で決定的に集計**し（数値は LLM を使わない）、注目上位 N 件から
+/// narrative（見出し・注目点）を **既存 `ai_results` の再利用 + `analyze` 経路流用**で生成して
+/// [`crate::db::DbClient::save_report_summary`] で UPSERT する。横断サマリは `period_key='latest'`
+/// で最新のみ上書き、週次/月次は「現在の期間キー」（ISO 週 `YYYY-Www` / 月次 `YYYY-MM`）で履歴保持する。
+///
+/// 期間キーは [`iso_week_key`]（chrono の ISO 週番号を使用。`strftime` は使わない）/ [`month_key`] で
+/// 算出し、集計の期間境界は半開区間で [`crate::db::DbClient::get_period_activity_stats`] に渡す。
+///
+/// # 非阻害（degrade。NFR-V045-003）
+/// AI 非対応・narrative 生成失敗のいずれでも `Err` にはせず、**統計のみ保存**して
+/// narrative / headline は空（`None`）で degrade する（[`summarize_solutions`] の degrade 規約を踏襲）。
+/// DB アクセス失敗のみ `Err` を返す。
+///
+/// # 引数
+/// * `app` - sidecar 起動に用いる Tauri アプリケーションハンドル（自動注入）
+/// * `workspace_id` - 対象ワークスペースID（横断は同一ワークスペース内のプロジェクト横断のみ）
+/// * `report_type` - レポート種別（`'cross_summary'` / `'weekly'` / `'monthly'`）
+/// * `lang` - 出力言語（`ja` / `en`。UI 言語に追従）
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// 保存した [`crate::db::ReportSummary`]。未知の `report_type` のみ `Err`。
+#[tauri::command]
+pub async fn generate_reports(
+    app: tauri::AppHandle,
+    workspace_id: i64,
+    report_type: String,
+    lang: String,
+    db: State<'_, DbClient>,
+) -> Result<crate::db::ReportSummary, String> {
+    generate_report(&app, &db, workspace_id, &report_type, &lang).await
+}
+
+/// レポート/サマリーを生成・保存するコアロジック（コマンドとスケジューラの共通ヘルパー。FR-V045-005）
+///
+/// [`generate_reports`] コマンドの実体であり、スケジューラの1日1回バックグラウンド生成
+/// （[`crate::scheduler`]）からも同じ生成経路を共有するために `pub(crate)` で切り出す。
+/// `State<DbClient>` ではなく `&DbClient` / `&AppHandle` を受けることで、Tauri コマンド境界の
+/// 外（スケジューラのバックグラウンドタスク）からも呼べるようにしている。
+///
+/// `report_type` に応じて統計を **SQL で決定的に集計**し（数値は LLM を使わない）、注目上位 N 件から
+/// narrative（見出し・注目点）を **既存 `ai_results` の再利用 + `analyze` 経路流用**で生成して
+/// [`crate::db::DbClient::save_report_summary`] で UPSERT する。横断サマリは `period_key='latest'`
+/// で最新のみ上書き、週次/月次は「現在の期間キー」（ISO 週 `YYYY-Www` / 月次 `YYYY-MM`）で履歴保持する。
+///
+/// # 非阻害（degrade。NFR-V045-003）
+/// AI 非対応・narrative 生成失敗のいずれでも `Err` にはせず、**統計のみ保存**して
+/// narrative / headline は空（`None`）で degrade する。DB アクセス失敗・未知種別のみ `Err` を返す。
+///
+/// # 引数
+/// * `app` - sidecar 起動に用いる Tauri アプリケーションハンドル。
+/// * `db` - データベースクライアント。
+/// * `workspace_id` - 対象ワークスペースID（横断は同一ワークスペース内のプロジェクト横断のみ）。
+/// * `report_type` - レポート種別（`'cross_summary'` / `'weekly'` / `'monthly'`）。
+/// * `lang` - 出力言語（`ja` / `en`。UI 言語に追従）。
+///
+/// # 戻り値
+/// 保存した [`crate::db::ReportSummary`]。未知の `report_type`・DB エラーのみ `Err`。
+pub(crate) async fn generate_report(
+    app: &tauri::AppHandle,
+    db: &DbClient,
+    workspace_id: i64,
+    report_type: &str,
+    lang: &str,
+) -> Result<crate::db::ReportSummary, String> {
+    // report_type 文字列を内部 enum・期間キーへ解決する。未知種別のみ Err（degrade 対象外）。
+    let (kind, period_key) = match report_type {
+        "cross_summary" => (ReportType::CrossSummary, "latest".to_string()),
+        "weekly" => (
+            ReportType::Weekly,
+            iso_week_key(chrono::Utc::now().date_naive()),
+        ),
+        "monthly" => (
+            ReportType::Monthly,
+            month_key(chrono::Utc::now().date_naive()),
+        ),
+        other => return Err(format!("unknown report_type: {other}")),
+    };
+
+    // 1. 統計を SQL で決定的に集計し、stats_json へシリアライズする（数値は LLM を使わない）。
+    //    横断は CrossSummaryStat 配列、週次/月次は PeriodActivityStat 配列。
+    let stats_json = match kind {
+        ReportType::CrossSummary => {
+            // 自分担当の要対応判定に用いる Backlog ユーザーIDをワークスペースから引く（無ければ None）。
+            let me_user_id = db
+                .get_workspaces()
+                .await
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.user_id);
+            let stats = db
+                .get_cross_summary_stats(workspace_id, me_user_id, REPORT_STALE_THRESHOLD_DAYS)
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_string(&stats).map_err(|e| e.to_string())?
+        }
+        ReportType::Weekly | ReportType::Monthly => {
+            let now = chrono::Utc::now().date_naive();
+            let (period_start, period_end) = if kind == ReportType::Weekly {
+                iso_week_bounds(now)
+            } else {
+                month_bounds(now)
+            };
+            let stats = db
+                .get_period_activity_stats(workspace_id, &period_start, &period_end)
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_string(&stats).map_err(|e| e.to_string())?
+        }
+    };
+
+    // 2. 注目上位 N 件 → compact context → narrative（見出し・注目点）。
+    //    AI 非対応・生成失敗は空タプルへ degrade する（generate_report_narrative 内で処理）。
+    let highlights = collect_report_highlight_inputs(db, workspace_id).await?;
+    let context = build_report_context(&select_report_highlights(highlights));
+    let (headline, narrative) =
+        generate_report_narrative(app.clone(), context, lang.to_string(), kind).await;
+
+    // 3. UPSERT 保存。空文字 narrative/headline は None（degrade）として保存する。
+    let headline_opt = (!headline.trim().is_empty()).then_some(headline.as_str());
+    let narrative_opt = (!narrative.trim().is_empty()).then_some(narrative.as_str());
+    db.save_report_summary(
+        workspace_id,
+        report_type,
+        &period_key,
+        lang,
+        Some(stats_json.as_str()),
+        headline_opt,
+        narrative_opt,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 4. 保存した行を読み戻して返す（generated_at 等を確定値で返すため）。
+    db.get_report_summary(workspace_id, report_type, &period_key, lang)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "report_summary not found after save".to_string())
+}
+
+/// 保存済みレポート/サマリーを1件取得する（FR-V045-006）
+///
+/// PK = (workspace_id, report_type, period_key, lang) に一致する行を返す
+/// [`crate::db::DbClient::get_report_summary`] の薄いラッパー。横断サマリは `period_key='latest'`、
+/// 週次/月次は期間キーで過去レポートも参照できる。未生成の場合は `None`（呼び出し側で degrade 表示）。
+///
+/// # 引数
+/// * `workspace_id` - ワークスペースID
+/// * `report_type` - レポート種別（`'cross_summary'` / `'weekly'` / `'monthly'`）
+/// * `period_key` - 期間キー（横断は `'latest'`、週次は `'YYYY-Www'`、月次は `'YYYY-MM'`）
+/// * `lang` - 出力言語（`ja` / `en`）
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// 該当する [`crate::db::ReportSummary`]（未生成なら `None`）。DB エラーのみ `Err`。
+#[tauri::command]
+pub async fn get_reports(
+    workspace_id: i64,
+    report_type: String,
+    period_key: String,
+    lang: String,
+    db: State<'_, DbClient>,
+) -> Result<Option<crate::db::ReportSummary>, String> {
+    db.get_report_summary(workspace_id, &report_type, &period_key, &lang)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// レポートの期間キー一覧を取得する（期間セレクタ用。FR-V045-003 / FR-V045-006）
+///
+/// 指定ワークスペース・レポート種別に保存されている `period_key` を、最終生成日時の降順
+/// （最新が先頭）で返す [`crate::db::DbClient::list_report_periods`] の薄いラッパー。
+/// 主に週次/月次レポートの期間セレクタで過去レポートを切り替えるために用いる。
+///
+/// # 引数
+/// * `workspace_id` - ワークスペースID
+/// * `report_type` - レポート種別（`'weekly'` / `'monthly'` など）
+/// * `db` - データベースクライアント（自動注入）
+///
+/// # 戻り値
+/// 期間キーのベクタ（生成日時降順）。DB エラーのみ `Err`。
+#[tauri::command]
+pub async fn list_report_periods(
+    workspace_id: i64,
+    report_type: String,
+    db: State<'_, DbClient>,
+) -> Result<Vec<String>, String> {
+    db.list_report_periods(workspace_id, &report_type)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1070,5 +1765,174 @@ mod tests {
     #[test]
     fn context_empty_for_no_items() {
         assert!(build_solution_context(vec![]).is_empty());
+    }
+
+    // ── v0.4.5 レポート生成コアのテスト ──────────────────────────────────────
+
+    /// 指定パラメータの注目候補を作る（テスト用ヘルパー）。
+    fn hl(
+        key: &str,
+        risk: Option<crate::ai::RiskLevel>,
+        delay: Option<i64>,
+        stale: bool,
+    ) -> ReportHighlightInput {
+        ReportHighlightInput {
+            issue_key: key.to_string(),
+            project_key: project_key_from_issue_key(key),
+            ai_summary: format!("summary of {key}"),
+            risk_level: risk,
+            delay_days: delay,
+            is_stale: stale,
+        }
+    }
+
+    #[test]
+    fn highlight_prioritizes_overdue() {
+        // 期限超過（主）が、超過なし・低リスクより上位に来る。
+        use crate::ai::RiskLevel;
+        let items = vec![
+            hl("A-1", Some(RiskLevel::Low), Some(-5), false), // 猶予あり・低リスク → 低スコア
+            hl("B-2", Some(RiskLevel::Low), Some(30), false), // 30日超過 → 高スコア
+        ];
+        let ranked = select_report_highlights(items);
+        assert_eq!(ranked[0].issue_key, "B-2", "期限超過が優先される");
+    }
+
+    #[test]
+    fn highlight_risk_outranks_stale() {
+        // リスク（主）が停滞（従）より重い。high リスク（超過なし）が、停滞のみの課題より上位。
+        use crate::ai::RiskLevel;
+        let items = vec![
+            hl("S-1", None, None, true),                   // 停滞のみ（+10）
+            hl("H-2", Some(RiskLevel::High), None, false), // high リスク（+50）
+        ];
+        let ranked = select_report_highlights(items);
+        assert_eq!(ranked[0].issue_key, "H-2", "高リスクが停滞より優先される");
+    }
+
+    #[test]
+    fn highlight_clamps_to_max_issues() {
+        // 候補が REPORT_HIGHLIGHT_MAX_ISSUES を超えても上位 N 件に切り詰められる。
+        use crate::ai::RiskLevel;
+        let items: Vec<ReportHighlightInput> = (0..(REPORT_HIGHLIGHT_MAX_ISSUES + 5))
+            .map(|i| {
+                hl(
+                    &format!("P-{i}"),
+                    Some(RiskLevel::Medium),
+                    Some(i as i64),
+                    false,
+                )
+            })
+            .collect();
+        let ranked = select_report_highlights(items);
+        assert_eq!(
+            ranked.len(),
+            REPORT_HIGHLIGHT_MAX_ISSUES,
+            "上位 N 件にクランプ"
+        );
+        // スコア降順: 先頭は最も超過日数が大きい（P-{max}）。
+        for w in ranked.windows(2) {
+            assert!(
+                report_highlight_score(&w[0]) >= report_highlight_score(&w[1]),
+                "スコア降順に並ぶ"
+            );
+        }
+    }
+
+    #[test]
+    fn highlight_overdue_clamp_60() {
+        // 極端な超過日数は 60 日でクランプされ、単独で順位を独占しない（リスク等と比較可能になる）。
+        use crate::ai::RiskLevel;
+        let extreme = hl("X-1", None, Some(10_000), false); // 超過は 60 にクランプ
+        let high_risk = hl("Y-2", Some(RiskLevel::High), Some(20), false); // 20 + 50 = 70 > 60
+        assert!(
+            report_highlight_score(&high_risk) > report_highlight_score(&extreme),
+            "クランプにより high リスク + 中程度超過が外れ値超過を上回りうる"
+        );
+    }
+
+    #[test]
+    fn report_context_compacts_meta_and_summary() {
+        // context にプロジェクトキー・遅延・リスク・1行要約が含まれる（本文・コメントは含めない）。
+        use crate::ai::RiskLevel;
+        let items = vec![hl("PROJ-1", Some(RiskLevel::High), Some(7), true)];
+        let ctx = build_report_context(&items);
+        assert!(ctx.contains("[PROJ]"), "プロジェクトキー");
+        assert!(ctx.contains("PROJ-1"), "課題キー");
+        assert!(ctx.contains("overdue 7d"), "遅延日数");
+        assert!(ctx.contains("risk high"), "リスク");
+        assert!(ctx.contains("stale"), "停滞ラベル");
+        assert!(
+            ctx.contains("summary of PROJ-1"),
+            "既存 ai_results の1行要約を再利用"
+        );
+    }
+
+    #[test]
+    fn report_context_caps_total_chars() {
+        // 連結後の全体が REPORT_CONTEXT_MAX_CHARS を超えない。
+        let items: Vec<ReportHighlightInput> = (0..REPORT_HIGHLIGHT_MAX_ISSUES)
+            .map(|i| {
+                let mut item = hl(&format!("P-{i}"), None, Some(1), false);
+                item.ai_summary = "あ".repeat(2000);
+                item
+            })
+            .collect();
+        let ctx = build_report_context(&items);
+        assert!(ctx.chars().count() <= REPORT_CONTEXT_MAX_CHARS);
+    }
+
+    #[test]
+    fn report_context_empty_for_no_items() {
+        assert!(build_report_context(&[]).is_empty());
+    }
+
+    // ── v0.4.5 期間キー・期間境界のテスト ────────────────────────────────────
+
+    fn ymd(y: i32, m: u32, d: u32) -> chrono::NaiveDate {
+        chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    #[test]
+    fn iso_week_key_uses_iso_week_number() {
+        // 2026-06-13(土)は ISO 第24週。strftime('%W')とは異なる ISO 週番号を使う。
+        assert_eq!(iso_week_key(ymd(2026, 6, 13)), "2026-W24");
+        // 週番号は2桁ゼロ詰め。
+        assert_eq!(iso_week_key(ymd(2026, 1, 5)), "2026-W02");
+    }
+
+    #[test]
+    fn iso_week_key_handles_year_boundary() {
+        // 2027-01-01(金)は ISO 週基準では 2026 年の第53週に属する（暦年ではなく ISO 基準年を使う）。
+        assert_eq!(iso_week_key(ymd(2027, 1, 1)), "2026-W53");
+    }
+
+    #[test]
+    fn iso_week_bounds_is_monday_to_next_monday() {
+        // 2026-06-13(土) を含む週は 2026-06-08(月) 〜 2026-06-15(月) の半開区間。
+        let (start, end) = iso_week_bounds(ymd(2026, 6, 13));
+        assert_eq!(start, "2026-06-08T00:00:00Z");
+        assert_eq!(end, "2026-06-15T00:00:00Z");
+        // 月曜当日でも同じ週境界（巻き戻し0日）。
+        let (s2, e2) = iso_week_bounds(ymd(2026, 6, 8));
+        assert_eq!(s2, "2026-06-08T00:00:00Z");
+        assert_eq!(e2, "2026-06-15T00:00:00Z");
+    }
+
+    #[test]
+    fn month_key_and_bounds_are_calendar_month() {
+        assert_eq!(month_key(ymd(2026, 6, 13)), "2026-06");
+        let (start, end) = month_bounds(ymd(2026, 6, 13));
+        assert_eq!(start, "2026-06-01T00:00:00Z");
+        assert_eq!(end, "2026-07-01T00:00:00Z");
+    }
+
+    #[test]
+    fn month_bounds_rolls_over_year_in_december() {
+        // 12月の翌月境界は翌年1月1日（年繰り上げ）。
+        assert_eq!(month_key(ymd(2026, 12, 31)), "2026-12");
+        let (start, end) = month_bounds(ymd(2026, 12, 31));
+        assert_eq!(start, "2026-12-01T00:00:00Z");
+        assert_eq!(end, "2027-01-01T00:00:00Z");
     }
 }

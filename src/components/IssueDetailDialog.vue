@@ -72,6 +72,9 @@
 
         <!-- AI 分析結果セクション -->
         <IssueAiAnalysis :issue="issue" />
+
+        <!-- 背景・経緯の要約セクション（表示は子コンポーネントへ分離。FR-V045-004） -->
+        <IssueBackgroundSummary :open="modelValue" />
       </v-card-text>
 
       <v-divider />
@@ -90,6 +93,16 @@
           {{ $t('ai.issueDetail.reanalyze') }}
         </v-btn>
         <div class="d-flex gap-2">
+          <v-btn
+            size="small"
+            variant="tonal"
+            color="purple-darken-1"
+            prepend-icon="mdi-text-box-search"
+            :loading="backgroundSummaryLoading"
+            @click="handleSummarizeBackground"
+          >
+            {{ $t('ai.issueDetail.summarizeBackground') }}
+          </v-btn>
           <v-btn
             size="small"
             variant="tonal"
@@ -115,10 +128,13 @@
 import { computed, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
+import { useI18n } from 'vue-i18n'
 import type { Issue } from '../composables/useIssues'
 import { useAiSettings } from '../composables/useAiSettings'
 import { useSimilarSearch } from '../composables/useSimilarSearch'
+import { useReports } from '../composables/useReports'
 import IssueAiAnalysis from './IssueAiAnalysis.vue'
+import IssueBackgroundSummary from './IssueBackgroundSummary.vue'
 import {
   getPriorityColor,
   getStatusColor,
@@ -141,8 +157,11 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+const { locale } = useI18n()
 const { reanalyze } = useAiSettings()
 const { openSimilar } = useSimilarSearch()
+// 背景要約の生成トリガー（ボタン）用。表示・リセットは IssueBackgroundSummary が担う。
+const { backgroundSummaryLoading, generateBackgroundSummary } = useReports()
 const reanalyzing = ref(false)
 
 const projectColor = computed(() => getProjectColor(props.issue.issueKey))
@@ -186,6 +205,17 @@ async function handleReanalyze() {
   } finally {
     reanalyzing.value = false
   }
+}
+
+/**
+ * コメントから課題の背景・経緯を要約する（FR-V045-004）
+ *
+ * 結果は useReports 側の per-issue 背景要約 state に保持される。2 回目以降は Rust 側の
+ * source_hash + lang キャッシュにより即返しになる。空文字（コメントなし・degrade）時は
+ * テンプレート側で「コメントなし（要約対象なし）」を表示する。
+ */
+async function handleSummarizeBackground() {
+  await generateBackgroundSummary(props.issue.workspace_id, props.issue.id, locale.value)
 }
 </script>
 

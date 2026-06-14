@@ -230,6 +230,11 @@ async fn sync_and_notify(app: &AppHandle) -> Result<()> {
         }
     }
 
+    // v0.4.5: レポート/サマリーの1日1回バックグラウンド生成（FR-V045-005）。
+    // AI ON かつ可用性ありのときだけ、再生成間隔・期間ロールオーバを判定して生成する。
+    // 失敗は本体（通常 sync）を止めない非阻害タスク（sync_corpus_and_embeddings と同方針）。
+    generate_due_reports(app, &db).await;
+
     // トレイのツールチップを更新
     let high_priority_count = all_issues_for_tooltip
         .iter()
@@ -706,6 +711,274 @@ async fn fetch_comments_and_enqueue_embed(
     }
 }
 
+// ── v0.4.5 レポート/サマリーの1日1回バックグラウンド生成（FR-V045-005） ────────────
+
+/// レポートのバックグラウンド生成言語を保持する設定キー（`settings` テーブル）。
+///
+/// AI ワーカーの出力言語（`resolve_lang`）と同じキー・既定値を用い、UI 言語に追従させる。
+const SETTING_LANGUAGE: &str = "language";
+
+/// レポート生成・トレイ表示の既定言語（`settings.language` 未設定時）。
+const DEFAULT_REPORT_LANG: &str = "ja";
+
+/// 生成対象のレポート種別文字列（`report_summaries.report_type` と一致。FR-V045-002 / FR-V045-003）。
+///
+/// 横断サマリは経過時間で、週次/月次は期間ロールオーバ（現在期間が未生成か）で生成可否を判定する。
+const REPORT_TYPE_CROSS_SUMMARY: &str = "cross_summary";
+const REPORT_TYPE_WEEKLY: &str = "weekly";
+const REPORT_TYPE_MONTHLY: &str = "monthly";
+
+/// 横断サマリの最新を保存するときの固定期間キー（FR-V045-002 / FR-V045-006）。
+///
+/// 横断サマリは履歴を持たず最新のみ上書きするため、`period_key` は常にこの値で固定する。
+const CROSS_SUMMARY_PERIOD_KEY: &str = "latest";
+
+/// AI 機能が有効かを `settings.ai_enabled == "true"` で判定する（FR-V045-005 / 非阻害）。
+///
+/// AI ワーカー（[`crate::ai::worker`]）と同じ設定キー（[`crate::ai::worker::SETTING_AI_ENABLED`]）を
+/// 参照し、トグル1つで連動させる。設定取得失敗は OFF 扱いにして本体を阻害しない。
+/// スケジューラは `db` を直接持つため、`AppHandle` 経由ではなく `&DbClient` から読む。
+///
+/// # 引数
+/// * `db` - データベースクライアント。
+///
+/// # 戻り値
+/// AI 機能が有効なら `true`、無効・未設定・取得失敗なら `false`。
+async fn is_ai_enabled(db: &DbClient) -> bool {
+    matches!(
+        db.get_setting(crate::ai::worker::SETTING_AI_ENABLED).await,
+        Ok(Some(v)) if v == "true"
+    )
+}
+
+/// レポートの出力言語を解決する（`settings.language`、既定 [`DEFAULT_REPORT_LANG`]）。
+///
+/// AI ワーカーの `resolve_lang` と同じ設定キー・既定値を用い、生成 narrative の言語を UI 言語に
+/// 追従させる。取得失敗・未設定は既定言語へ倒す（非阻害）。
+///
+/// # 引数
+/// * `db` - データベースクライアント。
+///
+/// # 戻り値
+/// 出力言語（`ja` / `en` など）。
+async fn resolve_report_lang(db: &DbClient) -> String {
+    db.get_setting(SETTING_LANGUAGE)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| DEFAULT_REPORT_LANG.to_string())
+}
+
+/// 横断サマリを再生成すべきか（前回生成からの経過時間で判定）を返す（FR-V045-005）。
+///
+/// `report_summaries` の `cross_summary`/`latest` 行の `generated_at`（RFC3339）を読み、
+/// 現在時刻との差が [`crate::commands::CROSS_SUMMARY_REGEN_HOURS`] 以上なら再生成対象とみなす。
+/// 未生成（`None`）・`generated_at` 欠落・日時パース失敗のいずれも「再生成すべき」（`true`）に倒す
+/// （初回起動時に確実に1回生成させ、壊れた値で永久に生成されない事態を避ける）。
+///
+/// # 引数
+/// * `db` - データベースクライアント。
+/// * `workspace_id` - 対象ワークスペースID。
+/// * `lang` - 出力言語（PK の一部）。
+///
+/// # 戻り値
+/// 再生成すべきなら `true`。
+async fn cross_summary_is_due(db: &DbClient, workspace_id: i64, lang: &str) -> bool {
+    let row = match db
+        .get_report_summary(
+            workspace_id,
+            REPORT_TYPE_CROSS_SUMMARY,
+            CROSS_SUMMARY_PERIOD_KEY,
+            lang,
+        )
+        .await
+    {
+        Ok(row) => row,
+        Err(e) => {
+            // 取得失敗時は生成を試みる（取りこぼし防止）。生成側の失敗は本体を止めない。
+            warn!("Scheduler: failed to read cross_summary state (ws {workspace_id}): {e}");
+            return true;
+        }
+    };
+
+    let Some(generated_at) = row.and_then(|r| r.generated_at) else {
+        return true; // 未生成（行なし or generated_at 欠落）。
+    };
+
+    match chrono::DateTime::parse_from_rfc3339(&generated_at) {
+        Ok(ts) => {
+            let elapsed = chrono::Utc::now().signed_duration_since(ts.with_timezone(&chrono::Utc));
+            elapsed.num_hours() >= crate::commands::CROSS_SUMMARY_REGEN_HOURS
+        }
+        // パース不能な generated_at は壊れているとみなし、再生成して上書きする。
+        Err(_) => true,
+    }
+}
+
+/// 指定種別・期間キーのレポートが未生成（ロールオーバ）かを返す（FR-V045-003 / FR-V045-005）。
+///
+/// 現在の期間キー（ISO 週 / 月）で `get_report_summary` が `None` を返すなら、その期間に入って
+/// 初めての sync とみなして生成対象とする（週/月のロールオーバ判定）。取得失敗時は生成を試みる。
+///
+/// # 引数
+/// * `db` - データベースクライアント。
+/// * `workspace_id` - 対象ワークスペースID。
+/// * `report_type` - レポート種別（`'weekly'` / `'monthly'`）。
+/// * `period_key` - 現在の期間キー。
+/// * `lang` - 出力言語（PK の一部）。
+///
+/// # 戻り値
+/// 当該期間が未生成なら `true`。
+async fn period_report_is_due(
+    db: &DbClient,
+    workspace_id: i64,
+    report_type: &str,
+    period_key: &str,
+    lang: &str,
+) -> bool {
+    match db
+        .get_report_summary(workspace_id, report_type, period_key, lang)
+        .await
+    {
+        Ok(row) => row.is_none(),
+        Err(e) => {
+            warn!(
+                "Scheduler: failed to read {report_type} state (ws {workspace_id}, {period_key}): {e}"
+            );
+            true
+        }
+    }
+}
+
+/// AI 可用性（Apple Intelligence / FoundationModels）が利用可能かを問い合わせる（FR-V045-005）。
+///
+/// レポート生成用に一時的に FoundationModels バックエンドを生成して `availability` を問い合わせ、
+/// `available == true` のときだけ生成へ進む（可用性なしはアイドル）。問い合わせ自体は `Err` を
+/// 返さない設計（`Unavailable` 系へ落ちる）のため、ここでは結果の `available` のみを見る。
+///
+/// # 引数
+/// * `app` - sidecar 起動に用いる Tauri アプリケーションハンドル。
+///
+/// # 戻り値
+/// 推論が利用可能なら `true`。
+async fn ai_is_available(app: &AppHandle) -> bool {
+    let backend = crate::ai::foundation_models::FoundationModelsBackend::new(app.clone());
+    crate::ai::availability::check_availability(&backend)
+        .await
+        .available
+}
+
+/// 1日1回相当のレポート/サマリーをバックグラウンド生成する（FR-V045-005）。
+///
+/// 通常 sync のワークスペースループ直後にバックグラウンドで実行され、sync・UI をブロックしない
+/// （NFR-V045-002 / NFR-V045-003。`sync_corpus_and_embeddings` と同じ非阻害方針）。生成は
+/// `job_queue` を介さず [`crate::commands::generate_report`] を直接呼ぶ（内部で `create_backend` →
+/// `infer` を実行）。
+///
+/// 実行条件（いずれも満たさなければアイドル＝生成しない）:
+/// - AI 機能が ON（`settings.ai_enabled == "true"`。[`is_ai_enabled`]）
+/// - AI 可用性あり（FoundationModels の `availability == available`。[`ai_is_available`]）
+///
+/// 有効ワークスペースごとに次を判定して必要な種別だけ生成する:
+/// - 横断サマリ: 前回生成から [`crate::commands::CROSS_SUMMARY_REGEN_HOURS`] 時間以上経過なら再生成。
+/// - 週次/月次: 現在の期間キー（ISO 週 / 月）が未生成ならロールオーバとみなし生成。
+///
+/// いずれの生成失敗も本体（通常 sync）を止めず、ログに記録するだけにとどめる（degrade）。
+///
+/// # 引数
+/// * `app` - sidecar 起動・生成に用いる Tauri アプリケーションハンドル。
+/// * `db` - データベースクライアント。
+async fn generate_due_reports(app: &AppHandle, db: &DbClient) {
+    // AI OFF はアイドル（生成しない）。可用性問い合わせ（sidecar 起動）も行わない。
+    if !is_ai_enabled(db).await {
+        debug!("Scheduler: reports skipped (AI disabled).");
+        return;
+    }
+
+    let workspaces = match db.get_workspaces().await {
+        Ok(workspaces) => workspaces,
+        Err(e) => {
+            error!("Scheduler: failed to list workspaces for reports: {e}");
+            return;
+        }
+    };
+
+    let lang = resolve_report_lang(db).await;
+    let now = chrono::Utc::now().date_naive();
+    let week_key = crate::commands::iso_week_key(now);
+    let month_key = crate::commands::month_key(now);
+
+    // 生成すべきレポートを先に洗い出す。due 判定は report_summaries の PK 参照のみで安価
+    // （sidecar は起こさない）。横断=20h間隔・週次/月次=期間ロールオーバ時のみ due なので、
+    // 大半のティックは due 0 件になる。0 件なら可用性問い合わせ（sidecar 起動）すらせず
+    // アイドルする（NFR-V045-002。AI worker が空キューで sidecar を起こさないのと同方針）。
+    let mut due: Vec<(i64, &str)> = Vec::new();
+    for workspace in &workspaces {
+        // 無効ワークスペースはレポート生成対象外（要約・埋め込み投入と同じ enabled 絞り込み）。
+        if !workspace.enabled {
+            continue;
+        }
+        let workspace_id = workspace.id;
+
+        // 1. 横断サマリ（経過時間で判定）。
+        if cross_summary_is_due(db, workspace_id, &lang).await {
+            due.push((workspace_id, REPORT_TYPE_CROSS_SUMMARY));
+        }
+        // 2. 週次（現在の ISO 週が未生成ならロールオーバ）。
+        if period_report_is_due(db, workspace_id, REPORT_TYPE_WEEKLY, &week_key, &lang).await {
+            due.push((workspace_id, REPORT_TYPE_WEEKLY));
+        }
+        // 3. 月次（現在の月が未生成ならロールオーバ）。
+        if period_report_is_due(db, workspace_id, REPORT_TYPE_MONTHLY, &month_key, &lang).await {
+            due.push((workspace_id, REPORT_TYPE_MONTHLY));
+        }
+    }
+
+    if due.is_empty() {
+        return;
+    }
+
+    // due が存在するときだけ可用性を問い合わせる（毎ティックの sidecar 空振り起動を避ける）。
+    // AI 非対応環境（可用性なし）もここでアイドル。
+    if !ai_is_available(app).await {
+        debug!("Scheduler: reports skipped (AI unavailable).");
+        return;
+    }
+
+    for (workspace_id, report_type) in due {
+        generate_report_quietly(app, db, workspace_id, report_type, &lang).await;
+    }
+}
+
+/// 1種別のレポートを生成し、失敗はログに記録するだけにとどめる（非阻害ラッパー。FR-V045-005）。
+///
+/// [`crate::commands::generate_report`] を呼び、成功・失敗をログに出す。`generate_report` 自体は
+/// AI 非対応・narrative 生成失敗を degrade（統計のみ保存）として `Ok` で返すため、ここで `Err` に
+/// なるのは未知種別・DB アクセス失敗のみ。いずれも本体（通常 sync）は止めない。
+///
+/// # 引数
+/// * `app` - 生成に用いる Tauri アプリケーションハンドル。
+/// * `db` - データベースクライアント。
+/// * `workspace_id` - 対象ワークスペースID。
+/// * `report_type` - レポート種別（`'cross_summary'` / `'weekly'` / `'monthly'`）。
+/// * `lang` - 出力言語。
+async fn generate_report_quietly(
+    app: &AppHandle,
+    db: &DbClient,
+    workspace_id: i64,
+    report_type: &str,
+    lang: &str,
+) {
+    match crate::commands::generate_report(app, db, workspace_id, report_type, lang).await {
+        Ok(_) => info!(
+            "Scheduler: generated {report_type} report for workspace {workspace_id} (lang={lang})."
+        ),
+        Err(e) => error!(
+            "Scheduler: failed to generate {report_type} report for workspace {workspace_id}: {e}"
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -725,6 +998,7 @@ mod tests {
             assignee: None,
             due_date: None,
             updated: updated.map(|s| s.to_string()),
+            created: None,
             relevance_score: 0,
             workspace_id: 1,
             ai_summary: None,
@@ -803,5 +1077,92 @@ mod tests {
         // パース不能は既定値。
         db.save_setting(SETTING_CORPUS_MONTHS, "abc").await.unwrap();
         assert_eq!(resolve_corpus_months(&db).await, DEFAULT_CORPUS_MONTHS);
+    }
+
+    /// テスト用のインメモリ DB を作る（マイグレーション適用済み）。
+    async fn memory_db() -> DbClient {
+        use sqlx::sqlite::SqliteConnectOptions;
+        use std::str::FromStr;
+        let options = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
+        let db = DbClient::new_with_options(options).await.unwrap();
+        db.migrate().await.unwrap();
+        db
+    }
+
+    #[tokio::test]
+    async fn is_ai_enabled_only_true_string() {
+        let db = memory_db().await;
+        // 未設定 → 無効。
+        assert!(!is_ai_enabled(&db).await);
+        // "false" → 無効。
+        db.save_setting(crate::ai::worker::SETTING_AI_ENABLED, "false")
+            .await
+            .unwrap();
+        assert!(!is_ai_enabled(&db).await);
+        // "true" のときだけ有効。
+        db.save_setting(crate::ai::worker::SETTING_AI_ENABLED, "true")
+            .await
+            .unwrap();
+        assert!(is_ai_enabled(&db).await);
+    }
+
+    #[tokio::test]
+    async fn resolve_report_lang_defaults_to_ja() {
+        let db = memory_db().await;
+        // 未設定 → 既定（ja）。
+        assert_eq!(resolve_report_lang(&db).await, DEFAULT_REPORT_LANG);
+        // 設定値に追従。
+        db.save_setting(SETTING_LANGUAGE, "en").await.unwrap();
+        assert_eq!(resolve_report_lang(&db).await, "en");
+    }
+
+    #[tokio::test]
+    async fn cross_summary_is_due_on_missing_then_fresh() {
+        let db = memory_db().await;
+        let ws = 1i64;
+        let lang = "ja";
+
+        // 未生成 → 再生成すべき（true）。
+        assert!(cross_summary_is_due(&db, ws, lang).await);
+
+        // ちょうど今生成 → 間隔（20時間）未満なので再生成不要（false）。
+        // save_report_summary は generated_at を呼び出し時刻（now）で自動設定する。
+        db.save_report_summary(
+            ws,
+            REPORT_TYPE_CROSS_SUMMARY,
+            CROSS_SUMMARY_PERIOD_KEY,
+            lang,
+            Some("[]"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(!cross_summary_is_due(&db, ws, lang).await);
+    }
+
+    #[tokio::test]
+    async fn period_report_is_due_until_generated() {
+        let db = memory_db().await;
+        let ws = 1i64;
+        let lang = "ja";
+        let week_key = crate::commands::iso_week_key(chrono::Utc::now().date_naive());
+
+        // 当該期間が未生成 → ロールオーバとみなし生成すべき（true）。
+        assert!(period_report_is_due(&db, ws, REPORT_TYPE_WEEKLY, &week_key, lang).await);
+
+        // 生成済み → 同一期間は生成不要（false）。
+        db.save_report_summary(
+            ws,
+            REPORT_TYPE_WEEKLY,
+            &week_key,
+            lang,
+            Some("[]"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(!period_report_is_due(&db, ws, REPORT_TYPE_WEEKLY, &week_key, lang).await);
     }
 }

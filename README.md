@@ -15,6 +15,20 @@
 - AI ON/OFF toggle and availability status in Settings
 - Manual re-analysis per issue via the issue detail dialog
 
+### 📈 Reports & Summaries
+
+- **Reports page** accessible from the sidebar: aggregates issue statistics across all workspaces and projects
+- **Cross-workspace summary**: displays a statistics table of open, overdue, stalled, and assignee-attention issues with AI risk distribution; generates an AI narrative (one-line headline + highlights) from the top N issues
+- **Weekly / monthly activity**: counts newly created, updated, and completed issues per project for a selected ISO-week (`YYYY-Www`) or month (`YYYY-MM`) period; a period selector allows switching to past reports
+- Statistics are computed deterministically by SQL (no LLM); only narratives use AI and degrade gracefully to statistics-only when AI is unavailable
+- Click a project row to jump to the issue list filtered to that project
+
+### 🗂️ Issue Background Summary
+
+- "Summarize background" button in the issue detail dialog
+- AI generates a digest of the issue's comment history — key events, decisions, and context
+- Results are cached by content hash so repeated calls are instant; degrades to empty when there are no comments or AI is unavailable
+
 ### 🔍 Similar Issue Search
 
 - "Find Similar" button on issue cards and the issue detail dialog
@@ -135,6 +149,19 @@ pnpm run tauri:build
 - Enable AI in Settings to start automatic analysis of new and updated issues
 - The dashboard shows a "Delay Risk" section listing issues with AI-detected risks, sorted by risk level
 - A banner on the dashboard prompts you to enable AI if Apple Intelligence is available but AI is turned off
+
+### Reports
+
+- Open the Reports page from the sidebar
+- The **Cross-workspace summary** tab shows statistics across all projects: open, overdue, stalled, and your assigned issues, along with AI risk distribution and an AI-generated narrative for the top issues
+- The **Weekly / Monthly activity** tab shows per-project issue counts (created, updated, completed) for the selected period; use the period selector to view past weeks or months
+- Reports are regenerated automatically once a day in the background; you can also trigger generation manually from the Reports page
+
+### Issue Background Summary
+
+- Open any issue to see the detail dialog
+- Click "Summarize background" to let AI generate a digest of the comment history: key events, decisions, and context at a glance
+- The result is cached — subsequent views are instant
 
 ### Similar Issue Search
 

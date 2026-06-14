@@ -130,6 +130,56 @@ pub struct Comment {
     pub created_user: Option<User>,
 }
 
+/// レポート/サマリー（v0.4.5）
+///
+/// `report_summaries` テーブルの1行に対応する。
+/// 横断サマリ・週次/月次レポートの統計 JSON・AI narrative・見出しを保持する。
+/// `report_type` は 'cross_summary' / 'weekly' / 'monthly'、
+/// `period_key` は横断サマリが 'latest'、週次が 'YYYY-Www'、月次が 'YYYY-MM'。
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportSummary {
+    /// ワークスペースID
+    pub workspace_id: i64,
+    /// レポート種別（'cross_summary' / 'weekly' / 'monthly'）
+    pub report_type: String,
+    /// 期間キー（横断は 'latest'、週次は 'YYYY-Www'、月次は 'YYYY-MM'）
+    pub period_key: String,
+    /// 言語（例: 'ja' / 'en'）
+    pub lang: String,
+    /// プロジェクト別集計 JSON（統計テーブル用）
+    pub stats_json: Option<String>,
+    /// AI 生成の1行見出し
+    pub headline: Option<String>,
+    /// AI 生成の narrative テキスト（注目点・期間ハイライトなど）
+    pub narrative: Option<String>,
+    /// 最終生成日時（ISO8601文字列）
+    pub generated_at: Option<String>,
+}
+
+/// 課題の背景・経緯の要約（v0.4.5）
+///
+/// `issue_background_summary` テーブルの1行に対応する。
+/// コメント本文を入力とした AI 要約をキャッシュし、`source_hash` が不変かつ
+/// 同一言語なら再生成をスキップする（FR-V045-004 のキャッシュ戦略）。
+// 後続の実装項目（コマンド・IssueDetailDialog 導線）で利用するため、現時点では未参照。
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct IssueBackgroundSummary {
+    /// ワークスペースID
+    pub workspace_id: i64,
+    /// 課題ID（Backlog の issue id）
+    pub issue_id: i64,
+    /// 言語（例: 'ja' / 'en'）
+    pub lang: String,
+    /// AI 生成の「経緯・決定事項の要点」テキスト
+    pub summary_text: Option<String>,
+    /// コメント本文の変化検知用ハッシュ（不変なら再生成をスキップ）
+    pub source_hash: Option<String>,
+    /// 最終生成日時（ISO8601文字列）
+    pub generated_at: Option<String>,
+}
+
 /// 埋め込みで使用する既定モデルの論理識別子（v0.4 = OS 組み込み NLContextualEmbedding / 512 次元）。
 ///
 /// 実運用で `issue_embeddings.model` に保存する値は、ベクトルを生成した
@@ -196,6 +246,53 @@ pub struct IssueSearchMeta {
     pub assignee: Option<String>,
     /// コーパス専用課題（完了課題）なら `true`（FR-V04-003）。
     pub is_corpus_only: bool,
+}
+
+/// 横断サマリの集計1行（プロジェクト別。v0.4.5 / FR-V045-002）
+///
+/// 同一ワークスペース内のプロジェクトキーごとに、`get_cross_summary_stats` が SQL で
+/// 決定的に集計した件数をまとめた構造体。`report_summaries.stats_json` の配列要素として
+/// シリアライズされ（serde camelCase）、後段の生成コマンド・フロントの型定義の基準になる。
+/// `is_corpus_only = 1` のコーパス専用課題は集計対象から除外する。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CrossSummaryStat {
+    /// プロジェクトキー（例: "PROJ"）。`issue_key` から導出する。
+    pub project_key: String,
+    /// 未完了件数（このワークスペースに残っている通常課題の総数）。
+    pub open_count: i64,
+    /// 期限超過件数（`due_date < 今日`）。
+    pub overdue_count: i64,
+    /// 停滞件数（最終更新が `stale_threshold_days` 日以上前）。
+    pub stale_count: i64,
+    /// 自分担当の要対応件数（担当者が自分で、かつ期限超過または停滞）。
+    pub my_actionable_count: i64,
+    /// AI リスク分布: high の件数（`ai_results.risk_level`）。
+    pub risk_high: i64,
+    /// AI リスク分布: medium の件数。
+    pub risk_medium: i64,
+    /// AI リスク分布: low の件数。
+    pub risk_low: i64,
+}
+
+/// 週次/月次アクティビティの集計1行（プロジェクト別。v0.4.5 / FR-V045-003）
+///
+/// 指定期間 `[period_start, period_end)` について、`get_period_activity_stats` が SQL で
+/// 集計したプロジェクト別の件数をまとめた構造体。`report_summaries.stats_json` の配列要素として
+/// シリアライズされる（serde camelCase）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PeriodActivityStat {
+    /// プロジェクトキー（例: "PROJ"）。`issue_key` から導出する。
+    pub project_key: String,
+    /// 期間内に新規作成された件数（`created_at` が期間内）。
+    pub created_count: i64,
+    /// 期間内に更新された件数（`updated_at` が期間内）。
+    pub updated_count: i64,
+    /// 完了課題（`is_corpus_only = 1`＝Backlog `statusId=4` と実質1対1）のうち `updated_at`
+    /// が期間内のもの。完了日時（closed_at 相当）は保持しないため `updated_at` で近似し、
+    /// かつコーパス取り込み期間内に取り込まれた完了課題に限る（UI で補足。FR-V045-003）。
+    pub completed_count: i64,
 }
 
 /// データベースクライアント
@@ -466,6 +563,70 @@ impl DbClient {
             .execute(&self.pool)
             .await;
 
+        // issues テーブルへ created_at カラムを追加（v0.4.5 週次/月次アクティビティレポート用）
+        //
+        // Backlog API の `created`（課題作成日時）を保存し、期間内の「新規作成件数」を
+        // SQL で集計する（FR-V045-003）。既存の updated_at / due_date と同じく、検索・集計の
+        // ために raw_data とは別に専用カラムへ展開する。
+        // 旧 DB の既存行は再 sync まで NULL のままになるが、集計は created_at の有無で安全に
+        // 範囲判定するため、未取り込み行が新規作成件数に混入することはない（NFR-V045-003）。
+        let _ = sqlx::query("ALTER TABLE issues ADD COLUMN created_at TEXT")
+            .execute(&self.pool)
+            .await;
+
+        // ── v0.4.5 DBスキーマ拡張 ─────────────────────────────────────────────
+
+        // report_summaries table（v0.4.5 レポート/サマリー保存）
+        //
+        // 横断サマリ・週次/月次レポートの統計 JSON・AI narrative・見出しを保存する。
+        // PK = (workspace_id, report_type, period_key, lang)。
+        //   - report_type: 'cross_summary'（横断）/ 'weekly'（週次）/ 'monthly'（月次）
+        //   - period_key:  横断は 'latest'（最新のみ上書き）、週次は 'YYYY-Www'、月次は 'YYYY-MM'
+        //   - lang:        UI 言語（例: 'ja' / 'en'）
+        // stats_json は SQL 集計結果をプロジェクト別 JSON として保持し、UI の統計テーブルに使う。
+        // headline は AI が生成した1行見出し。narrative は AI の注目点・期間ハイライトなど複数行テキスト。
+        // generated_at は ISO8601 文字列で最終生成日時を示す（再生成判定・UI 表示用）。
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS report_summaries (
+                workspace_id  INTEGER NOT NULL,
+                report_type   TEXT    NOT NULL,
+                period_key    TEXT    NOT NULL,
+                lang          TEXT    NOT NULL,
+                stats_json    TEXT,
+                headline      TEXT,
+                narrative     TEXT,
+                generated_at  TEXT,
+                PRIMARY KEY (workspace_id, report_type, period_key, lang)
+            );
+        "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // issue_background_summary table（v0.4.5 課題背景・経緯の要約保存）
+        //
+        // 課題1件あたりのコメント要約（背景・決定事項の要点）をキャッシュする。
+        // PK = (workspace_id, issue_id, lang)。
+        // source_hash はコメント本文の変化検知用ハッシュで、不変かつ同一言語なら再生成をスキップする。
+        // summary_text は AI が生成した「経緯・決定事項の要点」テキスト（IssueDetailDialog で表示）。
+        // generated_at は ISO8601 文字列で最終生成日時を示す。
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS issue_background_summary (
+                workspace_id  INTEGER NOT NULL,
+                issue_id      INTEGER NOT NULL,
+                lang          TEXT    NOT NULL,
+                summary_text  TEXT,
+                source_hash   TEXT,
+                generated_at  TEXT,
+                PRIMARY KEY (workspace_id, issue_id, lang)
+            );
+        "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 
@@ -594,6 +755,15 @@ impl DbClient {
             .bind(id)
             .execute(&mut *transaction)
             .await?;
+        // v0.4.5 新テーブルの掃除（レポート/サマリー・課題背景要約）
+        sqlx::query("DELETE FROM report_summaries WHERE workspace_id = ?")
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::query("DELETE FROM issue_background_summary WHERE workspace_id = ?")
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
         sqlx::query("DELETE FROM workspaces WHERE id = ?")
             .bind(id)
             .execute(&mut *transaction)
@@ -677,8 +847,8 @@ impl DbClient {
             sqlx::query(
                 r#"
                 INSERT OR REPLACE INTO issues
-                (id, workspace_id, issue_key, summary, description, priority, status, assignee, due_date, updated_at, raw_data, relevance_score, is_corpus_only)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, workspace_id, issue_key, summary, description, priority, status, assignee, due_date, updated_at, created_at, raw_data, relevance_score, is_corpus_only)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#
             )
             .bind(issue.id)
@@ -691,6 +861,8 @@ impl DbClient {
             .bind(assignee)
             .bind(&issue.due_date)
             .bind(&issue.updated)
+            // 課題作成日時（FR-V045-003 の新規作成件数集計用）。API の `created` を展開する。
+            .bind(&issue.created)
             .bind(raw_data)
             .bind(issue.relevance_score)
             // 完了課題コーパス（FR-V04-003）取り込み時は is_corpus_only=true で保存し、
@@ -807,6 +979,18 @@ impl DbClient {
         .bind(workspace_id)
         .execute(&mut *transaction)
         .await?;
+        // v0.4.5 孤児掃除: issue_background_summary は課題単位のキャッシュのため、
+        // issues に対応行が無くなった時点で掃除する。
+        // report_summaries はプロジェクト/課題粒度ではなく workspace+期間キー粒度のため、
+        // save_issues では触らない（delete_workspace / delete_workspace_issues で掃除）。
+        sqlx::query(
+            "DELETE FROM issue_background_summary WHERE workspace_id = ? \
+             AND issue_id NOT IN (SELECT id FROM issues WHERE workspace_id = ?)",
+        )
+        .bind(workspace_id)
+        .bind(workspace_id)
+        .execute(&mut *transaction)
+        .await?;
 
         transaction.commit().await?;
         Ok(())
@@ -840,6 +1024,17 @@ impl DbClient {
             .execute(&mut *transaction)
             .await?;
         sqlx::query("DELETE FROM issue_embeddings WHERE workspace_id = ?")
+            .bind(workspace_id)
+            .execute(&mut *transaction)
+            .await?;
+        // v0.4.5 新テーブルの掃除（課題背景要約・レポートサマリー）
+        // report_summaries はプロジェクト/課題粒度ではなく workspace 粒度のため、
+        // ワークスペースの課題を全削除する際にまとめて掃除する。
+        sqlx::query("DELETE FROM issue_background_summary WHERE workspace_id = ?")
+            .bind(workspace_id)
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::query("DELETE FROM report_summaries WHERE workspace_id = ?")
             .bind(workspace_id)
             .execute(&mut *transaction)
             .await?;
@@ -1184,7 +1379,7 @@ impl DbClient {
             "SELECT ai.workspace_id, ai.issue_id, ai.risk_level, \
                     CASE \
                       WHEN i.due_date IS NULL OR i.due_date = '' THEN NULL \
-                      ELSE julianday(substr(i.due_date, 1, 10)) - julianday('now', 'start of day') \
+                      ELSE julianday(substr(i.due_date, 1, 10)) - julianday('now', 'localtime', 'start of day') \
                     END AS due_diff \
              FROM ai_results ai \
              LEFT JOIN issues i \
@@ -1296,11 +1491,13 @@ impl DbClient {
     ) -> Result<Option<i64>> {
         // due_date の先頭10文字（YYYY-MM-DD）を日付として julianday に渡す。
         // どちらのフォーマットでも先頭10文字は ISO の日付部分になる。
-        // julianday('now') も日付境界で比較するため 'start of day' に丸める。
+        // 「今日」はユーザーのローカル日で判定する（フロントの isOverdue がローカル基準のため整合させる）。
+        // julianday('now') は UTC を返すので 'localtime' でローカルへ寄せてから 'start of day' で日付境界に丸める。
+        // これがないと JST 早朝（UTC では前日）に遅延日数・期限超過が1日過小になる。
         let row: Option<(Option<f64>,)> = sqlx::query_as(
             "SELECT CASE \
                WHEN due_date IS NULL OR due_date = '' THEN NULL \
-               ELSE julianday(substr(due_date, 1, 10)) - julianday('now', 'start of day') \
+               ELSE julianday(substr(due_date, 1, 10)) - julianday('now', 'localtime', 'start of day') \
              END \
              FROM issues WHERE workspace_id = ? AND id = ?",
         )
@@ -1886,6 +2083,459 @@ impl DbClient {
         Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 
+    // ── v0.4.5 レポート集計（決定的 SQL 集約） ───────────────────────────────
+
+    /// 横断サマリの統計をプロジェクト別に集計する（決定的 SQL 集約。FR-V045-002）
+    ///
+    /// 同一ワークスペース内の通常課題（`is_corpus_only = 0`）を対象に、プロジェクトキー別の
+    /// 未完了・期限超過・停滞・自分担当の要対応件数と、`ai_results` の risk_level 分布
+    /// （high / medium / low）を集計する。数値はすべて SQL で決定的に算出し、LLM は使わない。
+    ///
+    /// プロジェクトキーの導出（`issue_key` の最後の `'-'` より前）は SQLite の文字列関数では
+    /// 正確に表現しづらいため、課題1行ごとに集計フラグを SQL で算出して取り出し、
+    /// Rust 側で [`crate::commands::project_key_from_issue_key`] 相当のロジックで集約する
+    /// （タスクが許容する「Rust 側集約」方針）。
+    ///
+    /// # 判定基準
+    /// 「今日」はユーザーのローカル日（`'localtime'`）で判定する（フロントの isOverdue と整合）。
+    /// - 期限超過: `due_date`（先頭10文字＝カレンダー日。TZ 非依存）がローカルの今日より前。
+    /// - 停滞: `updated_at`（UTC タイムスタンプを `'localtime'` でローカル日へ変換）が
+    ///   `stale_threshold_days` 日以上前。UTC 日付の先頭10文字をそのまま使うと JST 等で
+    ///   日付境界が1日ずれるため、必ずローカル日へ寄せてから比較する。
+    /// - 自分担当の要対応: 担当者が `me_user_id`（課題の `raw_data` から取得した担当者ID）で、
+    ///   かつ期限超過または停滞のいずれかに該当する課題。
+    ///
+    /// # 引数
+    /// * `workspace_id` - 集計対象のワークスペースID
+    /// * `me_user_id` - 自分の Backlog ユーザーID（自分担当の要対応判定に使う。未設定なら`None`）
+    /// * `stale_threshold_days` - 停滞とみなす未更新日数（呼び出し側の定数で指定）
+    ///
+    /// # 戻り値
+    /// プロジェクトキー昇順の [`CrossSummaryStat`] ベクタ、またはエラー。
+    pub async fn get_cross_summary_stats(
+        &self,
+        workspace_id: i64,
+        me_user_id: Option<i64>,
+        stale_threshold_days: i64,
+    ) -> Result<Vec<CrossSummaryStat>> {
+        // 課題1行ごとに、集計に必要なフラグ（期限超過・停滞・担当者ID・リスク）を SQL で算出する。
+        // 日付判定は get_issue_delay_days と同じく先頭10文字を julianday へ渡す方式で統一する。
+        // assignee_id は raw_data の JSON から取り出す（issues に担当者IDの専用カラムが無いため）。
+        // ai_results は LEFT JOIN し、risk_level は小文字へ正規化して high/medium/low を数える。
+        type Row = (
+            String,         // issue_key（プロジェクトキー導出用）
+            i64,            // is_overdue（0/1）
+            i64,            // is_stale（0/1）
+            Option<i64>,    // assignee_id（raw_data 由来。未設定は NULL）
+            Option<String>, // risk_level（小文字正規化済み。未生成は NULL）
+        );
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT i.issue_key, \
+                    CASE WHEN i.due_date IS NOT NULL AND i.due_date != '' \
+                           AND julianday(substr(i.due_date, 1, 10)) < julianday('now', 'localtime', 'start of day') \
+                         THEN 1 ELSE 0 END AS is_overdue, \
+                    CASE WHEN i.updated_at IS NOT NULL AND i.updated_at != '' \
+                           AND julianday(i.updated_at, 'localtime', 'start of day') <= julianday('now', 'localtime', 'start of day', ?) \
+                         THEN 1 ELSE 0 END AS is_stale, \
+                    CAST(json_extract(i.raw_data, '$.assignee.id') AS INTEGER) AS assignee_id, \
+                    lower(ai.risk_level) AS risk_level \
+             FROM issues i \
+             LEFT JOIN ai_results ai \
+               ON ai.workspace_id = i.workspace_id AND ai.issue_id = i.id \
+             WHERE i.workspace_id = ? AND COALESCE(i.is_corpus_only, 0) = 0",
+        )
+        // 停滞しきい値は julianday の修飾子（例: '-14 days'）として渡す。
+        .bind(format!("-{stale_threshold_days} days"))
+        .bind(workspace_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        // プロジェクトキー別に集約する。HashMap で蓄積し、最後にキー昇順へ整列する。
+        use std::collections::BTreeMap;
+        let mut acc: BTreeMap<String, CrossSummaryStat> = BTreeMap::new();
+        for (issue_key, is_overdue, is_stale, assignee_id, risk_level) in rows {
+            let project_key = crate::commands::project_key_from_issue_key(&issue_key);
+            let stat = acc
+                .entry(project_key.clone())
+                .or_insert_with(|| CrossSummaryStat {
+                    project_key,
+                    open_count: 0,
+                    overdue_count: 0,
+                    stale_count: 0,
+                    my_actionable_count: 0,
+                    risk_high: 0,
+                    risk_medium: 0,
+                    risk_low: 0,
+                });
+            stat.open_count += 1;
+            let overdue = is_overdue != 0;
+            let stale = is_stale != 0;
+            if overdue {
+                stat.overdue_count += 1;
+            }
+            if stale {
+                stat.stale_count += 1;
+            }
+            // 自分担当かつ要対応（期限超過 or 停滞）。me_user_id 未設定時は計上しない。
+            if let Some(me) = me_user_id {
+                if assignee_id == Some(me) && (overdue || stale) {
+                    stat.my_actionable_count += 1;
+                }
+            }
+            match risk_level.as_deref() {
+                Some("high") => stat.risk_high += 1,
+                Some("medium") => stat.risk_medium += 1,
+                Some("low") => stat.risk_low += 1,
+                _ => {}
+            }
+        }
+
+        Ok(acc.into_values().collect())
+    }
+
+    /// 週次/月次アクティビティの統計をプロジェクト別に集計する（決定的 SQL 集約。FR-V045-003）
+    ///
+    /// 指定期間 `[period_start, period_end)` について、プロジェクトキー別に
+    /// 新規作成（`created_at` が期間内）・更新（`updated_at` が期間内）・完了
+    /// （`is_corpus_only = 1` かつ `updated_at` が期間内）の件数を集計する。
+    /// 完了件数は v0.4 で取り込んだ完了課題コーパスを活用する（FR-V045-003）。
+    ///
+    /// 期間境界は半開区間 `period_start <= t < period_end`。ISO 週・月の文字列境界
+    /// （例: 週次 `2026-06-08T00:00:00Z` 〜 `2026-06-15T00:00:00Z`）を呼び出し側が ISO8601 で
+    /// 渡す前提で、文字列の辞書順比較で範囲判定する（保存値も ISO8601 のため整合する）。
+    ///
+    /// プロジェクトキーの導出は [`Self::get_cross_summary_stats`] と同じく Rust 側で集約する。
+    ///
+    /// # 引数
+    /// * `workspace_id` - 集計対象のワークスペースID
+    /// * `period_start` - 期間開始（ISO8601 文字列。含む）
+    /// * `period_end` - 期間終了（ISO8601 文字列。含まない）
+    ///
+    /// # 戻り値
+    /// プロジェクトキー昇順の [`PeriodActivityStat`] ベクタ、またはエラー。
+    pub async fn get_period_activity_stats(
+        &self,
+        workspace_id: i64,
+        period_start: &str,
+        period_end: &str,
+    ) -> Result<Vec<PeriodActivityStat>> {
+        // 課題1行ごとに、created_at / updated_at / is_corpus_only が期間内かを SQL で判定して取り出す。
+        // 文字列の辞書順比較（ISO8601 同士）で半開区間 [start, end) を判定する。
+        // 完了・新規作成・更新は同一課題で同時に立ちうる（同じ課題が期間内に作成かつ更新など）。
+        type Row = (
+            String, // issue_key
+            i64,    // is_created（0/1）
+            i64,    // is_updated（0/1）
+            i64,    // is_completed（0/1）
+        );
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT issue_key, \
+                    CASE WHEN created_at IS NOT NULL AND created_at >= ? AND created_at < ? \
+                         THEN 1 ELSE 0 END AS is_created, \
+                    CASE WHEN updated_at IS NOT NULL AND updated_at >= ? AND updated_at < ? \
+                         THEN 1 ELSE 0 END AS is_updated, \
+                    CASE WHEN COALESCE(is_corpus_only, 0) = 1 \
+                           AND updated_at IS NOT NULL AND updated_at >= ? AND updated_at < ? \
+                         THEN 1 ELSE 0 END AS is_completed \
+             FROM issues WHERE workspace_id = ?",
+        )
+        .bind(period_start)
+        .bind(period_end)
+        .bind(period_start)
+        .bind(period_end)
+        .bind(period_start)
+        .bind(period_end)
+        .bind(workspace_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        use std::collections::BTreeMap;
+        let mut acc: BTreeMap<String, PeriodActivityStat> = BTreeMap::new();
+        for (issue_key, is_created, is_updated, is_completed) in rows {
+            // 期間内のアクティビティが1つも無い課題はレポートに含めない（件数行を増やさない）。
+            if is_created == 0 && is_updated == 0 && is_completed == 0 {
+                continue;
+            }
+            let project_key = crate::commands::project_key_from_issue_key(&issue_key);
+            let stat = acc
+                .entry(project_key.clone())
+                .or_insert_with(|| PeriodActivityStat {
+                    project_key,
+                    created_count: 0,
+                    updated_count: 0,
+                    completed_count: 0,
+                });
+            stat.created_count += is_created;
+            stat.updated_count += is_updated;
+            stat.completed_count += is_completed;
+        }
+
+        Ok(acc.into_values().collect())
+    }
+
+    /// レポート narrative の注目上位選定に渡す課題メタを一括取得する（FR-V045-002 / FR-V045-003）
+    ///
+    /// 同一ワークスペースの通常課題（`is_corpus_only = 0`）について、注目上位スコアリング
+    /// （[`crate::commands::report_highlight_score`] 相当）に必要な値だけを 1 クエリで取り出す:
+    /// 課題キー・`ai_results.summary`（1行要約）・`ai_results.risk_level`・遅延日数（SQL 算出）・
+    /// 停滞フラグ（`updated_at` を `'localtime'` でローカル日へ変換し `stale_threshold_days`
+    /// 日以上前か。日付判定は [`Self::get_cross_summary_stats`] と同じローカル日基準）。
+    ///
+    /// 数値（遅延日数・停滞）は [`Self::get_cross_summary_stats`] と同じく SQL で決定的に算出し、
+    /// **新規の per-issue LLM 呼び出しは行わず**既存 `ai_results` を LEFT JOIN して再利用する
+    /// （NFR-V045-002 / 基本思想）。プロジェクトキー導出・スコアリングは呼び出し側（Rust）で行う。
+    ///
+    /// # 引数
+    /// * `workspace_id` - 集計対象のワークスペースID
+    /// * `stale_threshold_days` - 停滞とみなす未更新日数（呼び出し側の定数で指定）
+    ///
+    /// # 戻り値
+    /// `(issue_key, ai_summary, risk_level, delay_days, is_stale)` のベクタ、またはエラー。
+    /// `ai_summary` 未生成は空文字、`risk_level` 未生成は`None`、`delay_days` は期限なしで`None`。
+    pub async fn get_report_highlight_inputs(
+        &self,
+        workspace_id: i64,
+        stale_threshold_days: i64,
+    ) -> Result<Vec<(String, String, Option<String>, Option<i64>, bool)>> {
+        // 遅延日数は get_issue_delay_days と同じ julianday 差（期限 - 今日）として算出し、
+        // Rust 側で符号反転して「正=超過」へ変換する。停滞は updated_at の julianday 比較で判定。
+        type Row = (
+            String,         // issue_key
+            String,         // ai_summary（未生成は空文字）
+            Option<String>, // risk_level（小文字正規化済み。未生成は NULL）
+            Option<f64>,    // due_diff（期限 - 今日。julianday 差。期限なしは NULL）
+            i64,            // is_stale（0/1）
+        );
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT i.issue_key, \
+                    COALESCE(ai.summary, '') AS ai_summary, \
+                    lower(ai.risk_level) AS risk_level, \
+                    CASE \
+                      WHEN i.due_date IS NULL OR i.due_date = '' THEN NULL \
+                      ELSE julianday(substr(i.due_date, 1, 10)) - julianday('now', 'localtime', 'start of day') \
+                    END AS due_diff, \
+                    CASE WHEN i.updated_at IS NOT NULL AND i.updated_at != '' \
+                           AND julianday(i.updated_at, 'localtime', 'start of day') <= julianday('now', 'localtime', 'start of day', ?) \
+                         THEN 1 ELSE 0 END AS is_stale \
+             FROM issues i \
+             LEFT JOIN ai_results ai \
+               ON ai.workspace_id = i.workspace_id AND ai.issue_id = i.id \
+             WHERE i.workspace_id = ? AND COALESCE(i.is_corpus_only, 0) = 0",
+        )
+        .bind(format!("-{stale_threshold_days} days"))
+        .bind(workspace_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|(issue_key, ai_summary, risk_level, due_diff, is_stale)| {
+                // julianday 差（期限 - 今日）を遅延日数（正=超過）へ符号反転する。
+                let delay_days = due_diff.map(|diff| -(diff.round() as i64));
+                (issue_key, ai_summary, risk_level, delay_days, is_stale != 0)
+            })
+            .collect())
+    }
+
+    // ── v0.4.5 レポート/サマリー・課題背景要約 ───────────────────────────────
+
+    /// レポート/サマリーを保存（UPSERT。FR-V045-006）
+    ///
+    /// PK = (workspace_id, report_type, period_key, lang) で `report_summaries` を
+    /// `INSERT OR REPLACE` する（[`Self::save_setting`] と同方式の UPSERT）。
+    /// 横断サマリ（`report_type='cross_summary'` / `period_key='latest'`）は最新のみ上書き、
+    /// 週次/月次は期間キーごとに履歴を保持する（同一期間は上書き）。
+    /// `generated_at` は呼び出し時刻（now）で自動設定する。
+    ///
+    /// # 引数
+    /// * `workspace_id` - ワークスペースID
+    /// * `report_type` - レポート種別（'cross_summary' / 'weekly' / 'monthly'）
+    /// * `period_key` - 期間キー（横断は 'latest'、週次は 'YYYY-Www'、月次は 'YYYY-MM'）
+    /// * `lang` - 言語（例: 'ja' / 'en'）
+    /// * `stats_json` - プロジェクト別集計 JSON（統計テーブル用。narrative なしでも保存可）
+    /// * `headline` - AI 生成の1行見出し（未生成なら`None`）
+    /// * `narrative` - AI 生成の narrative テキスト（未生成・degrade 時は`None`）
+    ///
+    /// # 戻り値
+    /// 成功時は`Ok(())`、失敗時はエラー
+    // PK 4列（workspace_id / report_type / period_key / lang）に保存値3列が加わるため引数が多い。
+    // テーブル構造をそのまま受け取る単純な UPSERT であり、入力構造体に束ねる利点が薄いため許容する。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn save_report_summary(
+        &self,
+        workspace_id: i64,
+        report_type: &str,
+        period_key: &str,
+        lang: &str,
+        stats_json: Option<&str>,
+        headline: Option<&str>,
+        narrative: Option<&str>,
+    ) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT OR REPLACE INTO report_summaries \
+             (workspace_id, report_type, period_key, lang, stats_json, headline, narrative, generated_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(workspace_id)
+        .bind(report_type)
+        .bind(period_key)
+        .bind(lang)
+        .bind(stats_json)
+        .bind(headline)
+        .bind(narrative)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// レポート/サマリーを1行取得（FR-V045-006）
+    ///
+    /// PK = (workspace_id, report_type, period_key, lang) に一致する1行を返す。
+    /// 横断サマリは `period_key='latest'`、週次/月次は期間キーで過去レポートも参照できる。
+    ///
+    /// # 引数
+    /// * `workspace_id` - ワークスペースID
+    /// * `report_type` - レポート種別（'cross_summary' / 'weekly' / 'monthly'）
+    /// * `period_key` - 期間キー
+    /// * `lang` - 言語
+    ///
+    /// # 戻り値
+    /// 該当する [`ReportSummary`]（未生成の場合は`None`）、またはエラー
+    pub async fn get_report_summary(
+        &self,
+        workspace_id: i64,
+        report_type: &str,
+        period_key: &str,
+        lang: &str,
+    ) -> Result<Option<ReportSummary>> {
+        let result = sqlx::query_as::<_, ReportSummary>(
+            "SELECT workspace_id, report_type, period_key, lang, \
+                    stats_json, headline, narrative, generated_at \
+             FROM report_summaries \
+             WHERE workspace_id = ? AND report_type = ? AND period_key = ? AND lang = ?",
+        )
+        .bind(workspace_id)
+        .bind(report_type)
+        .bind(period_key)
+        .bind(lang)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
+    /// レポートの期間キー一覧を取得（期間セレクタ用。FR-V045-003 / FR-V045-006）
+    ///
+    /// 指定ワークスペース・レポート種別に保存されている `period_key` を重複なく、
+    /// 最終生成日時（`generated_at`）の降順で返す（最新の期間が先頭）。
+    /// 主に週次/月次レポートの期間セレクタで過去レポートを切り替えるために用いる
+    /// （横断サマリは `period_key='latest'` 固定のため通常は1件のみ）。
+    ///
+    /// # 引数
+    /// * `workspace_id` - ワークスペースID
+    /// * `report_type` - レポート種別（'weekly' / 'monthly' など）
+    ///
+    /// # 戻り値
+    /// 期間キーのベクタ（生成日時の降順）、またはエラー
+    pub async fn list_report_periods(
+        &self,
+        workspace_id: i64,
+        report_type: &str,
+    ) -> Result<Vec<String>> {
+        // 同一 period_key に複数言語の行があり得るため、生成日時は MAX で代表させて
+        // DISTINCT な period_key を生成日時降順に並べる。
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT period_key FROM report_summaries \
+             WHERE workspace_id = ? AND report_type = ? \
+             GROUP BY period_key ORDER BY MAX(generated_at) DESC",
+        )
+        .bind(workspace_id)
+        .bind(report_type)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|(k,)| k).collect())
+    }
+
+    /// 課題の背景・経緯の要約を保存（UPSERT。FR-V045-004）
+    ///
+    /// PK = (workspace_id, issue_id, lang) で `issue_background_summary` を
+    /// `INSERT OR REPLACE` する。`source_hash` はコメント本文の変化検知用ハッシュで、
+    /// 次回 [`Self::get_background_summary`] で取得したハッシュと一致すれば再生成を
+    /// スキップできる（キャッシュ戦略）。`generated_at` は呼び出し時刻で自動設定する。
+    ///
+    /// # 引数
+    /// * `workspace_id` - ワークスペースID
+    /// * `issue_id` - 課題ID
+    /// * `lang` - 言語（例: 'ja' / 'en'）
+    /// * `summary_text` - AI 生成の「経緯・決定事項の要点」テキスト
+    /// * `source_hash` - コメント本文のハッシュ（不変判定のキー）
+    ///
+    /// # 戻り値
+    /// 成功時は`Ok(())`、失敗時はエラー
+    pub async fn save_background_summary(
+        &self,
+        workspace_id: i64,
+        issue_id: i64,
+        lang: &str,
+        summary_text: &str,
+        source_hash: &str,
+    ) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT OR REPLACE INTO issue_background_summary \
+             (workspace_id, issue_id, lang, summary_text, source_hash, generated_at) \
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(workspace_id)
+        .bind(issue_id)
+        .bind(lang)
+        .bind(summary_text)
+        .bind(source_hash)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 課題の背景・経緯の要約を取得（キャッシュ判定用。FR-V045-004）
+    ///
+    /// PK = (workspace_id, issue_id, lang) のキャッシュ行を取得する。
+    /// 呼び出し側はコメントから再計算した `source_hash` と戻り値の `source_hash` を
+    /// 比較し、一致すれば再生成をスキップして `summary_text` を表示できる。
+    ///
+    /// # 引数
+    /// * `workspace_id` - ワークスペースID
+    /// * `issue_id` - 課題ID
+    /// * `lang` - 言語
+    ///
+    /// # 戻り値
+    /// `(summary_text, source_hash, generated_at)`（未生成の場合は`None`）、またはエラー
+    pub async fn get_background_summary(
+        &self,
+        workspace_id: i64,
+        issue_id: i64,
+        lang: &str,
+    ) -> Result<Option<(String, String, String)>> {
+        let row: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT summary_text, source_hash, generated_at FROM issue_background_summary \
+             WHERE workspace_id = ? AND issue_id = ? AND lang = ?",
+        )
+        .bind(workspace_id)
+        .bind(issue_id)
+        .bind(lang)
+        .fetch_optional(&self.pool)
+        .await?;
+        // NULL カラムは空文字へ正規化し、呼び出し側がハッシュ比較・表示で分岐しないようにする。
+        Ok(row.map(|(text, hash, generated)| {
+            (
+                text.unwrap_or_default(),
+                hash.unwrap_or_default(),
+                generated.unwrap_or_default(),
+            )
+        }))
+    }
+
     /// テスト用に最小限の課題を1件挿入する（クレート内テスト共通の seam）
     ///
     /// `issues.workspace_id` は `workspaces` への外部キー制約を持つため、対象ワークスペースを
@@ -2335,6 +2985,7 @@ mod tests {
             assignee: None,
             due_date: None,
             updated: Some("2026-06-10T00:00:00Z".to_string()),
+            created: Some("2026-06-10T00:00:00Z".to_string()),
             relevance_score: 0,
             workspace_id: 1,
             ai_summary: None,
@@ -2499,5 +3150,426 @@ mod tests {
                 .as_deref(),
             Some("high")
         );
+    }
+
+    #[tokio::test]
+    async fn report_summary_roundtrip_and_upsert() {
+        let db = new_test_db().await;
+
+        // 横断サマリを保存 → 取得で各カラムが一致する。
+        db.save_report_summary(
+            1,
+            "cross_summary",
+            "latest",
+            "ja",
+            Some("{\"projects\":1}"),
+            Some("見出しA"),
+            Some("narrative A"),
+        )
+        .await
+        .unwrap();
+
+        let fetched = db
+            .get_report_summary(1, "cross_summary", "latest", "ja")
+            .await
+            .unwrap()
+            .expect("保存したレポートが取得できる");
+        assert_eq!(fetched.workspace_id, 1);
+        assert_eq!(fetched.report_type, "cross_summary");
+        assert_eq!(fetched.period_key, "latest");
+        assert_eq!(fetched.lang, "ja");
+        assert_eq!(fetched.stats_json.as_deref(), Some("{\"projects\":1}"));
+        assert_eq!(fetched.headline.as_deref(), Some("見出しA"));
+        assert_eq!(fetched.narrative.as_deref(), Some("narrative A"));
+        assert!(fetched.generated_at.is_some());
+
+        // 同一 PK で上書き（UPSERT）される。narrative は degrade（None）も保存できる。
+        db.save_report_summary(
+            1,
+            "cross_summary",
+            "latest",
+            "ja",
+            Some("{\"projects\":2}"),
+            Some("見出しB"),
+            None,
+        )
+        .await
+        .unwrap();
+        let updated = db
+            .get_report_summary(1, "cross_summary", "latest", "ja")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated.stats_json.as_deref(), Some("{\"projects\":2}"));
+        assert_eq!(updated.headline.as_deref(), Some("見出しB"));
+        assert_eq!(updated.narrative, None);
+
+        // 別言語・別期間は独立した行になる。
+        db.save_report_summary(1, "cross_summary", "latest", "en", None, None, None)
+            .await
+            .unwrap();
+        assert!(db
+            .get_report_summary(1, "cross_summary", "latest", "en")
+            .await
+            .unwrap()
+            .is_some());
+
+        // 未生成の組み合わせは None。
+        assert!(db
+            .get_report_summary(1, "weekly", "2026-W24", "ja")
+            .await
+            .unwrap()
+            .is_none());
+
+        // camelCase でシリアライズされる（フロント連携用）。
+        let json = serde_json::to_value(&updated).unwrap();
+        assert!(json.get("workspaceId").is_some());
+        assert!(json.get("reportType").is_some());
+        assert!(json.get("periodKey").is_some());
+        assert!(json.get("statsJson").is_some());
+        assert!(json.get("generatedAt").is_some());
+    }
+
+    #[tokio::test]
+    async fn list_report_periods_orders_by_generated_at_desc() {
+        let db = new_test_db().await;
+
+        // 週次レポートを期間キー違いで3件保存する（保存順に generated_at が増える）。
+        for period in ["2026-W22", "2026-W23", "2026-W24"] {
+            db.save_report_summary(1, "weekly", period, "ja", None, None, None)
+                .await
+                .unwrap();
+        }
+        // 同一期間に別言語の行を足しても DISTINCT で重複しない。
+        db.save_report_summary(1, "weekly", "2026-W24", "en", None, None, None)
+            .await
+            .unwrap();
+
+        let periods = db.list_report_periods(1, "weekly").await.unwrap();
+        // 生成日時降順（最後に保存した期間が先頭）、period_key は重複なし。
+        assert_eq!(periods, vec!["2026-W24", "2026-W23", "2026-W22"]);
+
+        // 別ワークスペース・別種別は混ざらない。
+        assert!(db
+            .list_report_periods(1, "monthly")
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(db
+            .list_report_periods(2, "weekly")
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn background_summary_roundtrip_and_upsert() {
+        let db = new_test_db().await;
+
+        // 保存 → 取得で (summary_text, source_hash, generated_at) が一致する。
+        db.save_background_summary(1, 100, "ja", "経緯の要点", "hash-a")
+            .await
+            .unwrap();
+        let fetched = db
+            .get_background_summary(1, 100, "ja")
+            .await
+            .unwrap()
+            .expect("保存した背景要約が取得できる");
+        assert_eq!(fetched.0, "経緯の要点");
+        assert_eq!(fetched.1, "hash-a");
+        assert!(!fetched.2.is_empty(), "generated_at が設定される");
+
+        // 同一 PK で上書き（UPSERT。コメント変更でハッシュ・本文が更新される）。
+        db.save_background_summary(1, 100, "ja", "更新後の要点", "hash-b")
+            .await
+            .unwrap();
+        let updated = db
+            .get_background_summary(1, 100, "ja")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated.0, "更新後の要点");
+        assert_eq!(updated.1, "hash-b");
+
+        // 別言語は独立した行（同一課題でも ja / en でキャッシュが分かれる）。
+        db.save_background_summary(1, 100, "en", "summary", "hash-en")
+            .await
+            .unwrap();
+        let en = db
+            .get_background_summary(1, 100, "en")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(en.1, "hash-en");
+
+        // 未生成の課題は None。
+        assert!(db
+            .get_background_summary(1, 999, "ja")
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    /// 横断サマリ集計テスト用の課題を直接挿入する。
+    ///
+    /// `due_date` / `updated_at` は「今日からの相対日数」で与え、境界（期限超過・停滞）を
+    /// 決定的に検証できるようにする。担当者IDは raw_data の JSON へ埋め込み、
+    /// `json_extract` 経由の集計（自分担当の要対応）を検証する。
+    #[allow(clippy::too_many_arguments)]
+    async fn insert_cross_issue(
+        db: &DbClient,
+        workspace_id: i64,
+        id: i64,
+        project: &str,
+        due_offset_days: Option<i64>,
+        updated_offset_days: i64,
+        assignee_id: Option<i64>,
+    ) {
+        sqlx::query(
+            "INSERT OR IGNORE INTO workspaces (id, domain, api_key, project_keys) \
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(workspace_id)
+        .bind(format!("ws{workspace_id}.example.com"))
+        .bind("key")
+        .bind("TEST")
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+        let today = chrono::Local::now().date_naive();
+        let due = due_offset_days.map(|o| {
+            (today + chrono::Duration::days(o))
+                .format("%Y-%m-%d")
+                .to_string()
+        });
+        let updated = (today + chrono::Duration::days(updated_offset_days))
+            .format("%Y-%m-%dT00:00:00Z")
+            .to_string();
+        // 担当者IDを raw_data の assignee.id へ埋め込む（実データの形を模す）。
+        let raw_data = match assignee_id {
+            Some(aid) => format!("{{\"assignee\":{{\"id\":{aid}}}}}"),
+            None => "{}".to_string(),
+        };
+
+        sqlx::query(
+            "INSERT OR REPLACE INTO issues \
+             (id, workspace_id, issue_key, summary, due_date, updated_at, raw_data, is_corpus_only) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+        )
+        .bind(id)
+        .bind(workspace_id)
+        .bind(format!("{project}-{id}"))
+        .bind("title")
+        .bind(due)
+        .bind(updated)
+        .bind(raw_data)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn cross_summary_stats_counts_overdue_stale_and_risk() {
+        let db = new_test_db().await;
+        let stale_threshold = 14;
+
+        // PROJ: 期限超過(-1日)・自分担当、停滞境界ちょうど(更新-14日)・自分担当、
+        //       期限内(+5日)・他人担当・最近更新。
+        insert_cross_issue(&db, 1, 1, "PROJ", Some(-1), 0, Some(99)).await; // overdue, mine
+        insert_cross_issue(&db, 1, 2, "PROJ", Some(5), -stale_threshold, Some(99)).await; // stale 境界, mine
+        insert_cross_issue(&db, 1, 3, "PROJ", Some(5), -1, Some(7)).await; // どれも非該当, 他人
+                                                                           // OTHER プロジェクト: 期限超過だが他人担当。
+        insert_cross_issue(&db, 1, 4, "OTHER", Some(-3), 0, Some(7)).await;
+        // 停滞境界の手前（-13日）は停滞に含めない。
+        insert_cross_issue(&db, 1, 5, "PROJ", Some(5), -(stale_threshold - 1), Some(99)).await;
+
+        // リスク分布: PROJ-1=high, PROJ-2=medium, OTHER-4=low。
+        insert_ai_result(&db, 1, 1, "high").await;
+        insert_ai_result(&db, 1, 2, "medium").await;
+        insert_ai_result(&db, 1, 4, "low").await;
+
+        let stats = db
+            .get_cross_summary_stats(1, Some(99), stale_threshold)
+            .await
+            .unwrap();
+
+        // プロジェクトキー昇順（OTHER, PROJ）。
+        assert_eq!(stats.len(), 2);
+        let other = stats.iter().find(|s| s.project_key == "OTHER").unwrap();
+        let proj = stats.iter().find(|s| s.project_key == "PROJ").unwrap();
+
+        // PROJ: 通常4件、期限超過1件(id=1)、停滞1件(id=2、境界ちょうどは含む。id=5の-13日は含まない)。
+        assert_eq!(proj.open_count, 4);
+        assert_eq!(proj.overdue_count, 1);
+        assert_eq!(proj.stale_count, 1);
+        // 自分担当(99)かつ要対応(期限超過 or 停滞): id=1(overdue) と id=2(stale) の2件。
+        assert_eq!(proj.my_actionable_count, 2);
+        assert_eq!(proj.risk_high, 1);
+        assert_eq!(proj.risk_medium, 1);
+        assert_eq!(proj.risk_low, 0);
+
+        // OTHER: 1件、期限超過1件だが他人担当なので my_actionable は0。
+        assert_eq!(other.open_count, 1);
+        assert_eq!(other.overdue_count, 1);
+        assert_eq!(other.my_actionable_count, 0);
+        assert_eq!(other.risk_low, 1);
+    }
+
+    #[tokio::test]
+    async fn cross_summary_stats_excludes_corpus_and_handles_no_me() {
+        let db = new_test_db().await;
+        // 通常1件 + コーパス1件（コーパスは集計対象外）。
+        insert_cross_issue(&db, 1, 1, "PROJ", Some(-1), 0, Some(99)).await;
+        sqlx::query("UPDATE issues SET is_corpus_only = 1 WHERE id = 1")
+            .execute(&db.pool)
+            .await
+            .unwrap();
+        insert_cross_issue(&db, 1, 2, "PROJ", Some(-1), 0, Some(99)).await;
+
+        // me_user_id 未指定でも集計できる（my_actionable は常に0）。
+        let stats = db.get_cross_summary_stats(1, None, 14).await.unwrap();
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].open_count, 1); // コーパス(id=1)は除外
+        assert_eq!(stats[0].overdue_count, 1);
+        assert_eq!(stats[0].my_actionable_count, 0);
+    }
+
+    /// 期間集計テスト用の課題を直接挿入する（created_at / updated_at / is_corpus_only を指定）。
+    async fn insert_period_issue(
+        db: &DbClient,
+        workspace_id: i64,
+        id: i64,
+        project: &str,
+        created_at: Option<&str>,
+        updated_at: Option<&str>,
+        is_corpus_only: i64,
+    ) {
+        sqlx::query(
+            "INSERT OR IGNORE INTO workspaces (id, domain, api_key, project_keys) \
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(workspace_id)
+        .bind(format!("ws{workspace_id}.example.com"))
+        .bind("key")
+        .bind("TEST")
+        .execute(&db.pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT OR REPLACE INTO issues \
+             (id, workspace_id, issue_key, summary, created_at, updated_at, is_corpus_only) \
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(id)
+        .bind(workspace_id)
+        .bind(format!("{project}-{id}"))
+        .bind("title")
+        .bind(created_at)
+        .bind(updated_at)
+        .bind(is_corpus_only)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn period_activity_stats_counts_created_updated_completed_with_boundaries() {
+        let db = new_test_db().await;
+        // 週次の半開区間 [2026-06-08, 2026-06-15)。
+        let start = "2026-06-08T00:00:00Z";
+        let end = "2026-06-15T00:00:00Z";
+
+        // id=1: 期間内作成かつ期間内更新（PROJ）。
+        insert_period_issue(
+            &db,
+            1,
+            1,
+            "PROJ",
+            Some("2026-06-09T00:00:00Z"),
+            Some("2026-06-10T00:00:00Z"),
+            0,
+        )
+        .await;
+        // id=2: 開始境界ちょうど作成（含む）、更新は期間前（含まない）。
+        insert_period_issue(
+            &db,
+            1,
+            2,
+            "PROJ",
+            Some(start),
+            Some("2026-06-01T00:00:00Z"),
+            0,
+        )
+        .await;
+        // id=3: 終了境界ちょうど更新（含まない＝半開区間）、作成は期間前。
+        insert_period_issue(
+            &db,
+            1,
+            3,
+            "PROJ",
+            Some("2026-05-01T00:00:00Z"),
+            Some(end),
+            0,
+        )
+        .await;
+        // id=4: 期間内に完了（is_corpus_only=1 かつ updated 期間内）。OTHER プロジェクト。
+        insert_period_issue(
+            &db,
+            1,
+            4,
+            "OTHER",
+            Some("2026-01-01T00:00:00Z"),
+            Some("2026-06-12T00:00:00Z"),
+            1,
+        )
+        .await;
+        // id=5: 期間外（作成も更新も範囲外）→ どの件数にも含めない。
+        insert_period_issue(
+            &db,
+            1,
+            5,
+            "PROJ",
+            Some("2026-07-01T00:00:00Z"),
+            Some("2026-07-02T00:00:00Z"),
+            0,
+        )
+        .await;
+
+        let stats = db.get_period_activity_stats(1, start, end).await.unwrap();
+        assert_eq!(stats.len(), 2);
+        let proj = stats.iter().find(|s| s.project_key == "PROJ").unwrap();
+        let other = stats.iter().find(|s| s.project_key == "OTHER").unwrap();
+
+        // PROJ: 作成= id1,id2 の2件（境界開始は含む、id5は範囲外）、更新= id1 の1件（id3の終了境界は含まない）。
+        assert_eq!(proj.created_count, 2);
+        assert_eq!(proj.updated_count, 1);
+        assert_eq!(proj.completed_count, 0);
+        // OTHER: 完了1件（is_corpus_only かつ updated 期間内）。更新としても1件計上される。
+        assert_eq!(other.completed_count, 1);
+        assert_eq!(other.updated_count, 1);
+        assert_eq!(other.created_count, 0);
+    }
+
+    #[tokio::test]
+    async fn period_activity_stats_empty_when_no_activity() {
+        let db = new_test_db().await;
+        // created_at が NULL の旧 DB 行は新規作成件数に含めない（NFR-V045-003 の degrade）。
+        insert_period_issue(&db, 1, 1, "PROJ", None, Some("2026-06-10T00:00:00Z"), 0).await;
+        let stats = db
+            .get_period_activity_stats(1, "2026-06-08T00:00:00Z", "2026-06-15T00:00:00Z")
+            .await
+            .unwrap();
+        // created は NULL なので0、updated は期間内なので PROJ が1行返る。
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].created_count, 0);
+        assert_eq!(stats[0].updated_count, 1);
+
+        // 期間外だけの問い合わせは空。
+        let none = db
+            .get_period_activity_stats(1, "2025-01-01T00:00:00Z", "2025-02-01T00:00:00Z")
+            .await
+            .unwrap();
+        assert!(none.is_empty());
     }
 }
