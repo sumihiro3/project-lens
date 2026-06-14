@@ -139,7 +139,11 @@
     "aiGeneratedLabel": "AI生成",
     "cross": {
       "title": "複数プロジェクト横断サマリ",
-      "narrativeTitle": "注目点",
+      "insight": {
+        "title": "AI インサイト",
+        "summary": "概況",
+        "recommendation": "推奨アクション"
+      },
       "col": {
         "project": "プロジェクト",
         "open": "未完了",
@@ -147,6 +151,23 @@
         "stale": "停滞",
         "mine": "自分担当",
         "risk": "リスク(高/中/低)"
+      }
+    },
+    "priority": {
+      "title": "優先対応リスト",
+      "crossTop": "横断上位",
+      "byProject": "プロジェクト別",
+      "reason": {
+        "overdue": "期限超過 {days}日",
+        "riskHigh": "リスク高",
+        "riskMedium": "リスク中",
+        "riskLow": "リスク低",
+        "stale": "停滞",
+        "unassigned": "要アサイン"
+      },
+      "assignee": {
+        "confirm": "{name} に確認",
+        "unassigned": "要アサイン"
       }
     },
     "period": {

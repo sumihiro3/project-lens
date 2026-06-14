@@ -14,12 +14,15 @@
 //                       （due_date は省略可。description_head は Rust 側で切り詰め済み）
 //     - 埋め込み:       {"type":"embed","texts":["...","..."],"prefix":"query|passage"}
 //                       （v0.4。texts はプレフィックス未付与・切り詰め済み。下記「埋め込みの契約」参照）
+//     - 自由文生成:     {"type":"summarize","instruction":"...","context":"...","lang":"ja"}
+//                       （v0.4.6。context は省略可・Rust 側で上限文字数(≈3000字)に切り詰め済み）
 //     - 終了:          {"type":"shutdown"}（EOF でも終了する）
 //   出力（1行 = 1 JSON オブジェクト。改行区切り）:
 //     - availability: {"type":"availability","available":true,"reason":"available"}
 //                     reason は available / appleIntelligenceNotEnabled / modelNotReady /
 //                     deviceNotEligible / unavailableOther / unsupportedOS のいずれか
 //     - analyze 成功: {"type":"result","summary":"...","risk_level":"high|medium|low","suggestion":"..."}
+//     - summarize 成功:{"type":"summarize","summary":"...","recommendation":"..."}（v0.4.6。@Generable 構造化）
 //     - embed 成功:    {"type":"embedding","vectors":[[...384個のf32...], ...]}
 //                      （v0.4。vectors は入力 texts と同順・同数。各ベクトルは EMBEDDING_DIM 次元）
 //     - 失敗:         {"type":"error","message":"..."}
@@ -92,6 +95,30 @@ enum GenerationRiskLevel: String {
     case low
 }
 
+/// 横断サマリの構造化インサイト（v0.4.6・FR-V046-004）。
+///
+/// summarize 経路は自由文ではなく **guided generation（@Generable）** でこの2フィールドだけを生成する。
+/// これにより小型モデルが入力リストをそのままエコーしたり Markdown を混入させたりするのを構造的に防ぎ、
+/// UI は決まった項目（概況・推奨アクション）をカードで整形表示できる。個票（課題キー・担当・日数）は
+/// 決定的な優先対応リストが正確に表示するため、ここでは逐語列挙させない（@Guide で明示）。
+/// フィールドは Rust 側 `SidecarResponse::Summarize { summary, recommendation }` と一致させること。
+@Generable
+struct CrossInsightGeneration {
+    /// プロジェクト横断の概況（具体的に。最優先課題を課題キーで名指しし、数値と横断の傾向に触れる）。
+    @Guide(
+        description:
+            "A specific 2-4 sentence insight (NOT generic advice). Name the single most urgent issue by its exact issue key and its concrete reason such as the number of days overdue. Call out the most important cross-project pattern, e.g. one project having many long-stalled issues of the same kind. Use concrete issue keys and numbers from the input. Plain prose, no markdown, and do not list every issue."
+    )
+    var summary: String
+
+    /// 具体的な推奨アクション（着手すべき課題キーや、アサインが必要な課題を名指しする）。
+    @Guide(
+        description:
+            "1-2 sentences of concrete next actions that reference specific issue keys or people: which issue to tackle first, which unassigned high-risk issues need an owner assigned. Be specific, not generic. Plain prose, no markdown."
+    )
+    var recommendation: String
+}
+
 // MARK: - JSON 入出力モデル
 
 /// 入力リクエスト。`type` で分岐し、analyze 時のみ分析フィールドを、embed 時のみ埋め込みフィールドを参照する。
@@ -107,6 +134,10 @@ struct SidecarRequest: Decodable {
     let texts: [String]?
     /// 付与するプレフィックス種別（type == "embed" のとき。`query` / `passage`）。
     let prefix: String?
+    /// 自由文生成の指示（type == "summarize" のとき）。出力の役割・観点を記述する。
+    let instruction: String?
+    /// 自由文生成へ与える文脈（type == "summarize" のとき）。Rust 側で上限文字数に切り詰め済み。
+    let context: String?
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -118,6 +149,8 @@ struct SidecarRequest: Decodable {
         case lang
         case texts
         case prefix
+        case instruction
+        case context
     }
 }
 
@@ -152,6 +185,16 @@ struct ResultResponse: Encodable {
         case riskLevel = "risk_level"
         case suggestion
     }
+}
+
+/// summarize 成功時のレスポンス（構造化インサイト。v0.4.6・FR-V046-004）。
+///
+/// guided generation（[`CrossInsightGeneration`]）で得た概況・推奨アクションの2フィールドを返す。
+/// Rust 側 `SidecarResponse::Summarize { summary, recommendation }` と一致させること。
+struct SummarizeResponse: Encodable {
+    let type = "summarize"
+    let summary: String
+    let recommendation: String
 }
 
 /// 可用性チェックのレスポンス。
@@ -277,6 +320,65 @@ func handleAnalyze(_ request: SidecarRequest) async {
     } catch {
         // 生成失敗は1行のエラーで返す。リトライ・スキップ判断は Rust 側ワーカーが行う。
         writeError("generation failed: \(error.localizedDescription)")
+    }
+}
+
+// MARK: - 自由文生成処理（FR-V046-003）
+
+/// summarize（構造化インサイト生成）の言語別 system 指示を生成する。
+///
+/// 各フィールドの役割は [`CrossInsightGeneration`] の @Guide が担うため、instructions は言語と文体のみに
+/// 留めて短く保つ（長い instructions は guided generation スキーマと合算でコンテキストを圧迫するため）。
+///
+/// - Parameter lang: 出力言語（`ja` / `en`）。
+/// - Returns: system instructions 文字列。
+func summarizeInstructions(for lang: String) -> String {
+    if lang == "en" {
+        return
+            "You analyze a project priority list and produce a brief structured insight (overview + recommendation). Respond in English."
+    }
+    // 既定は日本語。
+    return "あなたはプロジェクトの優先課題リストを分析し、簡潔な構造化インサイト（概況・推奨アクション）を作成します。回答は日本語で行ってください。"
+}
+
+/// 1件の summarize リクエストを処理し、自由文または失敗エラーを stdout へ書き出す（FR-V046-003）。
+///
+/// analyze の `@Generable` 構造化生成と同じ session 生成パターンに合わせつつ、生成は非拘束
+/// （文字列返却オーバーロード）で行う。prompt は `instruction` + 改行 + `context` で構築する。
+/// `context` は Rust 側で上限文字数（≈3000字）に切り詰め済みを受ける前提（NFR-V046-002）。
+/// 生成失敗時は writeError で返し、Rust 側が narrative を空へ degrade する（FR-V046-005）。
+///
+/// - Parameter request: 自由文生成リクエスト（type == "summarize"）。
+func handleSummarize(_ request: SidecarRequest) async {
+    let lang = request.lang ?? "ja"
+
+    // instruction を必須とする（生成の役割・観点を担う）。欠落時は入力不正として degrade。
+    guard let instruction = request.instruction, !instruction.isEmpty else {
+        writeError("summarize request missing 'instruction'")
+        return
+    }
+
+    // prompt = instruction + 改行 + context。context は省略可（無ければ instruction のみ）。
+    var prompt = instruction
+    if let context = request.context, !context.isEmpty {
+        prompt += "\n" + context
+    }
+
+    do {
+        let session = LanguageModelSession(instructions: summarizeInstructions(for: lang))
+        // guided generation（@Generable）で概況・推奨アクションの2フィールドのみ生成する。
+        // analyze と同じ構造化生成パターン。自由文ではないため入力リストのエコー・Markdown 混入が起きない。
+        let response = try await session.respond(
+            to: prompt,
+            generating: CrossInsightGeneration.self
+        )
+        let content = response.content
+        writeLine(
+            SummarizeResponse(summary: content.summary, recommendation: content.recommendation)
+        )
+    } catch {
+        // 生成失敗は1行のエラーで返す。degrade 判断は Rust 側が行う（FR-V046-005）。
+        writeError("summarize failed: \(error.localizedDescription)")
     }
 }
 
@@ -457,6 +559,8 @@ func runLoop() async {
             writeLine(AvailabilityResponse(available: available, reason: reason))
         case "analyze":
             await handleAnalyze(request)
+        case "summarize":
+            await handleSummarize(request)
         case "embed":
             handleEmbed(request, holder: embeddingHolder)
         case "shutdown":

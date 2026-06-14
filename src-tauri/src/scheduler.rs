@@ -1135,6 +1135,7 @@ mod tests {
             Some("[]"),
             None,
             None,
+            None,
         )
         .await
         .unwrap();
@@ -1158,6 +1159,7 @@ mod tests {
             &week_key,
             lang,
             Some("[]"),
+            None,
             None,
             None,
         )

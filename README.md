@@ -18,7 +18,7 @@
 ### 📈 Reports & Summaries
 
 - **Reports page** accessible from the sidebar: aggregates issue statistics across all workspaces and projects
-- **Cross-workspace summary**: displays a statistics table of open, overdue, stalled, and assignee-attention issues with AI risk distribution; generates an AI narrative (one-line headline + highlights) from the top N issues
+- **Cross-workspace summary**: displays a statistics table of open, overdue, stalled, and assignee-attention issues with AI risk distribution; shows a **priority action list** (top N issues flat + per-project accordion with color-coded reason chips for overdue/risk/stalled/unassigned) and an **AI structured insight card** (situation overview + recommended action) generated from the top issues
 - **Weekly / monthly activity**: counts newly created, updated, and completed issues per project for a selected ISO-week (`YYYY-Www`) or month (`YYYY-MM`) period; a period selector allows switching to past reports
 - Statistics are computed deterministically by SQL (no LLM); only narratives use AI and degrade gracefully to statistics-only when AI is unavailable
 - Click a project row to jump to the issue list filtered to that project
@@ -153,7 +153,7 @@ pnpm run tauri:build
 ### Reports
 
 - Open the Reports page from the sidebar
-- The **Cross-workspace summary** tab shows statistics across all projects: open, overdue, stalled, and your assigned issues, along with AI risk distribution and an AI-generated narrative for the top issues
+- The **Cross-workspace summary** tab shows statistics across all projects: open, overdue, stalled, and your assigned issues, along with AI risk distribution. A **priority action list** highlights the top issues (flat cross-workspace list + per-project accordion), each annotated with color-coded reason chips (overdue, risk, stalled, unassigned) and a click-through link to Backlog. An **AI structured insight card** below the table shows a situation overview and recommended action
 - The **Weekly / Monthly activity** tab shows per-project issue counts (created, updated, completed) for the selected period; use the period selector to view past weeks or months
 - Reports are regenerated automatically once a day in the background; you can also trigger generation manually from the Reports page
 
