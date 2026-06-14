@@ -668,21 +668,21 @@
 
 ### `src-tauri/src/ai/embedding.rs`
 
-- **役割**: 埋め込み生成の抽象基盤（v0.4 新設・FR-V04-001）。ローカル埋め込みモデル（`multilingual-e5-small` / 384次元）による課題テキストのベクトル化を、推論経路（`LlmInference`）とは**別経路**として抽象化する。`ai/mod.rs` の `BackendKind` / `create_backend` レジストリ設計思想を埋め込み側に対置した骨格
+- **役割**: 埋め込み生成の抽象基盤（v0.4 新設・FR-V04-001）。OS 組み込みの埋め込みモデル（既定 `NLContextualEmbedding` / 論理名 `apple-nl-contextual-ja` / 512次元）による課題テキストのベクトル化を、推論経路（`LlmInference`）とは**別経路**として抽象化する。`ai/mod.rs` の `BackendKind` / `create_backend` レジストリ設計思想を埋め込み側に対置した骨格
 - **主なトレイト**:
   - `EmbeddingBackend`: 埋め込みバックエンドの抽象トレイト。`embed(&self, EmbeddingInput) -> impl Future<Output = Result<EmbeddingOutput>> + Send`（`prefix` を各テキスト先頭へ付与してモデルへ渡す。入出力は同順・同数）／`dim(&self) -> usize`（出力次元）／`model_name(&self) -> &str`（モデル識別名・再埋め込みポリシー判定用）を定義（native async-fn-in-trait。`+ Send` 制約のため `impl Future` 形式）
 - **主な型**:
   - `EmbeddingInput`: 埋め込み入力（`texts`（切り詰め済み・プレフィックス未付与の対象テキスト群） / `prefix`（全要素へ一律適用））
   - `EmbeddingOutput`: 埋め込み出力（`vectors`。入力 `texts` と同順・同数のベクトル群。次元は `dim()` と一致）
-  - `EmbedPrefix`: e5 系の入力プレフィックス enum（`Query` = `"query: "` / `Passage` = `"passage: "`。serde lowercase）。クエリと被検索文に**非対称**付与。`as_str()` / `apply(text)` ヘルパーを持つ
-  - `EmbeddingBackendKind`: 埋め込みバックエンド種別 enum（v0.4 は `MultilingualE5Small` のみ。将来 OS 同梱 `NLContextualEmbedding` 等を追加）
+  - `EmbedPrefix`: e5 系の入力プレフィックス enum（`Query` = `"query: "` / `Passage` = `"passage: "`。serde lowercase）。クエリと被検索文に**非対称**付与。`as_str()` / `apply(text)` ヘルパーを持つ。**ワイヤ契約として保持するが、既定の `NLContextualEmbedding` は使用しない**（将来 e5 系 DL バックエンドを足したとき sidecar が `prefix` を見て付与する）
+  - `EmbeddingBackendKind`: 埋め込みバックエンド種別 enum（v0.4 既定は `AppleNLContextual`（OS 組み込み `NLContextualEmbedding`）。将来 e5 系 DL モデル等を追加）
 - **主な定数**:
-  - `EMBEDDING_DIM`: 出力次元（= 384。`issue_embeddings` の BLOB レイアウトと一致）
+  - `EMBEDDING_DIM`: 出力次元（= 512。`issue_embeddings` の BLOB レイアウトと一致）
   - `EMBED_SOURCE_MAX_CHARS`: 埋め込み元テキストの切り詰め上限文字数（= 1800。512トークン対策の保守的既定値。実測判明後はここのみ更新）
 - **主な関数**:
   - `build_embed_source(summary, description, comments) -> String`: 単一ベクトル方式の埋め込み元テキスト組み立て。タイトル→本文→コメントを改行結合し `EMBED_SOURCE_MAX_CHARS` で**文字単位（マルチバイト境界保護）**に切り詰める。空パートはスキップ。プレフィックスは付与しない（付与は `embed` の責務）
-  - `create_embedding_backend<R: tauri::Runtime>(app: AppHandle<R>, kind: EmbeddingBackendKind) -> Result<impl EmbeddingBackend>`: 埋め込みバックエンド生成のレジストリ的入口（`create_backend` と同方針）。`MultilingualE5Small` アームは `FoundationModelsBackend::new(app)` を返す（analyze と同一 sidecar・同一管理タスクを共用し `embed` 要求で 384 次元ベクトルを得る。v0.4 でスタブから実バックエンドへ更新）。可用性は `availability::check_availability` を流用し、非対応環境（Intel 等）では `embed` が `Err` を返して呼び出し側が検索機能のみ degrade（NFR-V04-004 / NFR-V04-005）
-- **設計方針**: `LlmInference` とは別経路（入出力・呼び出し頻度が異なるためトレイト/レジストリ分離）／e5 の非対称プレフィックス（クエリ=`query:` / コーパス=`passage:`）／**単一ベクトル方式を既定**（512トークン対策の「チャンク分割 vs ダイジェスト」未解決事項は単一ベクトル＋文字数切り詰めで既定化。ダイジェスト移行は結合テキスト差し替えのみで残す）／バックエンド差し替えを `ai/` 内に閉じる／埋め込み非対応環境を阻害しないため生成は `Result` で失敗許容
+  - `create_embedding_backend<R: tauri::Runtime>(app: AppHandle<R>, kind: EmbeddingBackendKind) -> Result<impl EmbeddingBackend>`: 埋め込みバックエンド生成のレジストリ的入口（`create_backend` と同方針）。`AppleNLContextual` アームは `FoundationModelsBackend::new(app)` を返す（analyze と同一 sidecar・同一管理タスクを共用し `embed` 要求で 512 次元ベクトルを得る。v0.4 でスタブから実バックエンドへ更新）。可用性は `availability::check_availability` を流用し、非対応環境（Intel 等）では `embed` が `Err` を返して呼び出し側が検索機能のみ degrade（NFR-V04-004 / NFR-V04-005）
+- **設計方針**: `LlmInference` とは別経路（入出力・呼び出し頻度が異なるためトレイト/レジストリ分離）／プレフィックスは将来 e5 系用のワイヤ契約として保持（既定 `NLContextualEmbedding` は不使用）／**単一ベクトル方式を既定**（512トークン対策の「チャンク分割 vs ダイジェスト」未解決事項は単一ベクトル＋文字数切り詰めで既定化。ダイジェスト移行は結合テキスト差し替えのみで残す）／バックエンド差し替えを `ai/` 内に閉じる／埋め込み非対応環境を阻害しないため生成は `Result` で失敗許容
 - **テスト**: プレフィックス文字列・`apply` 付与（query/passage 非対称）・モックバックエンドでの `embed` プレフィックス付与・`dim`・`model_name`・`build_embed_source`（結合/空スキップ/文字数切り詰め）の 8 テスト（`#[cfg(test)]`、モックバックエンド）
 - **ステータス**: ✅ 実装済み（v0.4。trait・入出力型・`EmbedPrefix`・`build_embed_source`・`create_embedding_backend` レジストリ入口。`create_embedding_backend` は `FoundationModelsBackend`（sidecar 連携・`EmbeddingBackend` 実装）へ解決。`cargo build` / `cargo clippy -D warnings` / 単体テスト 8件 通過）
 
@@ -693,12 +693,12 @@
   - `FoundationModelsBackend`: `LlmInference` + `EmbeddingBackend` 実装。`new(app)` で生成し、要求を内部の管理タスクへ MPSC 送信して oneshot で応答受信。`Clone` 可（同一管理タスク・同一状態を共有）
     - `infer(&self, AiAnalysisInput) -> Result<AiAnalysisOutput>`: 課題1件の構造化分析（一時停止中は即エラー）
     - `availability(&self) -> Result<AvailabilityInfo>`: 可用性問い合わせ（FR-V03-002）
-    - `embed(&self, EmbeddingInput) -> Result<EmbeddingOutput>`（`EmbeddingBackend`）: テキスト群を 384 次元ベクトルへ変換（FR-V04-001。一時停止中は即エラー。応答は件数・次元を検証）／`dim() -> usize`（= `EMBEDDING_DIM`）／`model_name() -> &str`（= `EMBEDDING_MODEL_NAME`）
+    - `embed(&self, EmbeddingInput) -> Result<EmbeddingOutput>`（`EmbeddingBackend`）: テキスト群を 512 次元ベクトルへ変換（FR-V04-001。一時停止中は即エラー。応答は件数・次元を検証）／`dim() -> usize`（= `EMBEDDING_DIM`）／`model_name() -> &str`（= `EMBEDDING_MODEL_NAME`）
     - `state(&self) -> SidecarState`: 稼働状態取得（設定画面の動作状況表示用）
     - `resume(&self)`: 一時停止解除＋失敗カウンタリセット（手動再開）
   - `AvailabilityInfo`: 可用性情報（`available` / `reason`。reason は sidecar の理由コード文字列。フロントで理由別メッセージへマップ）
   - `SidecarState`: 稼働状態 enum（`Running` / `Suspended`。serde lowercase）
-  - 定数: `SIDECAR_NAME`（externalBin ベース名 `binaries/projectlens-ai-sidecar`）/ `BACKEND_NAME`（`foundation-models`。`ai_results.model_used` に記録）/ `EMBEDDING_MODEL_NAME`（`multilingual-e5-small`。`issue_embeddings.model` に記録・再埋め込み判定用。バックエンド名とは別概念）/ `MAX_CONSECUTIVE_FAILURES`（一時停止閾値=3）
+  - 定数: `SIDECAR_NAME`（externalBin ベース名 `binaries/projectlens-ai-sidecar`）/ `BACKEND_NAME`（`foundation-models`。`ai_results.model_used` に記録）/ `EMBEDDING_MODEL_NAME`（`apple-nl-contextual-ja`。`issue_embeddings.model` に記録・再埋め込み判定用。バックエンド名とは別概念）/ `MAX_CONSECUTIVE_FAILURES`（一時停止閾値=3）
 - **プロセス管理・自動再起動（FR-V03-001）**: 専用の管理タスクが要求を1件ずつ直列処理（同時推論1件・NFR-V03-003）。analyze と embed は同一 sidecar プロセスを共用（直列化されるため同時実行は構造的に1件）。sidecar は遅延起動（アイドル時非消費）し、正常時は常駐プロセスを再利用。異常終了（`Terminated`/`Error`/タイムアウト）を検知すると次要求で再起動。連続失敗が閾値超過で `Suspended` へ遷移し以降の要求を即エラー化、`resume()` で復帰。プロセス drop 時は `CommandChild::kill` で停止
 - **応答突合**: sidecar プロトコルに要求 ID が無く応答は送信順に1対1対応するため、管理タスクの直列処理で突合を担保。sidecar の `error` 応答は通信成立とみなし要求のみ失敗（再起動しない）。embed 応答は件数（要求 texts 数）と各ベクトルの次元（`EMBEDDING_DIM`）を検証し、不一致は `Err`（BLOB 保存・コサイン類似度計算の前提を守る）
 - **テスト容易性**: sidecar 起動・通信を `SidecarTransport` / `SidecarProcess` トレイトで抽象化。本番は `ShellSidecarTransport`、テストはモックで管理タスクのロジック（analyze/embed の要求応答・再起動・連続失敗での一時停止・プロトコル整合・analyze と embed の sidecar 共用・embed の件数/次元検証）を実機なしで検証（`#[cfg(test)]` で 16 テスト）
@@ -720,8 +720,8 @@
 
 - **役割**: バックグラウンド埋め込みワーカー（v0.4 新設・FR-V04-001 / FR-V04-004）。`job_queue` の `embed` ジョブ（`JOB_TYPE_EMBED`）を **同時1件** で消費し、課題テキストの埋め込みベクトルを `issue_embeddings` に保存する独立タスク。summarize ワーカー（`worker.rs`）とは別タスクで動き、本体機能・summarize・v0.3 AI を阻害しない（NFR-V04-005）
 - **主な公開要素**:
-  - `init(app: AppHandle)`: ワーカー起動（`lib.rs` の setup から DB 準備後・summarize ワーカーと並べて呼ぶ）。`create_embedding_backend(MultilingualE5Small)` でバックエンドを生成し、生成失敗（AI 非対応環境等）ならワーカーを起動せず本体は阻害しない
-- **処理フロー**（`run_loop` → `drain_queue` → `process_job`）: `POLL_INTERVAL_SECS`（30秒）ごとに、AI 機能 ON（`worker.rs` と共有の `SETTING_AI_ENABLED`）のときだけ `get_pending_jobs(1)` で1件取得 → 先頭が `embed` 以外（summarize 等）ならその場でループ脱出（横取りせず summarize ワーカーへ委ねる）→ `embed` なら `processing` へ遷移 → `get_issue_embed_text`（本文・コメントを SQL 切り詰め）で埋め込み元テキスト取得 → `compute_source_hash` を算出し `get_embedding_source_hash` と一致なら**再埋め込みスキップで `done`**（FR-V04-004）→ 変化していれば `embed_with_retry`（`passage:` プレフィックス・最大 `MAX_JOB_RETRIES` 回）で 384 次元ベクトル生成 → 次元検証（`backend.dim()` と一致）→ `save_embedding`（BLOB UPSERT・`EMBEDDING_MODEL` / `source_hash` 記録）→ `done`。課題不在・全リトライ失敗・次元不一致は `failed` にしてスキップ記録（NFR-V04-005）
+  - `init(app: AppHandle)`: ワーカー起動（`lib.rs` の setup から DB 準備後・summarize ワーカーと並べて呼ぶ）。`create_embedding_backend(AppleNLContextual)` でバックエンドを生成し、生成失敗（AI 非対応環境等）ならワーカーを起動せず本体は阻害しない
+- **処理フロー**（`run_loop` → `drain_queue` → `process_job`）: `POLL_INTERVAL_SECS`（30秒）ごとに、AI 機能 ON（`worker.rs` と共有の `SETTING_AI_ENABLED`）のときだけ `get_pending_jobs(1)` で1件取得 → 先頭が `embed` 以外（summarize 等）ならその場でループ脱出（横取りせず summarize ワーカーへ委ねる）→ `embed` なら `processing` へ遷移 → `get_issue_embed_text`（本文・コメントを SQL 切り詰め）で埋め込み元テキスト取得 → `compute_source_hash` を算出し `get_embedding_source_hash` と一致なら**再埋め込みスキップで `done`**（FR-V04-004）→ 変化していれば `embed_with_retry`（`passage:` プレフィックス指定・最大 `MAX_JOB_RETRIES` 回。既定 `NLContextualEmbedding` は prefix を無視）で 512 次元ベクトル生成 → 次元検証（`backend.dim()` と一致）→ `save_embedding`（BLOB UPSERT・`EMBEDDING_MODEL` / `source_hash` 記録）→ `done`。課題不在・全リトライ失敗・次元不一致は `failed` にしてスキップ記録（NFR-V04-005）
 - **再埋め込みポリシー（FR-V04-004 / 未解決事項#5）**: `source_hash` は標準ライブラリ `DefaultHasher`（SipHash・追加依存なし）で算出した 16桁16進文字列。暗号強度不要で「同一テキスト→同一ハッシュ」の変更検知のみが要件。保存済みハッシュと一致すれば埋め込みを行わず sidecar も起こさない（アイドル時非消費・NFR-V04-003）。モデル更新時の再生成は `issue_embeddings.model` 側で将来対応（本ワーカーは未実装）
 - **アイドル設計（NFR-V04-003）**: AI 機能 OFF・可用性なし（embed が `Err`）・キュー空のときは埋め込みせずアイドル。同時1件はバックエンド側の管理タスクで担保（analyze と同一 sidecar を直列共用）。`sync`・UI をブロックしない独立タスク
 - **テスト**: embed ジョブ消費→ベクトル保存→`source_hash` 不変でスキップ（完了条件）/ 課題不在で `failed` / テキスト変更で再埋め込み / `compute_source_hash` の決定性・敏感性 の 4 テスト（`#[cfg(test)]`、in-memory SQLite + 呼び出し回数を数えるモック `EmbeddingBackend`）。課題仕込みはクレート内共通の `DbClient::insert_test_issue`（`#[cfg(test)] pub(crate)`）を使用
@@ -729,7 +729,7 @@
 
 ### `src-tauri/src/ai/cosine.rs`
 
-- **役割**: コサイン類似度計算（v0.4 新設・FR-V04-004）。埋め込みベクトル（384次元）どうしの類似度を、外部依存を増やさず f32 演算の純粋関数として総当たり計算する最小モジュール。`search_similar_issues` コマンドが利用
+- **役割**: コサイン類似度計算（v0.4 新設・FR-V04-004）。埋め込みベクトル（512次元）どうしの類似度を、外部依存を増やさず f32 演算の純粋関数として総当たり計算する最小モジュール。`search_similar_issues` コマンドが利用
 - **主な関数**:
   - `cosine_similarity(a: &[f32], b: &[f32]) -> f32`: 内積・両ノルムを1パスで計算（NFR-V04-002 を意識）。**ゼロベクトル・次元不一致は `NaN` を返さず `0.0`（無相関）を返す**（上位N抽出のソート破綻防止）
 - **テスト**: 同一=1.0 / 直交=0.0 / 反転=-1.0 / スケール不変=1.0 / ゼロベクトルで NaN を返さない / 次元不一致で 0.0 / 手計算（`1/√2`）一致 の 7 テスト（`#[cfg(test)]`）
@@ -737,17 +737,17 @@
 
 ### `src-tauri/sidecar/`（Swift sidecar: FoundationModels + 埋め込み）
 
-- **役割**: macOS 26 の FoundationModels で課題1件を guided generation 分析し、加えて `multilingual-e5-small`（Core ML）で課題テキストの埋め込みベクトル（384次元）を生成する常駐プロセス（v0.3 新設・v0.4 で埋め込み追加）。Tauri 本体から `externalBin` 同梱され、JSON Lines over stdin/stdout で通信する
+- **役割**: macOS 26 の FoundationModels で課題1件を guided generation 分析し、加えて OS 組み込みの `NLContextualEmbedding(language: .japanese)`（NaturalLanguage・CJK 対応）で課題テキストの埋め込みベクトル（512次元・トークン文脈ベクトルを mean-pooling）を生成する常駐プロセス（v0.3 新設・v0.4 で埋め込み追加）。Tauri 本体から `externalBin` 同梱され、JSON Lines over stdin/stdout で通信する
 - **主なファイル**:
-  - `Package.swift`: Swift Package 定義（`.macOS("26.0")` / executableTarget `projectlens-ai-sidecar`）。v0.4 で `resources: [.copy("Resources")]` を追加し埋め込みモデルを `Bundle.module` 経由で同梱可能にした
-  - `Sources/projectlens-ai-sidecar/main.swift`: 本体。`readLine()` ブロッキング read のメインループ（アイドル時 CPU 非消費・NFR-V03-003）。v0.4 で `embed` ケース・`handleEmbed`・`EmbeddingModel`（Core ML 遅延ロード holder）を追加
-  - `Sources/projectlens-ai-sidecar/Resources/`: 埋め込みモデル（`MultilingualE5Small.mlmodelc`）・語彙の同梱先。`README.md` で入手・変換・配置手順を明文化（モデル本体は `.gitignore` で除外＝git 非追跡）
+  - `Package.swift`: Swift Package 定義（`.macOS("26.0")` / executableTarget `projectlens-ai-sidecar`）。`resources: [.copy("Resources")]` は**将来の DL 可能 e5 モデル用のスキャフォールド**（既定の `NLContextualEmbedding` は OS 提供のためモデルファイル不要）
+  - `Sources/projectlens-ai-sidecar/main.swift`: 本体。`readLine()` ブロッキング read のメインループ（アイドル時 CPU 非消費・NFR-V03-003）。v0.4 で `embed` ケース・`handleEmbed`・`EmbeddingModel`（`NLContextualEmbedding` 遅延ロード holder）を追加
+  - `Sources/projectlens-ai-sidecar/Resources/`: 将来の DL 可能 e5 モデル（`.mlmodelc`）・語彙の置き場として用意したスキャフォールド。**現状は `README.md` のみ**で、既定の `NLContextualEmbedding` は OS 提供のためモデルファイルは不要（配布サイズ増なし）
   - `README.md`: 入出力契約・ビルド要件・埋め込みモデル配布形式・未解決事項の明文化
 - **入出力契約**（Rust 側 `ai/mod.rs` + `ai/embedding.rs` と一致）:
   - リクエスト（1行 JSON）: `{type:"availability"}` / `{type:"analyze", issue_key, summary, description_head, status, due_date?, lang}` / `{type:"embed", texts:[...], prefix:"query|passage"}`（v0.4。texts は切り詰め済み・**プレフィックス未付与**） / `{type:"shutdown"}`（EOF でも終了）
-  - レスポンス（1行 JSON）: `{type:"availability", available, reason}`（reason: `available` / `appleIntelligenceNotEnabled` / `modelNotReady` / `deviceNotEligible` / `unavailableOther`） / `{type:"result", summary, risk_level, suggestion}` / `{type:"embedding", vectors:[[...384f...],...]}`（v0.4。入力 texts と同順・同数・384次元） / `{type:"error", message}`
-- **埋め込みプレフィックスの契約（二重付与防止）**: e5 の `query: ` / `passage: ` プレフィックス付与は**sidecar 側で行う**。Rust 側は `prefix` でどちらを付けるかを渡すだけで texts には付与しない（付与点を一箇所に固定）。sidecar の `EmbedPrefix.literal` と Rust `EmbedPrefix::as_str()`（`"query: "` / `"passage: "`）を一致させる
-- **埋め込みモデル配布形式（未解決事項#2 を確定）**: **Core ML**（`.mlmodelc`）を採用。Apple 同梱フレームワークで SwiftPM 外部依存が不要、ANE 活用で低メモリ常駐（NFR-V04-003）。`mlx-swift` 等は足さない。ライセンスは **MIT**（intfloat / multilingual-e5-small）。配布サイズ 100〜250MB 増（NFR-V04-004）のためモデル本体は git 非追跡。**Apple Silicon 前提**（Intel・非対応環境では Rust 側が埋め込みを無効化し embed を送らない）。モデル未配置でも `swift build` は成功し embed は `{type:"error"}` を返す（プロトコル成立・推論のみ degrade・NFR-V04-005）
+  - レスポンス（1行 JSON）: `{type:"availability", available, reason}`（reason: `available` / `appleIntelligenceNotEnabled` / `modelNotReady` / `deviceNotEligible` / `unavailableOther`） / `{type:"result", summary, risk_level, suggestion}` / `{type:"embedding", vectors:[[...512f...],...]}`（v0.4。入力 texts と同順・同数・512次元） / `{type:"error", message}`
+- **埋め込みプレフィックスの契約（将来 e5 用）**: `prefix`（`query:` / `passage:`）は **e5 系バックエンドを足したとき sidecar 側で付与する**ためのワイヤ契約。Rust 側は `prefix` でどちらを付けるかを渡すだけで texts には付与しない（付与点を一箇所に固定）。**既定の `NLContextualEmbedding` は prefix を使用せず無視する**。sidecar の `EmbedPrefix.literal` と Rust `EmbedPrefix::as_str()`（`"query: "` / `"passage: "`）を一致させておく
+- **埋め込みモデル方式（既定）**: 既定は OS 組み込みの **`NLContextualEmbedding`（NaturalLanguage・macOS 14+・日本語/CJK・512次元）**。**OS がアセットを提供するためモデルファイルの同梱は不要・配布サイズ増なし**（NFR-V04-004）。`mlx-swift` 等の追加依存も無い。アセット未取得・利用不可（Intel 機等）の環境では Rust 側が埋め込みを無効化し embed を送らない（検索のみ degrade・NFR-V04-005）。**将来の高精度化オプション**として e5 系モデルを Core ML（`.mlmodelc`）で `Resources/` に配置し DL 差し替えできる土台（`Bundle.module` / `.copy("Resources")`）を残してある（配置時は MIT ライセンス・100〜250MB 程度の配布サイズ増。現状は未配置）
 - **構造化出力**: `@Generable struct AnalysisGeneration`（summary / riskLevel / suggestion）+ `@Generable enum GenerationRiskLevel`（high/medium/low）。遅延日数は SQL 算出のためスキーマに含めない
 - **言語追従**: `lang`（ja/en）で instructions を切替（FR-V03-005）
 - **設計上の注意**: instructions は guided generation スキーマと合算でコンテキストを消費するため簡潔に保つ（長い日本語 instructions はコンテキスト超過を誘発したため最小化）。埋め込みモデルは初回 `embed` 要求まで遅延ロード（`EmbeddingModelHolder`）。runLoop は単一スレッド直列処理のため holder は `@unchecked Sendable`
@@ -830,8 +830,8 @@
   - `CrossSummaryStat`（v0.4.5 新設・FR-V045-002）: 横断サマリのプロジェクト別集計1行（`#[serde(rename_all = "camelCase")]`）。`projectKey` / `openCount`（未完了） / `overdueCount`（期限超過） / `staleCount`（停滞） / `myActionableCount`（自分担当の要対応） / `riskHigh` / `riskMedium` / `riskLow`（`ai_results` の risk 分布）。`get_cross_summary_stats` の戻り値要素であり、`report_summaries.stats_json` の配列形状を確定する基準（フロント型定義・後段生成コマンドが従う）
   - `PeriodActivityStat`（v0.4.5 新設・FR-V045-003）: 週次/月次アクティビティのプロジェクト別集計1行（`#[serde(rename_all = "camelCase")]`）。`projectKey` / `createdCount`（期間内作成） / `updatedCount`（期間内更新） / `completedCount`（期間内完了＝`is_corpus_only=1` かつ更新が期間内）。`get_period_activity_stats` の戻り値要素
 - **主な定数・ヘルパー関数**:
-  - `EMBEDDING_MODEL`（v0.4）: 埋め込みモデルの論理識別子 `"multilingual-e5-small"`。`issue_embeddings.model` に保存
-  - `EMBEDDING_DIM`（v0.4）: 埋め込み次元数 `384`
+  - `EMBEDDING_MODEL`（v0.4）: 埋め込みモデルの論理識別子 `"apple-nl-contextual-ja"`（OS 組み込み `NLContextualEmbedding`）。`issue_embeddings.model` に保存・再埋め込み判定に使用
+  - `EMBEDDING_DIM`（v0.4）: 埋め込み次元数 `512`
   - `vector_to_blob(&[f32]) -> Vec<u8>` / `blob_to_vector(&[u8]) -> Vec<f32>`（v0.4）: f32 ベクトル ↔ リトルエンディアン BLOB の手実装変換（`bytemuck` 等の依存を増やさない。端数バイトは切り捨て）
 - **主なテーブル**:
   - `settings` / `sync_state` / `workspaces` / `issues`（既存）
@@ -839,7 +839,7 @@
   - `job_queue`（v0.3 新設）: バックグラウンドAI処理キュー（`status`: pending / processing / done / failed）
   - `issue_comments`（v0.4 新設）: コメント本文保存。PK は `(workspace_id, issue_id, comment_id)`。差分取得のコンテンツ保管専用
   - `issue_comment_state`（v0.4 新設）: コメント差分取得状態管理。PK は `(workspace_id, issue_id)`。`last_comment_id`（最終取得 ID）/ `status`（idle/fetching/done/failed）/ `retry_count` を保持
-  - `issue_embeddings`（v0.4 新設）: multilingual-e5-small 384次元ベクトルを BLOB 保存。PK は `(workspace_id, issue_id)`。`source_hash` でコンテンツ変更検知・再埋め込みトリガー
+  - `issue_embeddings`（v0.4 新設）: `NLContextualEmbedding` 512次元ベクトルを BLOB 保存。PK は `(workspace_id, issue_id)`。`source_hash` でコンテンツ変更検知・再埋め込みトリガー
   - `issues.is_corpus_only`（v0.4 追加カラム）: `INTEGER DEFAULT 0`。完了課題コーパス行の分離フラグ。`1` の行は類似検索コーパスのみに使用し、`get_issues`（ダッシュボード・一覧）からは除外する
   - `issues.created_at`（v0.4.5 追加カラム）: `TEXT`（非破壊 ALTER）。Backlog API の `created`（課題作成日時）を `save_issues` で展開保存し、週次/月次レポートの「期間内新規作成件数」集計（FR-V045-003）に使う。旧 DB の既存行は再 sync まで NULL（集計は created_at の有無で範囲判定するため未取り込み行は新規作成件数に混入しない＝degrade）
   - `report_summaries`（v0.4.5 新設）: レポート/サマリー保存。PK は `(workspace_id, report_type, period_key, lang)`。`stats_json`（プロジェクト別集計 JSON）/ `headline`（AI 見出し）/ `narrative`（AI narrative）/ `generated_at`。横断サマリは `period_key='latest'` で最新上書き、週次/月次は期間キーで履歴保持（FR-V045-006）
@@ -1003,3 +1003,4 @@ Claude Code のスラッシュコマンド定義（Markdown）。
 - 2026-06-14: v0.4.5 ドキュメント同期。`reports/ReportNarrative.vue`（AI narrative 共用コンポーネント・Props: title/headline/narrative/degradedReason・CrossSummarySection と WeeklyMonthlySection で共用）と `IssueBackgroundSummary.vue`（背景・経緯の要約表示専用・Props: open・useReports グローバルステートを参照・IssueDetailDialog にマウント）の2エントリを追加。ARCHITECTURE.md に `components/reports/` ディレクトリを追加。REQUIREMENTS.md の v0.4.5 ステータスを実装済みに更新
 - 2026-06-14: v0.4.5 課題詳細ダイアログに背景・経緯の要約導線を追加(IssueDetailDialog.vue・useReports.ts・locales/{ja,en}.json・FR-V045-004)。`IssueDetailDialog.vue` のアクション群(再分析・類似を探すと並ぶ位置)に「背景・経緯を要約」ボタン(`size='small' variant='tonal' color='purple-darken-1' prepend-icon='mdi-text-box-search'`・`:loading=backgroundSummaryLoading`)を追加。クリックで `useReports().generateBackgroundSummary(issue.workspace_id, issue.id, locale)` を呼び、本文の `IssueAiAnalysis` 直下に折りたたみセクションを表示(`mdi-creation`+生成ラベル・生成中は `v-progress-circular` スピナー・要約テキストは `ai-text-box`・空文字時は `mdi-comment-off-outline`+「コメントなし（要約対象なし）」)。セクションは一度でも生成を実行したら表示(`showBackgroundSummary` = loading || loaded)。状態は `useReports` 側の per-issue 背景要約 state(`backgroundSummary`/`backgroundSummaryLoading`/`backgroundSummaryLoaded`)を共用し(IssueDetailDialog は同時1つのため `useSimilarSearch` 同様のモジュール単一グローバルステート)、`modelValue` の watch でダイアログを開くたびに `resetBackgroundSummary` でクリアし課題の取り違えを防止。2回目は Rust 側 `source_hash`+`lang` キャッシュで即返し。`useReports.ts` に per-issue state 3本(`backgroundSummary`/`backgroundSummaryLoading`/`backgroundSummaryLoaded`)・`resetBackgroundSummary` を追加し、`generateBackgroundSummary` に optional `lang` 引数(省略時 UI 言語追従)を追加して state 駆動へ変更(コメントなし・AI 非対応・生成失敗・DB エラーは空文字へ degrade)。`locales/{ja,en}.json` の `ai.issueDetail` に `summarizeBackground`/`backgroundSummaryTitle`/`backgroundSummarizing`/`backgroundNoComments` を日英で追加。`pnpm run lint`(0 errors)/`pnpm run format:check` 通過
 - 2026-06-14: v0.4.5 レポート1日1回バックグラウンド自動生成のスケジューラ結線(scheduler.rs・commands.rs・FR-V045-005)。`commands.rs` の `generate_reports` 生成コアを `pub(crate) generate_report(&app, &db, workspace_id, report_type, lang)` へ抽出し、コマンドは薄いラッパーに(コマンドと自動生成が同一経路)。`CROSS_SUMMARY_REGEN_HOURS`(`#[allow(dead_code)]` 解除)・`iso_week_key`・`month_key` を `pub(crate)` 化。`scheduler.rs` の `sync_and_notify` のワークスペースループ直後(トレイ更新の前)に `generate_due_reports(app, &db)` を追加。AI ON(`is_ai_enabled`=`settings.ai_enabled=="true"`)かつ可用性あり(`ai_is_available`=FoundationModels バックエンドを一時生成し `availability==available`)のときだけ実行、それ以外はアイドル(可用性問い合わせの sidecar 起動も AI ON 時のみ)。有効ワークスペースごとに横断サマリ=`cross_summary_is_due`(`generated_at` 経過≥`CROSS_SUMMARY_REGEN_HOURS`・未生成/欠落/パース失敗は true)、週次/月次=`period_report_is_due`(現在の `iso_week_key`/`month_key` で `get_report_summary` が `None`)を判定し、`generate_report_quietly`→`commands::generate_report`(`job_queue` を介さず直接 `create_backend`→`infer`)で生成。失敗は本体(通常 sync)を止めずログのみ(NFR-V045-003)。新定数 `SETTING_LANGUAGE`/`DEFAULT_REPORT_LANG`(`ja`)/`REPORT_TYPE_*`/`CROSS_SUMMARY_PERIOD_KEY`。scheduler.rs に単体テスト4件追加(`is_ai_enabled` の `"true"` のみ有効・`resolve_report_lang` の既定/追従・`cross_summary_is_due` の未生成→true/生成直後→false・`period_report_is_due` の未生成→true/生成済み→false。in-memory SQLite。背景日時 backdate は db.pool が private のため省略)。`cargo build` / `clippy --all-targets -D warnings` / `fmt --check` / 単体テスト(scheduler::tests 8件) 通過。AI ON 環境での実生成・AI OFF アイドルの実機ログ確認は残(注: db.rs の日付相対テスト3件は本作業と無関係に当日付替わりで失敗。baseline でも再現確認済み)
+- 2026-06-14: 埋め込みモデル記述の実装同期(COMPONENTS.md のみ・ドキュメント修正)。v0.4 実装中に既定埋め込みを **`multilingual-e5-small`(Core ML・384次元) → OS 組み込み `NLContextualEmbedding`(`apple-nl-contextual-ja`・512次元)** へ切り替えた際、本ドキュメントの「現状仕様」セクション(embedding.rs・foundation_models.rs・embed_worker.rs・cosine.rs・sidecar 節と db.rs 定数/テーブル)に旧記述が残っていたのを実装(`EMBEDDING_DIM=512`・`EMBEDDING_MODEL="apple-nl-contextual-ja"`・`EmbeddingBackendKind::AppleNLContextual`・sidecar の `NLContextualEmbedding(language:.japanese)` mean-pooling)に合わせて修正。NLContextual は OS 提供のため**モデルファイル同梱不要・配布サイズ増なし**であり、Core ML `.mlmodelc`/`.copy("Resources")`/`EmbedPrefix`(query:/passage:) は**将来の DL 可能 e5 モデル用の休眠スキャフォールド**(既定では未使用)である旨を明記。過去の日付付き changelog 行は当時の事実として保持(履歴は書き換えない)。日付相対テスト3件の失敗は別コミット `fix(ai): …localtime…` で解消済み
